@@ -543,7 +543,7 @@ static struct uni_language uni_lang[]= {
 		unicode_adobestd,
 		"adobestd",
 		"Adobe Standard, expected by TeX",
-		{ },
+		{ NULL },
 		'A'
 	},
 #if 0 /* nonfunctional, needs a translation map - here only as example */
@@ -1552,6 +1552,7 @@ unicode_latin5(
 	}
 }
 
+#if 0
 /* non-functional now, shown as example */
 static int GBK_plane;
 
@@ -1585,7 +1586,7 @@ unicode_GBK(
 		 char *arg
 )
 {
-	static int map[0]={};
+	static int map[1]={0};
 	int res;
 
 	if(arg==0) /* just probing - never answer */
@@ -1600,6 +1601,7 @@ unicode_GBK(
 	else
 		return -1;
 }
+#endif /* 0 */
 
 static int
 unicode_to_win31(
