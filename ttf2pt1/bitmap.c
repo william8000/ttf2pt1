@@ -138,8 +138,8 @@ struct cfrag {
 #define FRF_LINE	0x0010 /* this is a line - else curve */
 #define FRF_CORNER	0x0020 /* this curve is just a (potentially) rounded corner */
 #define FRF_IGNORE	0x0040 /* this fragment should be ignored */
-#define FRF_EXPAND_05	0x0080 /* this fragment should be expanded by 0.5 points */
-
+	short back; /* step backwards to the next frag in the contour */
+	short forw; /* step forwards to the next frag in the contour */
 };
 typedef struct cfrag CFRAG;
 
@@ -164,9 +164,12 @@ bmp_outline(
 {
 	char *hlm, *vlm; /* arrays of the limits of outlines */
 	char *amp; /* map of ambiguous points */
-	int x, y, nfrags, maxfrags;
+	int x, y, nfrags, maxfrags, firstfrag;
 	char *ip, *op;
 	double fscale;
+
+	if(xsz==0 || ysz==0)
+		return;
 
 #ifdef USE_AUTOTRACE
 	if(use_autotrace) {
@@ -457,7 +460,7 @@ bmp_outline(
 	if(vectorize) { 
 		GENTRY *ge, *pge, *cge, *loopge;
 		CFRAG *frag;
-		int fhint;
+		int fhint, i;
 
 		/* there can't be more fragments than gentries */
 		maxfrags += 2; /* empty fragments at the beginning and the end */
@@ -471,6 +474,7 @@ bmp_outline(
 		frag[0].first = frag[0].last = NULL;
 		frag[0].usefirst = frag[0].uselast = 0.; 
 		frag[nfrags++].flags = FRF_IGNORE;
+		firstfrag = 0;
 
 		dumppaths(g, NULL, NULL);
 		for(cge=g->entries; cge!=0; cge=cge->next) {
@@ -482,9 +486,11 @@ bmp_outline(
 				int hdir, vdir, d, firsthor, hor, count;
 				int firstlen, lastlen, nextlen;
 				/* these are flags showing what this fragment may be yet */
-				int hline, vline, convex, concave, hline2, vline2, hline3, vline3;
-				int nexthline, nextvline, nextconvex, nextconcave;
-				int lastdx, lastdy, maxlen, minlen;
+				int convex, concave; 
+				int nextconvex, nextconcave;
+				int lastdx, lastdy; 
+				int line[2 /*V,H*/], line2[2 /*V,H*/], line3[2 /*V,H*/]; 
+				int nextline[2 /*V,H*/], maxlen[2 /*V,H*/], minlen[2 /*V,H*/];
 
 				/* we know that all the contours start at the top-left corner,
 				 * so at most it might be before/after the last element of
@@ -512,18 +518,20 @@ bmp_outline(
 					hdir = isign(ge->ix3 - pge->ix3);
 					vdir = isign(ge->iy3 - pge->iy3);
 					firsthor = hor = (hdir != 0);
-					lastlen = maxlen = minlen = lastdx = lastdy = 0;
-					if(hor) {
+					lastlen = lastdx = lastdy = 0;
+					if(hor)
 						firstlen = lastlen = abs(ge->ix3 - pge->ix3);
-						nexthline = hline = hline2 = hline3 = 1;
-						nextvline = vline = vline2 = vline3 = 0;
-					} else {
+					else
 						firstlen = lastlen = abs(ge->iy3 - pge->iy3);
-						nexthline = hline = hline2 = hline3 = 0;
-						nextvline = vline = vline2 = vline3 = 1;
+					for(i=0; i<2; i++) {
+						nextline[i] = line[i] = line2[i] = line3[i] = 1;
+						maxlen[i] = minlen[i] = 0;
 					}
 
 					frag[nfrags].first = ge;
+					frag[nfrags].forw = 1; frag[nfrags].back = -1;
+					if(!firstfrag)
+						firstfrag = nfrags;
 					count = 1;
 
 					fprintf(stderr, " frag start at %p\n", ge);
@@ -536,7 +544,7 @@ bmp_outline(
 
 					do {
 						fprintf(stderr, " hline=%d vline=%d convex=%d concave=%d\n",
-							hline, vline, convex, concave);
+							line[1], line[0], convex, concave);
 						pge = ge;
 						ge = ge->frwd;
 						fprintf(stderr, " frag + %p\n",  ge);
@@ -589,36 +597,35 @@ bmp_outline(
 							break;
 						}
 						/* may it be a continuation of the line in its long direction ? */
-						if( nexthline && hor || nextvline && !hor ) {
-							if(maxlen==0)
-								maxlen = minlen = nextlen;
-							else if(maxlen==minlen) {
-								if(nextlen < maxlen) {
-									if(nextlen < minlen-1)
-										nexthline = nextvline = 0; /* it can't */
+						if( nextline[hor] ) {
+							if(maxlen[hor]==0)
+								maxlen[hor] = minlen[hor] = nextlen;
+							else if(maxlen[hor]==minlen[hor]) {
+								if(nextlen < maxlen[hor]) {
+									if(nextlen < minlen[hor]-1)
+										nextline[hor] = 0; /* it can't */
 									else
-										minlen = nextlen;
+										minlen[hor] = nextlen;
 								} else {
-									if(nextlen > maxlen+1)
-										nexthline = nextvline = 0; /* it can't */
+									if(nextlen > maxlen[hor]+1)
+										nextline[hor] = 0; /* it can't */
 									else
-										maxlen = nextlen;
+										maxlen[hor] = nextlen;
 								}
-							} else if(nextlen < minlen || nextlen > maxlen)
-								nexthline = nextvline = 0; /* it can't */
+							} else if(nextlen < minlen[hor] || nextlen > maxlen[hor])
+								nextline[hor] = 0; /* it can't */
 						}
 						/* may it be a continuation of the line in its short direction ? */
-						if( nexthline && !hor || nextvline && hor ) {
-							if(nextlen != 1)
-								nexthline = nextvline = 0; /* it can't */
-						}
+						if( nextlen != 1 )
+							nextline[!hor] = 0; /* it can't */
 
-						if(!nextconvex && !nextconcave && !nexthline && !nextvline)
+						if(!nextconvex && !nextconcave && !nextline[0] && !nextline[1])
 							goto overstepped; /* this can not be a reasonable continuation */
 
 						lastlen = nextlen;
-						hline3 = hline2; hline2 = hline; hline = nexthline;
-						vline3 = vline2; vline2 = vline; vline = nextvline;
+						for(i=0; i<2; i++) {
+							line3[i] = line2[i]; line2[i] = line[i]; line[i] = nextline[i];
+						}
 						convex = nextconvex;
 						concave = nextconcave;
 					} while(ge != cge->next);
@@ -642,68 +649,97 @@ bmp_outline(
 						d |= FRF_DVPLUS;
 					frag[nfrags].flags = d;
 
+
+					fprintf(stderr, " final %c->%c hline=%d vline=%d convex=%d concave=%d count=%d\n",
+						(firsthor?'h':'v'), (hor?'h':'v'), line2[1], line2[0], convex, concave, count);
+
 					if(count == 2) {
 				makecorner:
 						frag[nfrags].flags |= FRF_CORNER;
 						frag[nfrags].usefirst = frag[nfrags].uselast = 1. ;
 						frag[nfrags].last = ge;
-						fprintf(stderr, "%s: corner at (%d, %d)\n",
-							g->name, frag[nfrags].first->ix3, frag[nfrags].first->iy3);
+						fprintf(stderr, "%s: corner at (%d, %d) %p-%p\n",
+							g->name, frag[nfrags].first->ix3, frag[nfrags].first->iy3,
+							frag[nfrags].first, frag[nfrags].last);
 						nfrags++;
 						continue;
 					}
 
-					/* convenient for future calculations */
-					if(hor)
-						lastlen = abs(ge->ix3 - pge->ix3);
-					else
-						lastlen = abs(ge->iy3 - pge->iy3);
+					/*
+					 * first check whether we have a beveled corver
+					 */
+
+					if(firsthor!=hor && (line2[0] | line2[1])
+					&& (count >= 12 || count >=8 
+								&& abs(ge->bkwd->ix3 - frag[nfrags].first->ix3)
+									== abs(ge->bkwd->iy3 - frag[nfrags].first->iy3) ) 
+					) {
+						frag[nfrags].flags |= FRF_LINE;
+						frag[nfrags].last = ge;
+						frag[nfrags].usefirst = 0.5;
+						frag[nfrags].uselast = 0.5;
+						fprintf(stderr, "%s: beveled line at (%d, %d) %f - (%d, %d) %f %p-%p\n",
+							g->name, frag[nfrags].first->ix3, frag[nfrags].first->iy3,
+							frag[nfrags].usefirst,
+							frag[nfrags].last->prev->ix3, frag[nfrags].last->prev->iy3,
+							frag[nfrags].uselast,
+							frag[nfrags].first, frag[nfrags].last);
+						nfrags++;
+						continue;
+					}
 
 					/* If the last gentry is going on the same axis as the first
 					 * then we prefer to treat it as a line. The line flag from
 					 * one step back is used since if the last gentry is short,
 					 * it will clear the line flags for the last step.
 					 */
-					if(firsthor==hor && (hline2 | vline2)) {
+					if(firsthor==hor && (line2[0] | line2[1])) {
 				makeline:
+						if(hor)
+							lastlen = abs(ge->ix3 - pge->ix3);
+						else
+							lastlen = abs(ge->iy3 - pge->iy3);
+
+						if(count == 3) {
+							/* this is likely to be not a smooth line */
+							if(!line2[hor])
+								goto makecurve; /* defninitely not smooth */
+						}
+
+						/* get the direction of the line */
+						if(line2[0])
+							d = 0;
+						else
+							d = 1;
+
 						frag[nfrags].flags |= FRF_LINE;
-						if(maxlen != 0) {
-							if(maxlen == minlen) {
-								if(firstlen == maxlen-1 || lastlen == maxlen-1)
-									minlen--;
-								else if(firstlen == maxlen+1 || lastlen == maxlen+1)
-									maxlen++;
+						if(maxlen[d] != 0) {
+							if(maxlen[d] == minlen[d]) {
+								if(firstlen == maxlen[d]-1 || lastlen == maxlen[d]-1)
+									minlen[d]--;
+								else if(firstlen == maxlen[d]+1 || lastlen == maxlen[d]+1)
+									maxlen[d]++;
 							}
-							if(maxlen == minlen) { /* try another way now */
-								if(firstlen+lastlen == maxlen-1)
-									minlen--;
-								else if(firstlen+lastlen == maxlen+1)
-									maxlen++;
+							if(maxlen[d] == minlen[d]) { /* try another way now */
+								if(firstlen+lastlen == maxlen[d]-1)
+									minlen[d]--;
+								else if(firstlen+lastlen == maxlen[d]+1)
+									maxlen[d]++;
 							}
 						}
 
 						if(count==3 /* only one step, also implies maxlen==0 */
 						/* or both the first and last gentries fit */
-						|| firstlen+lastlen >= minlen && firstlen+lastlen <= maxlen) {
-							/* make the line as long as possible */
-							frag[nfrags].usefirst = (double)firstlen;
-							frag[nfrags].uselast = (double)lastlen;
-						} else if( firstlen >= minlen && firstlen <=maxlen
-						&& lastlen >= minlen && lastlen <=maxlen ) {
-							/* expand the endpoints by 0.5 on the other axis
-							 * by shortening the previous and next gentries 
-							 */
-							frag[nfrags].flags |= FRF_EXPAND_05;
-
+						|| firstlen+lastlen >= minlen[d] && firstlen+lastlen <= maxlen[d]) {
 							/* make the line as long as possible */
 							frag[nfrags].usefirst = (double)firstlen;
 							frag[nfrags].uselast = (double)lastlen;
 						} else  {
 							/* nextlen is the line length without 1st and last gentries */
 							if(hor)
-								nextlen = abs(ge->ix3 - frag[nfrags].first->ix3);
+								nextlen = abs(ge->bkwd->ix3 - frag[nfrags].first->ix3);
 							else
-								nextlen = abs(ge->iy3 - frag[nfrags].first->iy3);
+								nextlen = abs(ge->bkwd->iy3 - frag[nfrags].first->iy3);
 
 							/* (count/2-1) is the length of the line in the other dimension */
 							frag[nfrags].usefirst = frag[nfrags].uselast 
@@ -725,11 +761,12 @@ bmp_outline(
 						}
 
 						frag[nfrags].last = ge;
-						fprintf(stderr, "%s: line at (%d, %d) %f - (%d, %d) %f\n",
+						fprintf(stderr, "%s: line at (%d, %d) %f - (%d, %d) %f %p-%p\n",
 							g->name, frag[nfrags].first->ix3, frag[nfrags].first->iy3,
 							frag[nfrags].usefirst,
 							frag[nfrags].last->prev->ix3, frag[nfrags].last->prev->iy3,
-							frag[nfrags].uselast );
+							frag[nfrags].uselast,
+							frag[nfrags].first, frag[nfrags].last);
 						nfrags++;
 						continue;
 					}
@@ -743,8 +780,9 @@ bmp_outline(
 						fprintf(stderr, "inconvenient frag - %p\n",  ge);
 						hor = !hor;
 						count--; ge = pge; pge = ge->bkwd;
-						hline = hline2; hline2 = hline3;
-						vline = vline2; vline2 = vline3;
+						for(i=0; i<2; i++) {
+							line[i] = line2[i]; line2[i] = line3[i];
+						}
 					}
 					if(count == 2)
 						goto makecorner;
@@ -756,24 +794,38 @@ bmp_outline(
 						fprintf(stderr, "inconvenient frag - %p\n",  ge);
 						hor = !hor;
 						count--; ge = pge; pge = ge->bkwd;
-						hline = hline2; hline2 = hline3;
-						vline = vline2; vline2 = vline3;
+						for(i=0; i<2; i++) {
+							line[i] = line2[i]; line2[i] = line3[i];
+						}
 
 						/* at this point count>=3 because now firsthor==hor */
 						goto makeline;
 					}
 
+					if(hor)
+						lastlen = abs(ge->ix3 - pge->ix3);
+					else
+						lastlen = abs(ge->iy3 - pge->iy3);
+
 					/* at this point a curve is guaranteed to fit */
 					frag[nfrags].usefirst = (double)firstlen;
 					frag[nfrags].uselast = (double)lastlen;
 					frag[nfrags].last = ge;
-					fprintf(stderr, "%s: curve at (%d, %d) - (%d, %d)\n",
+					fprintf(stderr, "%s: curve at (%d, %d) - (%d, %d) %p-%p\n",
 						g->name, frag[nfrags].first->prev->ix3, frag[nfrags].first->prev->iy3,
-						frag[nfrags].last->ix3, frag[nfrags].last->iy3);
+						frag[nfrags].last->ix3, frag[nfrags].last->iy3,
+						frag[nfrags].first, frag[nfrags].last);
 					nfrags++;
 					continue;
 
 				} while(ge != cge->next);
+
+				/* connect the loop of fragments in this contour */
+				if(firstfrag) {
+					frag[firstfrag].back = (nfrags - 1) - firstfrag;
+					frag[nfrags].forw = firstfrag - (nfrags - 1);
+					firstfrag = 0;
+				}
 			}
 
 		}
@@ -786,15 +838,14 @@ bmp_outline(
 		loopge = 0;
 
 		for(ge = pge; ge != 0; ge = ge->next) {
-			CFRAG *fthis, *fprev, *fprev2, *fnext, *fnext2;
-			int i, shor, ehor, mask1, mask2;
+			CFRAG *fthis, *fprev, *fnext;
+			int shor, ehor, mask1, mask2;
 			double len, olen;
 			double start[2 /*X,Y*/], end[2 /*X,Y*/], mid[2 /*X,Y*/];
-			double dstart[2 /*X,Y*/], dend[2 /*X,Y*/];
 
 			switch(ge->type) {
 			case GE_LINE:
-				/* find fragments beginning this ge */
+				/* find a fragment beginning with this ge */
 				i = ++fhint;
 				do {
 					if(fhint == nfrags)
@@ -820,60 +871,20 @@ bmp_outline(
 				end[0] = (double)cge->ix3;
 				end[1] = (double)cge->iy3;
 
-				dstart[0] = dstart[1] = dend[0] = dend[1] = 0.; /* offset from EXPAND_05 */
-
 				/* find the fragment ending with this ge */
-				i = (fhint==1? nfrags : fhint) - 1;
-				if(frag[i].last == ge && !(frag[i].flags & FRF_IGNORE))
-					fprev = &frag[i];
-				else 
+				fprev = &frag[fhint + frag[fhint].back];
+				if(fprev->last != ge || fprev->flags & FRF_IGNORE)
 					fprev = &frag[0]; /* an empty frag */
 
-				/* find the fragment ending at the previous ge */
-				if(--i == 0)
-					i = nfrags -1;
-				if(frag[i].last == ge->bkwd && !(frag[i].flags & FRF_IGNORE))
-					fprev2 = &frag[i];
-				else 
-					fprev2 = &frag[0]; /* an empty frag */
-
 				/* find the fragment immediately following fthis */
-				i = fhint+1;
-				if(i == nfrags)
-					i = 1;
-				if(frag[i].first == cge && !(frag[i].flags & FRF_IGNORE))
-					fnext = &frag[i];
-				else 
+				fnext = &frag[fhint + frag[fhint].forw];
+				if(fnext->first != cge || fnext->flags & FRF_IGNORE)
 					fnext = &frag[0]; /* an empty frag */
 
-				/* find the fragment starting at the next gentry from fthis */
-				if(++i == nfrags)
-					i = 1;
-				if(frag[i].first == cge->frwd && !(frag[i].flags & FRF_IGNORE))
-					fnext2 = &frag[i];
-				else 
-					fnext2 = &frag[0]; /* an empty frag */
-
-				fprintf(stderr, "Vect %p (%p-%p) (%p-%p) _(%p-%p)_ (%p-%p) (%p-%p)\n",
-					ge, fprev2->first, fprev2->last, fprev->first, fprev->last,
+				fprintf(stderr, "Vect %p (%p-%p) _(%p-%p)_ (%p-%p)\n",
+					ge, fprev->first, fprev->last,
 					fthis->first, fthis->last,
-					fnext->first, fnext->last, fnext2->first, fnext2->last);
-
-				/* if this fragment is expanded, it affects the neighbors */
-				if(fthis->flags & FRF_EXPAND_05) {
-					if(fprev->flags & FRF_CORNER) {
-						fprev->flags |= FRF_IGNORE;
-						fprev = &frag[0];
-					}
-					if(fnext->flags & FRF_CORNER) {
-						fnext->flags |= FRF_IGNORE;
-						fnext = &frag[0];
-					}
-					fprintf(stderr, " expanded (%p-%p) (%p-%p) _(%p-%p)_ (%p-%p) (%p-%p)\n",
-						fprev2->first, fprev2->last, fprev->first, fprev->last,
-						fthis->first, fthis->last,
-						fnext->first, fnext->last, fnext2->first, fnext2->last);
-				}
+					fnext->first, fnext->last);
 
 				/* split the first gentry with another frag if neccessary */
 
@@ -890,30 +901,6 @@ bmp_outline(
 				}
 				olen = len;
 
-				/* correct the length for the expansion of neighbors */
-				if(fprev->flags & FRF_EXPAND_05) {
-					if(fthis->flags & FRF_CORNER)  {
-						fthis->flags |= FRF_IGNORE;
-						fthis->usefirst = 0.;
-						fthis = &frag[0];
-					}
-					if(fthis->flags & FRF_IGNORE) {
-						if( (fprev->flags ^ fthis->flags) & mask1 )
-							dstart[shor] = (fthis->flags & mask1 & FRF_DMINUS_MASK) ? 0.5 : -0.5;
-						else
-							dstart[shor] = (fthis->flags & mask1 & FRF_DMINUS_MASK) ? -0.5 : 0.5;
-					}
-				}
-				if(fprev2->flags & FRF_EXPAND_05) {
-					if( (fprev2->flags ^ fthis->flags) & mask2 ) {
-						len += 0.5;
-						dstart[!shor] = (fthis->flags & mask2 & FRF_DMINUS_MASK) ? -0.5 : 0.5;
-					} else {
-						len -= 0.5;
-						dstart[!shor] = (fthis->flags & mask2 & FRF_DMINUS_MASK) ? 0.5 : -0.5;
-					}
-				}
-
 				if(fthis->usefirst + fprev->uselast > len) {
 					/* redistribute the space */
 					if(len < 0.01) {
@@ -926,17 +913,9 @@ bmp_outline(
 						fprev->uselast = len - fthis->usefirst;
 					}
 				}
-				fprintf(stderr, " start %c at(%f, %f) d(%f, %f) olen=%f len=%f prevuse=%f thisuse=%f\n",
-					(shor? 'h':'v'), start[0], start[1], dstart[0], dstart[1], olen, len, 
+				fprintf(stderr, " start %c at(%f, %f) olen=%f len=%f prevuse=%f thisuse=%f\n",
+					(shor? 'h':'v'), start[0], start[1], olen, len, 
 					fprev->uselast, fthis->usefirst);
-
-				/* do the expansion of the front of this fragment if neccessary */
-				if(fthis->flags & FRF_EXPAND_05) {
-					double dd;
-					dd = 0.5 * fthis->usefirst / olen;
-					dstart[shor] += (fthis->flags & mask1 & FRF_DMINUS_MASK) ? dd : -dd;
-					fprintf(stderr, " expanded start d(%f, %f)\n", dstart[0], dstart[1]);
-				}
 
 				/* split the last gentry with another frag if neccessary */
 
@@ -953,30 +932,6 @@ bmp_outline(
 				}
 				olen = len;
 
-				/* correct the length for the expansion of neighbors */
-				if(fnext->flags & FRF_EXPAND_05) {
-					if(fthis->flags & FRF_CORNER)  {
-						fthis->flags |= FRF_IGNORE;
-						fthis->uselast = 0.;
-						fthis = &frag[0];
-					}
-					if(fthis->flags & FRF_IGNORE) {
-						if( (fnext->flags ^ fthis->flags) & mask1 )
-							dend[ehor] = (fthis->flags & mask1 & FRF_DMINUS_MASK) ? -0.5 : 0.5;
-						else
-							dend[ehor] = (fthis->flags & mask1 & FRF_DMINUS_MASK) ? 0.5 : -0.5;
-					}
-				}
-				if(fnext2->flags & FRF_EXPAND_05) {
-					if( (fnext2->flags ^ fthis->flags) & mask2 ) {
-						len += 0.5;
-						dend[!ehor] = (fthis->flags & mask2 & FRF_DMINUS_MASK) ? -0.5 : 0.5;
-					} else {
-						len -= 0.5;
-						dend[!ehor] = (fthis->flags & mask2 & FRF_DMINUS_MASK) ? 0.5 : -0.5;
-					}
-				}
-
 				if(fthis->uselast + fnext->usefirst > len) {
 					/* redistribute the space */
 					if(len < 0.01) {
@@ -989,35 +944,22 @@ bmp_outline(
 						fnext->usefirst = len - fthis->uselast;
 					}
 				}
-				fprintf(stderr, " end %c at(%f, %f) d(%f, %f) olen=%f len=%f thisuse=%f nextuse=%f\n",
-					(ehor? 'h':'v'), end[0], end[1], dend[0], dend[1], olen, len, 
+				fprintf(stderr, " end %c at(%f, %f) olen=%f len=%f thisuse=%f nextuse=%f\n",
+					(ehor? 'h':'v'), end[0], end[1], olen, len, 
 					fthis->uselast, fnext->usefirst);
-
-
-				/* do the expansion of the end of this fragment if neccessary */
-				if(fthis->flags & FRF_EXPAND_05) {
-					double dd;
-					dd = 0.5 * fthis->uselast / olen;
-					dend[ehor] += (fthis->flags & mask1 & FRF_DMINUS_MASK) ? -dd : dd;
-					fprintf(stderr, " expanded end d(%f, %f)\n", dend[0], dend[1]);
-				}
 
 				/* finally draw the lines */
 
 				/* first draw the unused part */
-				start[0] += dstart[0];
-				start[1] += dstart[1];
 				mid[0] = ge->ix3;
 				mid[1] = ge->iy3;
 				if(shor) {
 					start[0] += fsign(mid[0]-start[0]) * fprev->uselast;
 					mid[0] += fsign(start[0]-mid[0]) * fthis->usefirst;
-					mid[1] += dstart[1];
 					len = fabs(mid[0] - start[0]);
 				} else {
 					start[1] += fsign(mid[1]-start[1]) * fprev->uselast;
 					mid[1] += fsign(start[1]-mid[1]) * fthis->usefirst;
-					mid[0] += dstart[0];
 					len = fabs(mid[1] - start[1]);
 				}
 				fprintf(stderr, " Start %p: (%f, %f) -> (%f, %f) len=%f\n",
@@ -1036,10 +978,8 @@ bmp_outline(
 					mid[1] = cge->prev->iy3;
 					if(ehor) {
 						mid[0] += fsign(end[0]-mid[0]) * fthis->uselast;
-						mid[1] += dend[1];
 					} else {
 						mid[1] += fsign(end[1]-mid[1]) * fthis->uselast;
-						mid[0] += dend[0];
 					}
 					len = fabs(mid[1] - start[1]) + fabs(mid[1] - start[1]);
 					fprintf(stderr, " Line %p: (%f, %f) -> (%f, %f) len=%f\n",
@@ -1063,10 +1003,8 @@ bmp_outline(
 					mid[1] = cge->prev->iy3;
 					if(ehor) {
 						mid[0] += fsign(end[0]-mid[0]) * fthis->uselast;
-						mid[1] += dend[1];
 					} else {
 						mid[1] += fsign(end[1]-mid[1]) * fthis->uselast;
-						mid[0] += dend[0];
 					}
 					len = fabs(mid[0] - start[0]) + fabs(mid[1] - start[1]);
 					fprintf(stderr, " Curve %p: (%f, %f) -> (%f, %f) len=%f\n",
@@ -1087,8 +1025,6 @@ bmp_outline(
 				}
 #if 0
 				if( !(fthis->flags & FRF_IGNORE) ) {
-					end[0] += dend[0];
-					end[1] += dend[1];
 					if(ehor) {
 						end[0] += fsign(cge->bkwd->ix3-end[0]) * fnext->usefirst;
 					} else {
