@@ -73,6 +73,8 @@
 #
 # Better don't use the map adobe-standard-encoding.map,
 # unless you really need it, it's very incomplete.
+#
+# The map planes are not supported in the scripts yet.
 
 SRCDIRS="
 /SOME_DIR_WITH_russian_windows_TTF_FONTS russian ibm-1251
@@ -91,25 +93,23 @@ SRCDIRS="
 DSTDIR=/usr/X11R6/lib/X11/fonts/fromttf
 
 # The base directory of Ghostscript;
-# set it to empty space if you don't want the
-# Ghostscript fonts installed. For
-# some systems the directory is
-# /usr/share/ghostscript.
+# set it to empty space if you don't want the Ghostscript fonts installed. 
+# For some systems the directory is /usr/share/ghostscript.
 GSDIR=/usr/local/share/ghostscript
 
 # The font directory of Ghostscript;
-# should work for all the versions of Ghostscript.
-# Except (as always) the one packaged with 
-# Red Hat Linux 6.0. For RH6.0 it should be
-# set to either /usr/share/fonts/default/ghostscript
-# or /usr/share/fonts/default/Type1.
+# should work for all the versions of Ghostscript. Except (as always) the one 
+# packaged with Red Hat Linux 6.0. For RH6.0 it should be set to either 
+# /usr/share/fonts/default/ghostscript or /usr/share/fonts/default/Type1.
 GSFONTDIR=$GSDIR/fonts
 
-# The configuration directory of Ghostscript
-# where the Fontmap file is stored;
-# the example is for Ghostscript 5.10, change
-# for the version you actually have
-GSCONFDIR=$GSDIR/5.10
+# The configuration directory of Ghostscript where the Fontmap file is stored;
+# the example is for Ghostscript 6.0, change for the version you actually 
+# have. This directory is used only to reach the Fontmap file, so if your
+# installation stores the Fontmap files in the same directory as fonts
+# (like Debian Linux does - isn't Linux wonderful in its differences?)
+# then set it to the same value as GSFONTDIR.
+GSCONFDIR=$GSDIR/6.0
 
 # The encodings of generated files by languages
 # (see the whole list of possible encodings for each
@@ -149,12 +149,12 @@ FOUNDRY=fromttf
 #   fonts right into the Ghostscript Fontmap file. Otherwise just
 #   symlink the font files and copy Fontmap.ttf to the Ghostscript
 #   directories.
-# HINTSUBST - enable the hints substitution (option "-H" of 
-#   converter). If you plan to use the converted fonts with X11
-#   and did not install the supplied patches then better set it
-#   to NO. Otherwise compare the looks of the fonts with and
-#   without this option and decide what is better (see the
-#   discussion in the README file).
+# HINTSUBST - enable the hint substitution (option "-H" of 
+#   converter). You may want to compare the looks of the fonts with and
+#   without this option and decide what is better (see the discussion in 
+#   the README file). If the fonts with this option set to YES look
+#   completely empty in X11 then set this option to NO or install
+#   the supplied patches.
 # ENFORCEISO - try to disguise the character names according to
 #   the ISOLatin1 encoding table. Set it to YES if some program
 #   expects strictly the ISO names but the fonts have different
