@@ -53,21 +53,21 @@ release)
 	;;
 esac
 
-rm -f ../ttf2pt1-chinese-$NEWVER.tgz ../ttf2pt1-chinese-$NEWVER.zip 
-rm -rf ../ttf2pt1-chinese-$NEWVER
+cd .. || {
+	echo "mkrel: can't cd to .." >&2
+	exit 1
+}
 
-echo "cvs -z9 export $TAG -d ../ttf2pt1-chinese-$NEWVER chinese-maps"
-cvs -z9 export $TAG -d ../ttf2pt1-chinese-$NEWVER chinese-maps || {
+rm -f ttf2pt1-chinese-$NEWVER.tgz ttf2pt1-chinese-$NEWVER.zip 
+rm -rf ttf2pt1-chinese-$NEWVER
+
+echo "cvs -z9 export $TAG -d ttf2pt1-chinese-$NEWVER chinese-maps"
+cvs -z9 export $TAG -d ttf2pt1-chinese-$NEWVER chinese-maps || {
 	echo "mkrel: unable to export from CVS" >&2
 	echo "mkrel: check that the CVS tree is properly tagged" >&2
 	exit 1
 }
 
-
-cd .. || {
-	echo "mkrel: can't cd to .." >&2
-	exit 1
-}
 
 tar czvf ttf2pt1-chinese-$NEWVER.tgz ttf2pt1-chinese-$NEWVER || {
 	echo "mkrel: can't create .tgz archive" >&2
