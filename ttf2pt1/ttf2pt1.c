@@ -78,6 +78,7 @@
 #	define WINDOWS_FUNCTIONS /* ask to define functions - in one file only */
 #	include "windows.h"
 #	define BITBUCKET "NUL"
+#	define snprintf _snprintf
 #endif
 
 #include "pt1.h"
