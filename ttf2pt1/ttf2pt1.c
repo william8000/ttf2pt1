@@ -1352,10 +1352,8 @@ handle_gnames(void)
 
 	if (ps_fmt_3) {
 		for (i = 0; i < 256; i++) {
-			if (encoding[i] != 0) {
+			if (encoding[i] > 0) {
 				glyph_list[encoding[i]].name = Fmt3Encoding[i];
-			} else {
-				glyph_list[encoding[i]].name = ".notdef";
 			}
 		}
 	}
