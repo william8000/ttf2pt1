@@ -11,7 +11,75 @@ if( $#ARGV < 1) {
 	die("Usage: $0 [-c file]... file glyph-code...\n");
 }
 
-$mainf = $ARGV[0];
+$fname=shift @ARGV;
+
+# storage for files
+my %fontname;
+my %fbbox;
+my %fblues;
+my %fenc;
+my %frevenc;
+my %fsubrs;
+my %fchars;
+my @cmnbbox; # common bounding box covering all files
+
+@cmnbbox = (100, 100, 100, 100);
+
+# read all files into memory
+for $f (@cmpfiles, $fname) {
+	open(FILE, "<$f") or die("no such file $f");
+	while(<FILE>) {
+		if(/FontBBox\s+\{\s*(.*)\s*}/) {
+			@bbox=split(/\s+/, $1);
+			push(@{$fbbox{$f}}, @bbox);
+			if($bbox[0] < $cmnbbox[0]) {
+				$cmnbbox[0] = $bbox[0];
+			}
+			if($bbox[1] < $cmnbbox[1]) {
+				$cmnbbox[1] = $bbox[1];
+			}
+			if($bbox[2] > $cmnbbox[2]) {
+				$cmnbbox[2] = $bbox[2];
+			}
+			if($bbox[3] > $cmnbbox[3]) {
+				$cmnbbox[3] = $bbox[3];
+			}
+		} elsif( /BlueValues\s+\[\s*(.*)\s*\]/ || /OtherBlues\s+\[\s*(.*)\s*\]/ ) {
+			@blues=split(/\s+/, $1);
+			push(@{$fblues{$f}}, @blues);
+		} elsif( /^dup\s+(\d+)\s+\/(\S+)\s+put/ ) {
+			$fenc{$f}{$1} = $2;
+			if( ! defined $frevenc{$f}{$2} ) {
+				$frevenc{$f}{$2} = $1;
+			}
+		} elsif( /^dup\s+(\d+)\s+\{\s*$/ ) {
+			$key = $1;
+			$bf = $_;
+			while(<FILE>) {
+				$bf .= $_;
+				if( /\}\s+NP/ ) {
+					last;
+				}
+			}
+			$fsubrs{$f}{$key} = $bf;
+		} elsif( /^\/(\S+)\s+\{\s*$/ ) {
+			$key = $1;
+			$bf = $_;
+			while(<FILE>) {
+				$bf .= $_;
+				if( /endchar/ ) {
+					last;
+				}
+			}
+			$fchars{$f}{$key} = $bf;
+		} elsif( /^\/FontName\s+(\S+)/ ) {
+			$fontname{$f} = $1;
+		}
+	}
+	close(FILE);
+}
+
+######################## Prolog ###################################
 
 print("%%!PS-Adobe-1.0
 %%DocumentNeededResources: font Courier
@@ -114,8 +182,24 @@ print("%%!PS-Adobe-1.0
 	show
 	grestore
 } bind def
+");
+
+@bbox=@cmnbbox;
+
+$nx=$bbox[2]-$bbox[0];
+$ny=$bbox[3]-$bbox[1];
+$maxsz= ($nx>$ny) ? $nx : $ny;
+$fnt2pt= 72*5/$maxsz;
+printf("/fnt2pt 72 5 mul %d div def\n", $maxsz);
+$xorg= -($bbox[0]-($maxsz-$nx)/2); 
+$yorg= -($bbox[1]-($maxsz-$ny)/2);
+printf("/xorg %d def /yorg %d def\n", $xorg, $yorg);
+
+print("
 %%EndProlog
 ");
+
+######################## Subroutines ##############################
 
 sub bluezone # from to
 {
@@ -173,19 +257,16 @@ sub nextstemgrp
 	}
 }
 
-sub substems # number
+sub substems # fname subrlist
 {
-	my $count=$_[0];
+	my $fname = shift;
 	my $i, $cmd, @vals;
 
-	printf(STDERR "%d substituted stem groups\n", $count);
 	print("\nstemcolor\n");
-	for($i=0; $i<$count; $i++) {
+
+	for $i (@_) {
 		&nextstemgrp();
-		while(<FILE>) {
-			if(/NP/) {
-				last;
-			}
+		for $_ (split(/\n/, $fsubrs{$fname}{$i})) {
 			s/^\s+//;
 			@vals=split(/\s+/, $_);
 			$cmd=$vals[$#vals];
@@ -199,18 +280,14 @@ sub substems # number
 	print("\n");
 }
 
-sub drawcharwstems
+sub drawcharwstems # charstring
 {
 	my($x,$y)=(0,0);
 	my @vals, $cmd, $i;
 
 	print("\nmainstemcolor\n");
 	&nextstemgrp();
-	while(<FILE>) {
-		if(/endchar/) {
-			printf("\n/drawchar { } bind def\n");
-			return;
-		}
+	for $_ (split(/\n/, $_[0])) {
 		s/^\s+//;
 		@vals=split(/\s+/, $_);
 		$cmd=$vals[$#vals];
@@ -229,16 +306,17 @@ sub drawcharwstems
 			&vstem($vals[0], $vals[1]);
 			&vstem($vals[2], $vals[3]);
 			&vstem($vals[4], $vals[5]);
-		} else {
+		} elsif($cmd eq "rmoveto") {
+			# a shortcut
 			last;
 		}
 	}
-	&drawchar("drawchar", 1, "contourcolor");
+	&drawchar("drawchar", 1, "contourcolor", $_[0]);
 }
 
-sub drawchar #procname wantgrid color
+sub drawchar #procname wantgrid color charstring
 {
-	my($procname, $wantgrid, $color) = @_;
+	my($procname, $wantgrid, $color, $charstring) = @_;
 	my($x,$y)=(0,0);
 	my @vals, $cmd, $i;
 	my %xv=();
@@ -247,25 +325,14 @@ sub drawchar #procname wantgrid color
 	printf("\n/%s {\n",$procname);
 	printf("\ngsave 72 72 translate fnt2pt fnt2pt scale %d %d translate\n", $xorg, $yorg);
 	printf("%s 1 setlinewidth newpath\n", $color);
-	do {
-		if(/endchar/) {
-			printf("grestore } bind def\n");
-			if($wantgrid) {
-				printf("coordcolor\n");
-				for $x (keys %xv) {
-					&linevert($x);
-				}
-				for $y (keys %yv) {
-					&linehor($y);
-				}
-			}
-			return;
-		}
+	for $_ (split(/\n/, $charstring)) {
 		s/^\s+//;
 		@vals=split(/\s+/, $_);
 		$cmd=$vals[$#vals];
 
-		if($cmd eq "amoveto") {
+		if($cmd eq "callsubr" && $vals[1] == 4) {
+			push(@subrlist, $vals[0]);
+		} elsif($cmd eq "amoveto") {
 			$x=$vals[0]+0;
 			$y=$vals[1]+0;
 			$xv{$x+0}=1; $yv{$y+0}=1; 
@@ -352,25 +419,32 @@ sub drawchar #procname wantgrid color
 		} elsif($cmd eq "closepath") {
 			printf("closepath stroke newpath\n");
 		}
-	} while(<FILE>);
+	}
 
+	printf("grestore } bind def\n");
+	if($wantgrid) {
+		printf("coordcolor\n");
+		for $x (keys %xv) {
+			&linevert($x);
+		}
+		for $y (keys %yv) {
+			&linehor($y);
+		}
+	}
 }
 
 $pages=0;
 
-$fname=shift @ARGV;
 for $arg (@ARGV) {
+	undef $name, $code;
+
 	if( $arg =~ /^\/(.*)/ ) {
 		$name=$1;
-		$code="none";
 	} elsif( $arg =~ /^\.(.)/ ) {
 		$code=ord($1);
-		$name="";
 	} else {
 		$code=$arg;
-		$name="";
 	}
-	$ccode=$code; $cname=$name; # for comparisons
 
 	$pages++;
 
@@ -379,11 +453,24 @@ for $arg (@ARGV) {
 	$stemvgrp=0;
 	$stemvused=0;
 	$stemwd=10;
-	$fontname="unknown";
 	undef %xcoord;
 	undef %ycoord;
 
-	printf("%%%%Page: %d %d\n", $code, $code);
+	if( defined $name ) {
+		$xname = $name;
+		$xcode = $frevenc{$fname}{$name};
+		if( $xcode eq "" ) {
+			$xcode = "**UNKNOWN**";
+		}
+	} else {
+		$xname = $fenc{$fname}{$code};
+		if( $xname eq "" ) {
+			$xname = "**UNKNOWN**";
+		}
+		$xcode = $code;
+	} 
+
+	printf("%%%%Page: %d %d\n", $pages, $pages);
 	printf("gsave
 
 0 setlinewidth
@@ -411,67 +498,83 @@ grestore
 
 ");
 
-	open(FILE, "<$fname") or die("no such file $fname");
-	while(<FILE>) {
-		if(/FontBBox\s+\{\s*(.*)\s*}/) {
-			@bbox=split(/\s+/, $1);
+	undef @subrlist;
 
-			$nx=$bbox[2]-$bbox[0];
-			$ny=$bbox[3]-$bbox[1];
-			$maxsz= ($nx>$ny) ? $nx : $ny;
-			$fnt2pt= 72*5/$maxsz;
-			printf("/fnt2pt 72 5 mul %d div def\n", $maxsz);
-			$xorg= -($bbox[0]-($maxsz-$nx)/2); 
-			$yorg= -($bbox[1]-($maxsz-$ny)/2);
-			print("coordcolor\n");
-			printf("/xorg %d def /yorg %d def\n", $xorg, $yorg);
-			print("coordcolor\n");
-			printf("0 linehor %d linehor %d linehor\n", $bbox[1]+$yorg, $bbox[3]+$yorg);
-			printf("%d linevert %d linevert\n", $bbox[0]+$xorg, $bbox[2]+$xorg);
-		} elsif( /BlueValues\s+\[\s*(.*)\s*\]/ || /OtherBlues\s+\[\s*(.*)\s*\]/ ) {
-			%vals=split(/\s+/, $1);
-			for $i (keys %vals) {
-				&bluezone($i, $vals{$i});
-			}
-		} elsif( /^dup\s+$code\s+\/(\S+)\s+put/ ) {
-			$name=$1;
-		} elsif( /^dup\s+(\d+)\s+\/$name\s+put/ ) {
-			$code=$1;
-		} elsif( /^\%\s*$name\s/ && /\s(\d+)\s*$/ ) {
-			&substems($1);
-		} elsif( /^\/$name\s+\{/ ) {
-			&drawcharwstems();
-		} elsif( /^\/FontName\s+(\S+)/ ) {
-			$fontname=$1;
+
+	@bbox=@{$fbbox{$fname}};
+
+	print("coordcolor\n");
+	printf("0 linehor %d linehor %d linehor\n", $bbox[1]+$yorg, $bbox[3]+$yorg);
+	printf("%d linevert %d linevert\n", $bbox[0]+$xorg, $bbox[2]+$xorg);
+
+	%vals=@{$fblues{$fname}};
+	for $i (keys %vals) {
+		&bluezone($i, $vals{$i});
+	}
+
+	$havechar = 1;
+	if( defined $fchars{$fname}{$xname} ) {
+		&drawcharwstems($fchars{$fname}{$xname});
+	} else {
+		$havechar = 0;
+		if(defined $name) {
+			printf(STDERR "WARNING: %s nas no character with name \"%s\"\n", $fname, $name);
+		} else {
+			printf(STDERR "WARNING: %s nas no character with code \"%s\"\n", $fname, $code);
 		}
 	}
-	close(FILE);
 
-	printf(STDERR "glyph name:%s code:%s\n", $name, $code);
+	&substems($fname, @subrlist);
+
+	printf(STDERR "glyph name:%s code:%s (%d substituted stem groups)\n", $xname, $xcode, scalar @subrlist);
 
 	$cmpfidx = 0;
 	for $cmpf(@cmpfiles) {
-		my $name = $cname;
-		my $code = $ccode;
+		undef $cname, $ccode;
 
-		open(FILE, "<$cmpf") or die("no such file $cmpf");
-		while(<FILE>) {
-			if( /^dup\s+$code\s+\/(\S+)\s+put/ ) {
-				$name=$1;
-			} elsif( /^dup\s+(\d+)\s+\/$name\s+put/ ) {
-				$code=$1;
-			} elsif( /^\/$name\s+\{/ ) {
-				&drawchar("drawcmpchar", 0, sprintf("%d cmpfcolor", $cmpfidx));
+		if( defined $name ) {
+			if ( ! defined $fchars{$cmpf}{$name} && defined $fenc{$cmpf}{$xcode}) {
+				printf(STDERR "  NOTE: %s nas no glyph with name \"%s\", guessed by code\n", $cmpf, $name);
+				$cname = $fenc{$cmpf}{$xcode};
+				if( $cname eq "" ) {
+					$cname = "**UNKNOWN**";
+				}
+				$ccode = $xcode;
+			} else {
+				$cname = $name;
+				$ccode = $frevenc{$cmpf}{$name};
+				if( $ccode eq "" ) {
+					$ccode = "**UNKNOWN**";
+				}
+			}
+		} else {
+			$cname = $fenc{$cmpf}{$code};
+			if( $cname eq "" ) {
+				$cname = "**UNKNOWN**";
+			}
+			$ccode = $code;
+		} 
+
+		if( defined $fchars{$cmpf}{$cname} ) {
+			&drawchar("drawcmpchar", 0, sprintf("%d cmpfcolor", $cmpfidx),
+				$fchars{$cmpf}{$cname});
+			printf("drawcmpchar\n\n");
+			printf(STDERR "  in %s glyph name:%s code:%s\n", $cmpf, $cname, $ccode);
+		} else {
+			if(defined $name) {
+				printf(STDERR "  WARNING: %s nas no character with name \"%s\"\n", $cmpf, $name);
+			} else {
+				printf(STDERR "  WARNING: %s nas no character with code \"%s\"\n", $cmpf, $code);
 			}
 		}
-		close(FILE);
-		printf(STDERR "in %s glyph name:%s code:%s\n", $cmpf, $name, $code);
-		printf("drawcmpchar\n\n");
 		$cmpfidx++;
 	}
 
-	printf("drawchar\n\n");
+	if($havechar) {
+		printf("drawchar\n\n");
+	}
 
+	# flush the last group
 	&nextstemgrp();
 
 	# the values of coordinates
@@ -503,9 +606,26 @@ grestore
 
 	printf("gsave 0 %d translate\n", 7.5*72 );
 	printf("contourcolor /Courier findfont 12 scalefont setfont\n");
-	printf("0 0 moveto (code: %d  name: %s) show\n", $code, $name);
-	printf("0 15 moveto (%s) show\n", $fname);
-	printf("0 30 moveto (%s) show\n", $fontname);
+	$line = 0;
+
+	$cmpfidx = $#cmpfiles;
+	if( $cmpfidx > (2.5*72/15)-4 ) {
+		$cmpfidx = (2.5*72/15)-4;
+	}
+	for(; $cmpfidx>=0; $cmpfidx--) {
+		$cmpf = $cmpfiles[$cmpfidx];
+		printf("%d cmpfcolor\n", $cmpfidx);
+		printf("newpath 20 %d moveto 0 10 rlineto 10 0 rlineto 0 -10 rlineto closepath fill\n", 
+			15*$line, $cmpf);
+		printf("contourcolor 40 %d moveto (%s %s) show\n", 15*$line, $cmpf, $fontname{$cmpf});
+		$line++;
+	}
+	if( $#cmpfiles >=0 ) {
+		printf("0 %d moveto (Comparison files:) show\n", 15*$line++);
+	}
+	printf("0 %d moveto (code: %d  name: %s) show\n", 15*$line++, $xcode, $xname);
+	printf("0 %d moveto (%s) show\n", 15*$line++, $fname);
+	printf("0 %d moveto (%s) show\n", 15*$line++, $fontname{$fname});
 	printf("grestore\n\n");
 
 	printf("showpage grestore\n\n");

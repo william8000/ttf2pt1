@@ -22,23 +22,32 @@ current
 
 <b>New features:</b>
 <ul>
-<li> Added generation of man pages
-<li> Added "make install" and "make uninstall"
-<li> Added language option "-l plane"
+<li> Added generation of man pages.
+<li> Added "make install" and "make uninstall".
+<li> Added language option "-l plane".
+<li> In <tt>other/showg</tt> added better support of comparison files:
+<ul>
+  <li> printing of the comparison file legend;
+  <li> guessing of missing glyph names in a comparison file by code;
+  <li> bounding boxes of all comparison files are used for page layout.
+</ul>
 </ul>
 
 <b>Bug fixes:</b>
 <ul>
-<li> Removed erroneous extra fclose(pfa_file)
+<li> Removed erroneous extra fclose(pfa_file).
 <li> Fixed random memory corruption that manifested with crash on Linux
-  when converting fonts not containing glyph names
-<li> Removed from the output file the comments that confused dvips
+  when converting fonts not containing glyph names.
+<li> Removed from the output file the comments that confused dvips. Changed 
+  <tt>other/showg</tt> to work without them.
+<li> In <tt>other/showg</tt> added better checks for missing glyphs, now it
+  gives warnings about them and the output file does not crash PostScript.
 </ul>
 
 <b>Other:</b>
 <ul>
-<li> <tt>ttf2pfa</tt> is no longer included, people interested in history should
-  look for it in the older versions.
+<li> <tt>ttf2pfa</tt> is no longer included, people interested in history 
+  should look for it in the older versions. 
 </ul>
 
 <H4>
