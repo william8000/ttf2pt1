@@ -397,9 +397,9 @@ draw_composite_glyf(
 		} else if (flagbyte & WE_HAVE_A_TWO_BY_TWO) {
 			matrix[0] = f2dot14(*sptr);
 			sptr++;
-			matrix[1] = f2dot14(*sptr);
-			sptr++;
 			matrix[2] = f2dot14(*sptr);
+			sptr++;
+			matrix[1] = f2dot14(*sptr);
 			sptr++;
 			matrix[3] = f2dot14(*sptr);
 			sptr++;
