@@ -1156,6 +1156,7 @@ handle_ms_encoding(
 				continue;
 			}
 			if (glyph_list[n].orig_code != -1) {
+#if 0
 				if (strcmp(glyph_list[n].name, ".notdef") != 0) {
 					WARNING_2 fprintf(stderr,
 						"Glyph %s has >= two encodings (A), %4.4x & %4.4x\n",
@@ -1163,6 +1164,7 @@ handle_ms_encoding(
 						glyph_list[n].orig_code,
 						k);
 				}
+#endif
 				set_ok = 0;
 			} else {
 				set_ok = 1;
