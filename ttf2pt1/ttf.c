@@ -1366,7 +1366,7 @@ fnmetrics(
 {
 	char *str;
 	static int fieldstocheck[]= {2,4,6};
-	int i;
+	int i, j, len;
 
 	fm->italic_angle = (short) (ntohs(post_table->italicAngle.upper)) +
 		((short) ntohs(post_table->italicAngle.lower) / 65536.0);
@@ -1395,14 +1395,15 @@ fnmetrics(
 	fm->force_bold=0;
 
 	for(i=0; !fm->force_bold && i<sizeof fieldstocheck /sizeof(int); i++) {
-		str=name_fields[fieldstocheck[i]];
-		for(i=0; str[i]!=0; i++) {
-			if( (str[i]=='B'
-				|| str[i]=='b' 
-					&& ( i==0 || !isalpha(str[i-1]) )
+		str = name_fields[fieldstocheck[i]];
+		len = strlen(str);
+		for(j=0; j<len; j++) {
+			if( (str[j]=='B'
+				|| str[j]=='b' 
+					&& ( j==0 || !isalpha(str[j-1]) )
 				)
-			&& !strncmp("old",&str[i+1],3)
-			&& !islower(str[i+4])
+			&& !strncmp("old",&str[j+1],3)
+			&& (j+4 >= len || !islower(str[j+4]))
 			) {
 				fm->force_bold=1;
 				break;
