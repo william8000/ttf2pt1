@@ -50,6 +50,7 @@ struct frontsw bdf_sw = {
 static int lineno; /* line number */
 
 #define GETLEN(s)	s, (sizeof(s)-1)
+#define LENCMP(str, txt)	strncmp(str, txt, sizeof(txt)-1)
 
 static FILE *bdf_file;
 static int nglyphs;
@@ -253,7 +254,7 @@ handle_glyphs(
 	int i, c;
 	char *p, *plim, *psz;
 
-	if(!strncmp(str, GETLEN("ENDFONT") )) {
+	if(!LENCMP(str, "ENDFONT")) {
 		if(curgl < nglyphs) {
 			fprintf(stderr, "**** unexpected end of font file after %d glyphs\n", curgl);
 			exit(1);
@@ -264,7 +265,7 @@ handle_glyphs(
 		fprintf(stderr, "**** file contains more glyphs than advertised (%d)\n", nglyphs);
 		exit(1);
 	}
-	if(!strncmp(str, GETLEN("STARTCHAR") )) {
+	if(!LENCMP(str, "STARTCHAR")) {
 		/* sizeof will count \0 instead of ' ' */
 		for(i=sizeof("STARTCHAR"); str[i] == ' '; i++) 
 			{}
@@ -274,7 +275,7 @@ handle_glyphs(
 			fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
 			exit(255);
 		}
-	} else if(!strncmp(str, GETLEN("ENCODING") )) {
+	} else if(!LENCMP(str, "ENCODING")) {
 		if(sscanf(str, "ENCODING %d", &fontenc[curgl])!=1) {
 			fprintf(stderr,"**** weird ENCODING statement at line %d\n", lineno);
 			exit(1);
@@ -283,13 +284,13 @@ handle_glyphs(
 			sscanf(str, "ENCODING -1 %d", &fontenc[curgl]);
 		if(fontenc[curgl] > maxenc)
 			maxenc = fontenc[curgl];
-	} else if(!strncmp(str, GETLEN("DWIDTH") )) {
+	} else if(!LENCMP(str, "DWIDTH")) {
 		if(sscanf(str, "DWIDTH %d %d", &xsz, &ysz)!=2) {
 			fprintf(stderr,"**** weird DWIDTH statement at line %d\n", lineno);
 			exit(1);
 		}
 		glyphs[curgl].width = xsz*scale;
-	} else if(!strncmp(str, GETLEN("BBX") )) {
+	} else if(!LENCMP(str, "BBX")) {
 		if(sscanf(str, "BBX %d %d %d %d", &xsz, &ysz, &xoff, &yoff)!=4) {
 			fprintf(stderr,"**** weird BBX statement at line %d\n", lineno);
 			exit(1);
@@ -304,10 +305,10 @@ handle_glyphs(
 		glyphs[curgl].xMax = (xsz-xoff)*scale;
 		glyphs[curgl].yMin = -yoff*scale;
 		glyphs[curgl].yMax = (ysz-xoff)*scale;
-	} else if(!strncmp(str, GETLEN("BITMAP") )) {
+	} else if(!LENCMP(str, "BITMAP")) {
 		inbmap=1; 
 		curln=ysz-1; /* the lowest line has index 0 */
-	} else if(!strncmp(str, GETLEN("ENDCHAR") )) {
+	} else if(!LENCMP(str, "ENDCHAR")) {
 		inbmap=0;
 		if(bmap) {
 			glyphs[curgl].lastentry = 0;
