@@ -19,8 +19,8 @@ print("%%!PS-Adobe-1.0
 %%EndComments
 %%BeginProlog
 /cmpfcolorarray [ 
-	[ 1 0.6 0.6 ] % light red
-	[ 0 0.7 0.7 ] % cyan
+	[ 1 0.2 0.2 ] % slightly lighter red
+	[ 0 0.7 0.7 ] % cyan 
 	[ 0.7 0.7 0 ] % brown-yellow
 ] def
 /cmpfcolor { % number -> .
