@@ -20,34 +20,70 @@
 #
 # Default
 
-CFLAGS= -O
+CFLAGS_SYS= -O
 
 # For GNU C
 #
-#CFLAGS= -O2
+#CFLAGS_SYS= -O2
 #
 # For GNU C with long options support library (Linux etc.)
 #
-#CFLAGS= -O2 -D_GNU_SOURCE
+#CFLAGS_SYS= -O2 -D_GNU_SOURCE
 #
 # For GNU C on HP-UX/PA-RISC 1.1
 #
-#CFLAGS= -O2 -Wa,-w
+#CFLAGS_SYS= -O2 -Wa,-w
 #
 # For the standard ANSI C on HP-UX
 #
-#CFLAGS= +O2 -D_HPUX_SOURCE
+#CFLAGS_SYS= +O2 -D_HPUX_SOURCE
 
 #
 # The system-dependent libraries
 #
 # Defalut (for the BSD-style OSes)
 
-LIBS= -lm
+LIBS_SYS= -lm
 
 # For SystemV (such as SCO, UnixWare, Solaris, but _NOT_ Linux or HP-UX)
 #
-#LIBS= -lm -lsocket
+#LIBS_SYS= -lm -lsocket
+
+#
+# The flags for C compiler for the FreeType-2 library
+# (disabled by default)
+
+CFLAGS_FT= 
+
+# To enable use of the FreeType-2 library
+# (if the include and lib directory do not match your installation,
+# modify them), also uncomment LIBS_FT
+#
+#CFLAGS_FT = -DUSE_FREETYPE -I/usr/local/include
+
+# 
+# The FreeType-2 library flags (disabled by default)
+
+LIBS_FT=
+
+# To enable use of the FreeType-2 library
+# (if the include and lib directory do not match your installation,
+# modify them), also uncomment LIBS_FT
+#
+#LIBS_FT= -L/usr/local/lib -lfreetype
+
+#
+# Preference of front-ends if multiple parsers match a file
+# (by default the build-in front-end takes preference over FreeType)
+
+CFLAGS_PREF=
+
+# To prefer FreeType (if enabled):
+#
+#CFLAGS_PREF= -DPREFER_FREETYPE
+
+CFLAGS= $(CFLAGS_SYS) $(CFLAGS_FT) $(CFLAGS_PREF)
+LIBS= $(LIBS_SYS) $(LIBS_FT)
 
 # After you have configured the Makefile, comment out the following
 # definition:
@@ -74,7 +110,7 @@ veryclean: clean
 rpm: app/RPM/Makefile
 
 app/RPM/Makefile: Makefile
-	sed 's/^CFLAGS.*=.*$$/CFLAGS= -O2 -D_GNU_SOURCE/;/warning:/,/^$$/s/^/#/' <Makefile >app/RPM/Makefile
+	sed 's/^CFLAGS_SYS.*=.*$$/CFLAGS_SYS= -O2 -D_GNU_SOURCE/;/warning:/,/^$$/s/^/#/' <Makefile >app/RPM/Makefile
 
 t1asm: t1asm.c
 	$(CC) $(CFLAGS) -o t1asm -DSTANDALONE t1asm.c $(LIBS)
@@ -91,8 +127,11 @@ pt1.o: pt1.c ttf.h pt1.h global.h
 ttf.o: ttf.c ttf.h pt1.h global.h
 	$(CC) $(CFLAGS) -c ttf.c
 
-ttf2pt1:	ttf2pt1.o pt1.o t1asm.o ttf.o
-	$(CC) $(CFLAGS) -o ttf2pt1 ttf2pt1.o pt1.o t1asm.o ttf.o $(LIBS)
+ft.o: ft.c pt1.h global.h
+	$(CC) $(CFLAGS) -c ft.c
+
+ttf2pt1:	ttf2pt1.o pt1.o t1asm.o ttf.o ft.o
+	$(CC) $(CFLAGS) -o ttf2pt1 ttf2pt1.o pt1.o t1asm.o ttf.o ft.o $(LIBS)
 
 CHANGES: CHANGES.html
 	scripts/unhtml <CHANGES.html >CHANGES

@@ -89,9 +89,18 @@
 /* table of front-ends */
 
 extern struct frontsw ttf_sw;
+#if defined(USE_FREETYPE)
+	extern struct frontsw freetype_sw;
+#endif
 
 struct frontsw *frontswtab[] = {
+#if defined(USE_FREETYPE) && defined(PREFER_FREETYPE)
+	&freetype_sw,
+#endif
 	&ttf_sw,
+#if defined(USE_FREETYPE) && !defined(PREFER_FREETYPE)
+	&freetype_sw,
+#endif
 	NULL /* end of table */
 };
 

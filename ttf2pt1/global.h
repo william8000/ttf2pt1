@@ -57,6 +57,7 @@ extern int      numglyphs;
 #define DEBUG_SQEQ	0x00001000 /* square equation solver */
 #define DEBUG_COMPOSITE	0x00002000 /* handling of composite glyphs */
 #define DEBUG_FCONCISE	0x00004000 /* normalization of curves */
+#define DEBUG_FT		0x00008000 /* FreeType front-end */
 #define DEBUG_DISABLED	0x80000000 /* special flag: temporary disable debugging */
 
 /* at what we want to look now */
