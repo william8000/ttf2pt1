@@ -23,14 +23,17 @@ current
 <b>New features:</b>
 <ul>
 <li> Parser for the BDF bitmap fonts.
-<li> Significantly improved the smoothing of the outlines.
+<li> Vastly improved the smoothing of the outlines.
 <li> The options are saved as a comment in the output file.
 <li> New script <tt>other/showdf</tt> for visual comparison of the fonts.
+<li> New option <b>-G<b> to select the file types to generate.
+<li> Creation of the dvips encoding files (by Rigel).
+<li> More glyphs in the Chinese maps (by Rigel).
 </ul>
 
 <b>Bug fixes:</b>
 <ul>
-<li> Added check for spaces in the PostScript font name in the FreeType
+<li> Added a check for spaces in the PostScript font name in the FreeType
   parser.
 <li> Made "-" a valid character in the glyph names.
 <li> Fixed handling of the Unicode names returned by FreeType, though
