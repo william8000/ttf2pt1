@@ -120,6 +120,7 @@ DOCS=CHANGES README FONTS FONTS.hpux encodings/README other/README \
 	app/X11/README app/netscape/README
 
 SUBDIRS = app encodings maps scripts other
+TXTFILES = README* FONTS* CHANGES* COPYRIGHT
 
 MANS1=ttf2pt1.1 ttf2pt1_convert.1 ttf2pt1_x2gs.1
 MANS=$(MANS1) $(MANS5)
@@ -202,7 +203,7 @@ install: all
 	scripts/inst_dir $(SHAREDIR)
 	scripts/inst_dir $(MANDIR)/man1
 	scripts/inst_dir $(MANDIR)/man5
-	cp -R [A-Z][A-Z]* $(SUBDIRS) $(SHAREDIR)
+	cp -R $(TXTFILES) $(SUBDIRS) $(SHAREDIR)
 	chown -R $(OWNER) $(SHAREDIR)
 	chgrp -R $(GROUP) $(SHAREDIR)
 	chmod -R go-w $(SHAREDIR)
