@@ -19,6 +19,9 @@ typedef struct gentry {
 #define bkwd cntr[0]
 #define frwd cntr[1]
 
+	/* various extended structures used at some stage of transformation */
+	void *ext; 
+
 	union {
 		struct {
 			int  val[2][3];	/* integer values */
@@ -74,6 +77,10 @@ typedef struct gentry {
 #define GE_LINE 'L'
 #define GE_CURVE 'C'
 #define GE_PATH 'P'
+
+	/* indexes of the points to be used for calculation of the tangents */
+	signed char     ftg; /* front tangent */
+	signed char     rtg; /* rear tangent, -1 means "idx 2 of the previous entry" */
 }               GENTRY;
 
 /* stem structure, describes one [hv]stem  */

@@ -1291,8 +1291,6 @@ convert_glyf(
 		if (smooth) {
 			smoothjoints(g);
 			assertpath(g->entries, __FILE__, __LINE__, g->name);
-
-			flattencurves(g);
 		}
 
 		ncurves = 0;
