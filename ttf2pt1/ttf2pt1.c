@@ -1775,8 +1775,15 @@ handle_name(void)
 		fprintf(stderr, "**** Cannot decode font name fields ****\n");
 		exit(1);
 	}
-	if (name_fields[6][0] == 0) { /* if empty */
+	if (name_fields[4][0] == 0) { /* Full Name empty, use Family Name */
+		name_fields[4] = name_fields[1];
+	}
+	if (name_fields[6][0] == 0) { /* Font Name empty, use Full Name */
 		name_fields[6] = name_fields[4];
+		if (name_fields[6][0] == 0) { /* oops, empty again */
+			WARNING_1 fprintf(stderr, "Font name is unknown, setting to \"Unknown\"\n");
+			name_fields[6] = "Unknown";
+		}
 	}
 	p = name_fields[6];
 	/* must not start with a digit */
@@ -3210,6 +3217,12 @@ main(
 		}
 	}
  
+	/* enforce two special cases defined in TTF manual */
+	if(numglyphs > 0)
+		glyph_list[0].name = ".null";
+	if(numglyphs > 1)
+		glyph_list[1].name = ".notdef";
+
  	for (i = 0; i < 256; i++) {
  		if ((encoding[i] != 0) && glyph_rename[i]) {
  		    glyph_list[encoding[i]].name = glyph_rename[i];
