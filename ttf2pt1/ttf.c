@@ -1412,24 +1412,26 @@ prkern(
 
 			npairs_used = 0;
 			for (j = 0; j < npairs; j++) {
-			  if (glyph_list[ntohs(kern_entry->left)].flags & GF_USED &&
-			      glyph_list[ntohs(kern_entry->right)].flags & GF_USED)
-			    npairs_used ++;
-			  kern_entry++;
+				if (glyph_list[ntohs(kern_entry->left)].flags & GF_USED 
+				&& glyph_list[ntohs(kern_entry->right)].flags & GF_USED
+				&& kern_entry->value != 0)
+					npairs_used ++;
+				kern_entry++;
 			}
 
 			fprintf(afm_file, "StartKernPairs %hd\n", npairs_used);
 			kern_entry = (TTF_KERN_ENTRY *) (ptr + sizeof(TTF_KERN_SUB));
 			for (j = 0; j < npairs; j++) {
-			  gl=&glyph_list[ntohs(kern_entry->left)];
-			  gr=&glyph_list[ntohs(kern_entry->right)];
-			  if (gl->flags & GF_USED && gr->flags & GF_USED)
-			    fprintf(afm_file, "KPX %s %s %d\n",
-				    gl->name, gr->name,
-					iscale((short) ntohs(kern_entry->value))
-						- (gl->scaledwidth - gl->oldwidth)
+				gl=&glyph_list[ntohs(kern_entry->left)];
+				gr=&glyph_list[ntohs(kern_entry->right)];
+				if( (gl->flags & GF_USED) && (gr->flags & GF_USED)
+				&& kern_entry->value != 0)
+					fprintf(afm_file, "KPX %s %s %d\n",
+						gl->name, gr->name,
+						iscale((short) ntohs(kern_entry->value))
+							- (gl->scaledwidth - gl->oldwidth)
 					);
-			  kern_entry++;
+				kern_entry++;
 			}
 			fprintf(afm_file, "EndKernPairs\n");
 		}
