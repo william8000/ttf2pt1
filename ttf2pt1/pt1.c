@@ -3805,7 +3805,10 @@ fstraighten(
 					fclosegap(ge, ge, i, df, NULL);
 			} else {
 				/* contour consists of only one line, get rid of it */
-				ige = freethisge(ge)->prev; /* keep the iterator valid */
+				ige = freethisge(ge); /* keep the iterator valid */
+				if(ige == 0) /* this was the last contour */
+					return;
+				ige = ige->prev;
 			}
 
 			break; /* don't bother looking at the other axis */
@@ -5892,6 +5895,12 @@ fconcisecontour(
 					pge->type = GE_CURVE;
 					ge = pge;
 					for(ige = pge->frwd; ; ige = pge->frwd) {
+						if(ige == pge) {
+							fprintf(stderr, "WARNING: assertion in %s line %d, please report it to the ttf2pt1 project\n",
+								__FILE__, __LINE__);
+							free(dots);
+							return;
+						}
 						if(startge == ige)
 							startge = pge;
 						free(ige->ext);
@@ -6058,6 +6067,12 @@ next:
 
 		ge = pge;
 		for(ige = pge->frwd; ; ige = pge->frwd) {
+			if(ige == pge) {
+				fprintf(stderr, "WARNING: assertion in %s line %d, please report it to the ttf2pt1 project\n",
+					__FILE__, __LINE__);
+				free(dots);
+				return;
+			}
 			if(startge == ige)
 				startge = pge;
 			free(ige->ext);
