@@ -1496,7 +1496,9 @@ bmp_outline(
 								}
 								lastf1->len[GEXFI_LINE] = len1+1;
 								pf->len[GEXFI_LINE] = fraglen+1 - i;
+#if 0
 								gex_dump_contour(pge, clen);
+#endif
 
 								/* continue with the line */
 								vert = 0; /* vert is a pseudo-directon */
@@ -1514,6 +1516,7 @@ bmp_outline(
 					ge = ge->frwd;
 				} while(ge != cge->next);
 #if 0
+				fprintf(stderr, "Line postprocessing part 2\n");
 				gex_dump_contour(cge->next, clen);
 #endif
 
@@ -1526,7 +1529,7 @@ bmp_outline(
 						/* if a non-exact line covers precisely two exact lines,
 						 * split it
 						 */
-						if(len > 0 && f->len[GEXFI_LINE] > len+1) {
+						if(len > 0 && f->len[GEXFI_LINE] >= len+1) {
 							GEX_FRAG *pf;
 							pge = age[(f->aidx + len - 1)%clen]; /* last gentry of exact line */
 							pf = X_FRAG(pge);
@@ -1541,6 +1544,10 @@ bmp_outline(
 
 					ge = ge->frwd;
 				} while(ge != cge->next);
+#if 0
+				fprintf(stderr, "Line postprocessing part 2a\n");
+				gex_dump_contour(cge->next, clen);
+#endif
 				ge = cge->next;
 				do {
 					f = X_FRAG(ge);
@@ -1569,6 +1576,7 @@ bmp_outline(
 					ge = ge->frwd;
 				} while(ge != cge->next);
 #if 0
+				fprintf(stderr, "Line postprocessing is completed\n");
 				gex_dump_contour(cge->next, clen);
 #endif
 
@@ -1717,35 +1725,85 @@ bmp_outline(
 				 * with them or extend by only one gentry on either side
 				 * (but not both sides). By this time it applies only to the
 				 * small exact lines.
+				 *
+				 * An interesting general case is when a curve matches more
+				 * than one exact line going diamond-like.
 				 */
-
-				/* Maybe we should remove only exact coincidences ? */
 
 				ge = cge->next;
 				do {
+					int done, len2;
+					int sharpness;
+					GEX_FRAG *pf;
+
 					f = X_FRAG(ge);
+
+					/* "sharpness" shows how a group of exact line frags is connected: if the gentries 
+					 * of some of them overlap, the curve matching requirement is loosened: it may
+					 * extend up to 1 gentry beyond each end of the group of exact line frags
+					 * (sharpness=2); otherwise it may extend to only one end (sharpness=1)
+					 */
+					sharpness = 1;
 
 					len = f->len[GEXFI_EXACTLINE];
 					if(len >= 4) {
-						for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
-							if(f->len[d] == len || f->len[d] == len+1) {
+						while(len < clen) {
+							done = 0;
+							pf = X_FRAG(ge->bkwd);
+							for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
+								if(f->len[d] == len || f->len[d] == len+1) {
 
-								fprintf(stderr, "    removed %s frag at %p len=%d linelen=%d\n", 
-									gxf_name[d], ge, f->len[d], len);
-								pge = ge->frwd;
-								for(i = f->len[d]; i > 1; i--, pge = pge->frwd)
-									X_FRAG(pge)->lenback[d] = 0;
-								f->len[d] = 0;
-								gex_dump_contour(ge, clen);
-							} else if(X_FRAG(ge->bkwd)->len[d] == len+1) {
-								fprintf(stderr, "    removed %s frag at %p len=%d next linelen=%d\n", 
-									gxf_name[d], ge->bkwd, X_FRAG(ge->bkwd)->len[d], len);
-								pge = ge;
-								for(i = len; i > 0; i--, pge = pge->frwd)
-									X_FRAG(pge)->lenback[d] = 0;
-								X_FRAG(ge->bkwd)->len[d] = 0;
-								gex_dump_contour(ge, clen);
+									fprintf(stderr, "    removed %s frag at %p len=%d linelen=%d\n", 
+										gxf_name[d], ge, f->len[d], len);
+									pge = ge->frwd;
+									for(i = f->len[d]; i > 1; i--, pge = pge->frwd)
+										X_FRAG(pge)->lenback[d] = 0;
+									f->len[d] = 0;
+									gex_dump_contour(ge, clen);
+									done = 1;
+								} else if(pf->len[d] == len+1 || pf->len[d] == len+sharpness) {
+									fprintf(stderr, "    removed %s frag at %p len=%d next linelen=%d\n", 
+										gxf_name[d], ge->bkwd, pf->len[d], len);
+									pge = ge;
+									for(i = pf->len[d]; i > 1; i--, pge = pge->frwd)
+										X_FRAG(pge)->lenback[d] = 0;
+									pf->len[d] = 0;
+									gex_dump_contour(ge, clen);
+									done = 1;
+								}
 							}
+							if(done)
+								break;
+
+							/* is there any chance to match a sequence of exect lines ? */
+							if(f->len[GEXFI_CONVEX] < len && f->len[GEXFI_CONCAVE] < len
+							&& pf->len[GEXFI_CONVEX] < len && pf->len[GEXFI_CONCAVE] < len)
+								break;
+
+							done = 1;
+							/* check whether the line is connected to another exact line at an extremum */
+							pge = age[(f->aidx + len - 1)%clen]; /* last gentry of exact line */
+							len2 = X_FRAG(pge)->len[GEXFI_EXACTLINE];
+							if(len2 > 0) {
+								if( len2 >= 4 && (X_FRAG(pge)->flags & GEXFF_EXTR) ) {
+									len += len2 - 1;
+									sharpness = 2;
+									done = 0;
+								}
+							} else {
+								/* see if the extremum is between two exact lines */
+								pge = pge->frwd;
+								if(X_FRAG(pge)->flags & GEXFF_EXTR) {
+									pge = pge->frwd;
+									len2 = X_FRAG(pge)->len[GEXFI_EXACTLINE];
+									if(len2 >= 4) {
+										len += len2 + 1;
+										done = 0;
+									}
+								}
+							}
+							if(done)
+								break;
 						}
 					}
 
@@ -1803,8 +1861,11 @@ bmp_outline(
 							k2 = i;
 					}
 
-					if(k1+k2 > 0 && k1+k2 >= len-3)
+					if(k1+k2 > 0 && k1+k2 >= len-3) {
+						fprintf(stderr, "    k1=%d k2=%d\n", k1, k2);
 						goto line_completely_covered;
+					}
+
 
 					if(k2 != 0) { /* cut the end */
 						len -= k2;
