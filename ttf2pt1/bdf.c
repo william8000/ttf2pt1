@@ -399,7 +399,6 @@ readglyphs(
 	glpaths[0] = g->entries;
 	g->entries = 0;
 	g->ttf_pathlen = 4;
-	fontenc[0] = 0;
 
 	g = &glyphs[1];
 	g->name = ".null";
