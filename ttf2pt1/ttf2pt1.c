@@ -1203,7 +1203,7 @@ convert_glyf(
 	g->lastentry = 0;
 	g->path = 0;
 	if (g->ttf_pathlen != 0) {
-		ncurves = cursw->glpath(glyphno, glyph_list);
+		cursw->glpath(glyphno, glyph_list);
 		g->lastentry = 0;
 
 		if(ISDBG(BUILDG))
@@ -1246,7 +1246,12 @@ convert_glyf(
 			flattencurves(g);
 		}
 
-		/* XXX we have to count curves _after_ processing, not before */
+		ncurves = 0;
+		{
+			GENTRY *ge;
+			for(ge = g->entries; ge; ge = ge->next)
+				ncurves++;
+		}
 		if (ncurves > 100) {
 			WARNING_2 fprintf(stderr,
 			"** Glyph %s is too long, may display incorrectly\n",

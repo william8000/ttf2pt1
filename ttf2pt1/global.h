@@ -137,6 +137,6 @@ struct frontsw {
 	void  (*glmetrics)(GLYPH *glyphs); /* get the metrics of glyphs */
 	int   (*glenc)(GLYPH *glyphs, int *enc, int *unimap); /* get the encoding */
 	void  (*fnmetrics)(struct font_metrics *fm); /* get the font metrics */
-	int   (*glpath)(int glyphno, GLYPH *glyphs); /* get the glyph path */
+	void  (*glpath)(int glyphno, GLYPH *glyphs); /* get the glyph path */
 	void  (*prkern)(GLYPH *glyphs, FILE *afm_file); /* print the kerning data */
 };

@@ -36,7 +36,7 @@ static int glnames( GLYPH *glyph_list);
 static void glmetrics( GLYPH *glyph_list);
 static int glenc( GLYPH *glyph_list, int *encoding, int *unimap);
 static void fnmetrics( struct font_metrics *fm);
-static int glpath( int glyphno, GLYPH *glyph_list);
+static void glpath( int glyphno, GLYPH *glyph_list);
 static void prkern( GLYPH *glyph_list, FILE *afm_file);
 
 /* globals */
@@ -60,7 +60,7 @@ struct frontsw ttf_sw = {
 /* statics */
 
 static FILE    *ttf_file;
-static int      ttf_nglyphs, long_offsets, ncurves;
+static int      ttf_nglyphs, long_offsets;
 
 static TTF_DIRECTORY *directory;
 static TTF_DIR_ENTRY *dir_entry;
@@ -611,14 +611,12 @@ draw_simple_glyf(
 			fg_rmoveto(g, xcoord[i], ycoord[i]);
 			xlast = xcoord[i];
 			ylast = ycoord[i];
-			ncurves++;
 			contour_start = i;
 			first = 0;
 		} else if (flags[i] & ONOROFF) {
 			fg_rlineto(g, xcoord[i], ycoord[i]);
 			xlast = xcoord[i];
 			ylast = ycoord[i];
-			ncurves++;
 		} else {
 			cs = i - 1;
 			finished = nguide = 0;
@@ -640,7 +638,6 @@ draw_simple_glyf(
 				fg_rlineto(g, xcoord[ce], ycoord[ce]);
 				xlast = xcoord[ce];
 				ylast = ycoord[ce];
-				ncurves++;
 				break;
 
 			case 1:
@@ -655,7 +652,6 @@ draw_simple_glyf(
 				xlast = xcoord[ce];
 				ylast = ycoord[ce];
 
-				ncurves++;
 				break;
 
 			case 2:
@@ -669,7 +665,6 @@ draw_simple_glyf(
 					);
 				xlast = xcoord[ce];
 				ylast = ycoord[ce];
-				ncurves++;
 				break;
 
 			case 3:
@@ -702,7 +697,6 @@ draw_simple_glyf(
 				ylast = ycoord[ce];
 				xlast = xcoord[ce];
 
-				ncurves += 3;
 				break;
 
 			default:
@@ -739,7 +733,6 @@ draw_simple_glyf(
 				xlast = xcoord[ce];
 				ylast = ycoord[ce];
 
-				ncurves += nguide;
 				break;
 			}
 		}
@@ -1362,10 +1355,9 @@ fnmetrics(
 
 /*
  * Get the path of contrours for a glyph.
- * Returns ncurves whatever it means.
  */
 
-static int
+static void
 glpath(
 	int glyphno,
 	GLYPH *glyf_list
@@ -1375,13 +1367,10 @@ glpath(
 	GLYPH          *g;
 
 	g = &glyph_list[glyphno];
-	ncurves = 0; /* global variable */
 
 	matrix[0] = matrix[3] = 1.0;
 	matrix[1] = matrix[2] = matrix[4] = matrix[5] = 0.0;
 	draw_composite_glyf(g, glyf_list, glyphno, matrix, 0 /*level*/);
-
-	return ncurves;
 }
 
 /*
