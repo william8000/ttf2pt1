@@ -159,6 +159,12 @@ static char    *mac_glyph_names[258] = {
 	"Ccaron", "ccaron", "dmacron"
 };
 
+/* other prototypes */
+static void draw_composite_glyf( GLYPH *g, GLYPH *glyph_list, int glyphno, 
+	double *matrix, int level);
+static void draw_simple_glyf( GLYPH *g, GLYPH *glyph_list, int glyphno, 
+	double *matrix);
+static double f2dot14( short x);
 
 /* get the TTF description table address and length for this index */
 
@@ -310,13 +316,161 @@ handle_head(void)
 	}
 }
 
+/* limit the recursion level to avoid cycles */
+#define MAX_COMPOSITE_LEVEL 20
+
 static void
-draw_glyf(
+draw_composite_glyf(
 	GLYPH *g,
 	GLYPH *glyph_list,
 	int glyphno,
-	double *xoff,
-	double *yoff,
+	double *orgmatrix,
+	int level
+)
+{
+	int len;
+	short           ncontours;
+	USHORT          flagbyte, glyphindex, xscale, yscale, scale01,
+	                scale10;
+	double          arg1, arg2;
+	BYTE           *ptr;
+	char           *bptr;
+	SHORT          *sptr;
+	double          matrix[6], newmatrix[6];
+
+	get_glyf_table(glyphno, &glyf_table, &len);
+
+	if(len<=0) /* nothing to do */
+		return;
+
+	ncontours = ntohs(glyf_table->numberOfContours);
+	if (ncontours >= 0) { /* simple case */
+		draw_simple_glyf(g, glyph_list, glyphno, orgmatrix);
+		return;
+	}
+
+	/* complex case */
+	if(level >= MAX_COMPOSITE_LEVEL) {
+		WARNING_1 fprintf(stderr, 
+			"*** Glyph %s: stopped (possibly infinite) recursion at depth %d\n",
+			g->name, level);
+		return;
+	}
+
+	ptr = ((BYTE *) glyf_table + sizeof(TTF_GLYF));
+	sptr = (SHORT *) ptr;
+	do {
+		flagbyte = ntohs(*sptr);
+		sptr++;
+		glyphindex = ntohs(*sptr);
+		sptr++;
+
+		if (flagbyte & ARG_1_AND_2_ARE_WORDS) {
+			arg1 = (short)ntohs(*sptr);
+			sptr++;
+			arg2 = (short)ntohs(*sptr);
+			sptr++;
+		} else {
+			bptr = (char *) sptr;
+			arg1 = (signed char) bptr[0];
+			arg2 = (signed char) bptr[1];
+			sptr++;
+		}
+		matrix[1] = matrix[2] = 0.0;
+
+		if (flagbyte & WE_HAVE_A_SCALE) {
+			matrix[0] = matrix[3] = f2dot14(*sptr);
+			sptr++;
+		} else if (flagbyte & WE_HAVE_AN_X_AND_Y_SCALE) {
+			matrix[0] = f2dot14(*sptr);
+			sptr++;
+			matrix[3] = f2dot14(*sptr);
+			sptr++;
+		} else if (flagbyte & WE_HAVE_A_TWO_BY_TWO) {
+			matrix[0] = f2dot14(*sptr);
+			sptr++;
+			matrix[1] = f2dot14(*sptr);
+			sptr++;
+			matrix[2] = f2dot14(*sptr);
+			sptr++;
+			matrix[3] = f2dot14(*sptr);
+			sptr++;
+		} else {
+			matrix[0] = matrix[3] = 1.0;
+		}
+
+		/*
+		 * See *
+		 * http://fonts.apple.com/TTRefMan/RM06/Chap6g
+		 * lyf.html * matrix[0,1,2,3,4,5]=a,b,c,d,m,n
+		 */
+
+		if (fabs(matrix[0]) > fabs(matrix[1]))
+			matrix[4] = fabs(matrix[0]);
+		else
+			matrix[4] = fabs(matrix[1]);
+		if (fabs(fabs(matrix[0]) - fabs(matrix[2])) <= 33. / 65536.)
+			matrix[4] *= 2.0;
+
+		if (fabs(matrix[2]) > fabs(matrix[3]))
+			matrix[5] = fabs(matrix[2]);
+		else
+			matrix[5] = fabs(matrix[3]);
+		if (fabs(fabs(matrix[2]) - fabs(matrix[3])) <= 33. / 65536.)
+			matrix[5] *= 2.0;
+
+		/*
+		 * fprintf (stderr,"Matrix Opp %hd
+		 * %hd\n",arg1,arg2);
+		 */
+#if 0
+		fprintf(stderr, "Matrix: %f %f %f %f %f %f\n",
+		 matrix[0], matrix[1], matrix[2], matrix[3],
+			matrix[4], matrix[5]);
+		fprintf(stderr, "Offset: %f %f (%s)\n",
+			arg1, arg2,
+			((flagbyte & ARGS_ARE_XY_VALUES) ? "XY" : "index"));
+#endif
+
+		if (flagbyte & ARGS_ARE_XY_VALUES) {
+			matrix[4] *= arg1;
+			matrix[5] *= arg2;
+		} else {
+			WARNING_1 fprintf(stderr, 
+				"*** Glyph %s: reusing scale from another glyph is unsupported\n",
+				g->name);
+			/*
+			 * must extract values from a glyph
+			 * but it seems to be too much pain
+			 * and it's not clear now that it
+			 * would be really used in any
+			 * interesting font
+			 */
+		}
+
+		/* at this point arg1,arg2 contain what logically should be matrix[4,5] */
+
+		/* combine matrices */
+
+		newmatrix[0] = matrix[0]*orgmatrix[0] + matrix[2]*orgmatrix[1];
+		newmatrix[1] = matrix[0]*orgmatrix[2] + matrix[2]*orgmatrix[3];
+
+		newmatrix[2] = matrix[1]*orgmatrix[0] + matrix[3]*orgmatrix[1];
+		newmatrix[3] = matrix[1]*orgmatrix[2] + matrix[3]*orgmatrix[3];
+
+		newmatrix[4] = matrix[0]*orgmatrix[4] + matrix[2]*orgmatrix[5]; + matrix[4];
+		newmatrix[5] = matrix[1]*orgmatrix[4] + matrix[3]*orgmatrix[5]; + matrix[5];
+
+		draw_composite_glyf(g, glyph_list, glyphindex, newmatrix, level+1);
+
+	} while (flagbyte & MORE_COMPONENTS);
+}
+
+static void
+draw_simple_glyf(
+	GLYPH *g,
+	GLYPH *glyph_list,
+	int glyphno,
 	double *matrix
 )
 {
@@ -331,23 +485,12 @@ draw_glyf(
 	short           xabs[GLYFSZ], yabs[GLYFSZ], xrel[GLYFSZ], yrel[GLYFSZ];
 	double          xcoord[GLYFSZ], ycoord[GLYFSZ];
 	BYTE            flags[GLYFSZ];
-	short           txoff, tyoff;
 	double          tx, ty;
 	int             needreverse = 0;	/* transformation may require
 						 * that */
 	GENTRY         *lge;
 
 	lge = g->lastentry;
-
-#if 0
-	for (i = 0; i < GLYFSZ; i++) {
-		xcoord[i] = 0;
-		ycoord[i] = 0;
-	}
-#endif
-	/*
-	 * fprintf (stderr,"draw glyf: Matrx offset %d %d\n",xoff,yoff);
-	 */
 
 	get_glyf_table(glyphno, &glyf_table, &len);
 
@@ -359,7 +502,7 @@ draw_glyf(
 		return;
 	}
 	ncontours = ntohs(glyf_table->numberOfContours);
-	if (ncontours <= 0) {
+	if (ncontours < 0) {
 		WARNING_1 fprintf(stderr,
 			"**** Composite glyph %s refers to composite glyph %s, ignored\n",
 			g->name,
@@ -430,19 +573,17 @@ draw_glyf(
 		}
 	}
 
-	txoff = *xoff;
-	tyoff = *yoff;
 	if (matrix) {
 		for (i = 0; i <= last_point; i++) {
 			tx = xabs[i];
 			ty = yabs[i];
-			xcoord[i] = fscale(matrix[0] * tx + matrix[2] * ty + txoff);
-			ycoord[i] = fscale(matrix[1] * tx + matrix[3] * ty + tyoff);
+			xcoord[i] = fscale(matrix[0] * tx + matrix[2] * ty + matrix[4]);
+			ycoord[i] = fscale(matrix[1] * tx + matrix[3] * ty + matrix[5]);
 		}
 	} else {
 		for (i = 0; i <= last_point; i++) {
-			xcoord[i] = fscale(xabs[i] + txoff);
-			ycoord[i] = fscale(yabs[i] + tyoff);
+			xcoord[i] = fscale(xabs[i]);
+			ycoord[i] = fscale(yabs[i]);
 		}
 	}
 
@@ -597,8 +738,6 @@ draw_glyf(
 			i++;
 		}
 	}
-	*xoff = xlast;
-	*yoff = ylast;
 
 	if (matrix) {
 		/* guess whether do we need to reverse the results */
@@ -1265,134 +1404,15 @@ glpath(
 	GLYPH *glyf_list
 )
 {
-	int             len;
-	short           ncontours;
-	USHORT          flagbyte, glyphindex, xscale, yscale, scale01,
-	                scale10;
-	double          arg1, arg2, xoff, yoff;
-	BYTE           *ptr;
-	char           *bptr;
-	SHORT          *sptr;
 	double          matrix[6];
 	GLYPH          *g;
 
 	g = &glyph_list[glyphno];
-	ncurves = 0;
+	ncurves = 0; /* global variable */
 
-	get_glyf_table(glyphno, &glyf_table, &len);
-
-	if (len != 0) {
-		ncontours = ntohs(glyf_table->numberOfContours);
-
-		if (ncontours <= 0) {
-			ptr = ((BYTE *) glyf_table + sizeof(TTF_GLYF));
-			sptr = (SHORT *) ptr;
-			xoff = 0;
-			yoff = 0;
-			do {
-				flagbyte = ntohs(*sptr);
-				sptr++;
-				glyphindex = ntohs(*sptr);
-				sptr++;
-
-				if (flagbyte & ARG_1_AND_2_ARE_WORDS) {
-					arg1 = (short)ntohs(*sptr);
-					sptr++;
-					arg2 = (short)ntohs(*sptr);
-					sptr++;
-				} else {
-					bptr = (char *) sptr;
-					arg1 = (signed char) bptr[0];
-					arg2 = (signed char) bptr[1];
-					sptr++;
-				}
-				matrix[1] = matrix[2] = 0.0;
-
-				if (flagbyte & WE_HAVE_A_SCALE) {
-					matrix[0] = matrix[3] = f2dot14(*sptr);
-					sptr++;
-				} else if (flagbyte & WE_HAVE_AN_X_AND_Y_SCALE) {
-					matrix[0] = f2dot14(*sptr);
-					sptr++;
-					matrix[3] = f2dot14(*sptr);
-					sptr++;
-				} else if (flagbyte & WE_HAVE_A_TWO_BY_TWO) {
-					matrix[0] = f2dot14(*sptr);
-					sptr++;
-					matrix[1] = f2dot14(*sptr);
-					sptr++;
-					matrix[2] = f2dot14(*sptr);
-					sptr++;
-					matrix[3] = f2dot14(*sptr);
-					sptr++;
-				} else {
-					matrix[0] = matrix[3] = 1.0;
-				}
-
-				/*
-				 * See *
-				 * http://fonts.apple.com/TTRefMan/RM06/Chap6g
-				 * lyf.html * matrix[0,1,2,3,4,5]=a,b,c,d,m,n
-				 */
-
-				if (fabs(matrix[0]) > fabs(matrix[1]))
-					matrix[4] = fabs(matrix[0]);
-				else
-					matrix[4] = fabs(matrix[1]);
-				if (fabs(fabs(matrix[0]) - fabs(matrix[2])) <= 33. / 65536.)
-					matrix[4] *= 2.0;
-
-				if (fabs(matrix[2]) > fabs(matrix[3]))
-					matrix[5] = fabs(matrix[2]);
-				else
-					matrix[5] = fabs(matrix[3]);
-				if (fabs(fabs(matrix[2]) - fabs(matrix[3])) <= 33. / 65536.)
-					matrix[5] *= 2.0;
-
-				/*
-				 * fprintf (stderr,"Matrix Opp %hd
-				 * %hd\n",arg1,arg2);
-				 */
-#if 0
-				fprintf(stderr, "Matrix: %f %f %f %f %f %f\n",
-				 matrix[0], matrix[1], matrix[2], matrix[3],
-					matrix[4], matrix[5]);
-				fprintf(stderr, "Offset: %f %f (%s)\n",
-					arg1, arg2,
-					((flagbyte & ARGS_ARE_XY_VALUES) ? "XY" : "index"));
-#endif
-
-				if (flagbyte & ARGS_ARE_XY_VALUES) {
-					arg1 = arg1 * matrix[4];
-					arg2 = arg2 * matrix[5];
-				} else {
-					/*
-					 * must extract values from a glyph
-					 * but it seems to be too much pain
-					 * and it's not clear now that it
-					 * would be really used in any
-					 * interesting font
-					 */
-				}
-
-				draw_glyf(g, glyf_list, glyphindex, &arg1, &arg2, matrix);
-
-				/*
-				 * we use absolute values now so we don't
-				 * really need that
-				 */
-				xoff = arg1;
-				yoff = arg2;
-
-			} while (flagbyte & MORE_COMPONENTS);
-		} else {
-			arg1 = 0;
-			arg2 = 0;
-			matrix[0] = matrix[3] = matrix[4] = matrix[5] = 1.0;
-			matrix[1] = matrix[2] = 0.0;
-			draw_glyf(g, glyf_list, glyphno, &arg1, &arg2, NULL);
-		}
-	}
+	matrix[0] = matrix[3] = 1.0;
+	matrix[1] = matrix[2] = matrix[4] = matrix[5] = 0.0;
+	draw_composite_glyf(g, glyf_list, glyphno, matrix, 0 /*level*/);
 
 	return ncurves;
 }
