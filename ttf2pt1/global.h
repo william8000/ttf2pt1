@@ -65,7 +65,7 @@ extern int      numglyphs, long_offsets, ncurves;
 #endif
 
 /* uncomment the next line if debugging data is wanted for one glyph only */
-/* #define DBG_GLYPH	"O"  /* */
+/* #define DBG_GLYPH	"_517"  /* */
 
 #if DEBUG==0
 #	define ISDBG(name)	(0)

@@ -1669,6 +1669,11 @@ convert_glyf(
 	g->path = 0;
 	if (g->ttf_pathlen != 0) {
 		ncurves = cursw->glpath(glyphno, glyph_list);
+		g->lastentry = 0;
+
+		if(ISDBG(BUILDG))
+			dumppaths(g);
+
 		assertpath(g->entries, __FILE__, __LINE__, g->name);
 
 		fclosepaths(g);
@@ -1728,6 +1733,9 @@ convert_glyf(
 			"** Glyph %s is too long, may display incorrectly\n",
 				g->name);
 		}
+	} else {
+		/* for buildstems */
+		g->flags &= ~GF_FLOAT;
 	}
 }
 

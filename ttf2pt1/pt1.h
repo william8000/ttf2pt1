@@ -5,9 +5,18 @@
 
 /* glyph entry, one drawing command */
 typedef struct gentry {
+	/* this list links all GENTRYs of a GLYPH sequentially */
 	struct gentry  *next;	/* double linked list */
 	struct gentry  *prev;
-	struct gentry  *first;	/* first entry in path */
+
+	/* this list links all GENTRYs of one contour - 
+	 * of types GE_LINE and GE_CURVE only
+	 * back is also reused: in the very first entry (normally
+	 * of type GE_MOVE) it points to g->entries
+	 */
+	struct gentry  *back;	/* double-linked circular list */
+	struct gentry  *forw;
+
 	union {
 		struct {
 			int  val[2][3];	/* integer values */
@@ -189,14 +198,6 @@ int checkcv( GENTRY * ge, int dx, int dy);
 void iclosepaths( GLYPH * g);
 void fclosepaths( GLYPH * g);
 void smoothjoints( GLYPH * g);
-void debugstems( char *name, STEM * hstems, int nhs, STEM * vstems, int nvs);
-int addbluestems( STEM *s, int n);
-void sortstems( STEM * s, int n);
-int stemoverlap( STEM * s1, STEM * s2);
-int steminblue( STEM *s);
-void markbluestems( STEM *s, int nold);
-void joinsubstems( STEM * s, short *pairs, int nold, int useblues);
-int joinmainstems( STEM * s, int nold, int useblues);
 void buildstems( GLYPH * g);
 void straighten( GLYPH * g, int zigonly);
 void splitzigzags( GLYPH * g);
@@ -205,6 +206,7 @@ void fforceconcise( GLYPH * g);
 void forceconcise( GLYPH * g);
 void reversepathsfromto( GENTRY * from, GENTRY * to);
 void reversepaths( GLYPH * g);
+void dumppaths( GLYPH * g);
 void print_glyph( int glyphno);
 int print_glyph_subs( int glyphno, int startid);
 void print_glyph_metrics( int code, int glyphno, short *bbox);
