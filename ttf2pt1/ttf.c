@@ -1035,24 +1035,24 @@ glnames(
                         } else if (n < 258 + n_ps_names) {
                                 glyph_list[i].name = ps_name_ptr[n - 258];
                         } else {
-                                glyph_list[i].name = malloc(10);
-                                sprintf(glyph_list[i].name, "_%d", n);
+                                glyph_list[i].name = malloc(16);
+                                sprintf(glyph_list[i].name, "_g_%d", i);
                                 WARNING_2 fprintf(stderr,
-                                        "**** Glyph No. %d has no postscript name, becomes %s ****\n",
+                                        "Glyph No. %d has no postscript name, becomes %s\n",
                                         i, glyph_list[i].name);
                         }
                 }
                 /* Now fake postscript names for all those beyond the end of the table */
                 if (npost < ttf_nglyphs) {
                     for (i=npost; i<ttf_nglyphs; i++) {
-                        if ((glyph_list[i].name = malloc(10)) == NULL)
+                        if ((glyph_list[i].name = malloc(16)) == NULL)
                         {
                             fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
                             exit(255);
                         }
-                        sprintf(glyph_list[i].name, "_%d", i);
+                        sprintf(glyph_list[i].name, "_g_%d", i);
                         WARNING_2 fprintf(stderr,
-                                "** Glyph No. %d has no postscript name, becomes %s **\n",
+                                "Glyph No. %d has no postscript name, becomes %s\n",
                                 i, glyph_list[i].name);
                     }
                 }

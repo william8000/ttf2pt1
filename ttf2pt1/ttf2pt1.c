@@ -1141,6 +1141,36 @@ unicode_prepare_buckets(
 }
 
 /*
+ * When we print errors about bad names we want to print these names in
+ * some decent-looking form
+ */
+
+static char *
+nametoprint(
+	unsigned char *s
+)
+{
+	static char res[50];
+	int c, i;
+
+	for(i=0; ( c =* s )!=0 && i<sizeof(res)-8; s++) {
+		if(c < ' ' || c > 126) {
+			sprintf(res+i, "\\x%02X", c);
+			i+=4;
+		} else {
+			res[i++] = c;
+		}
+	}
+	if(*s != 0) {
+		res[i++] = '.';
+		res[i++] = '.';
+		res[i++] = '.';
+	}
+	res[i++] = 0;
+	return res;
+}
+
+/*
  * Scale the values according to the scale_factor
  */
 
@@ -1299,9 +1329,9 @@ handle_gnames(void)
 				WARNING_3 fprintf(stderr, "Glyph %d %s (%s), ",
 					n, isdigit(c) ? "name starts with a digit" : 
 						"has bad characters in name",
-					glyph_list[n].name);
-				glyph_list[n].name = malloc(10);
-				sprintf(glyph_list[n].name, "_%d", n);
+					nametoprint(glyph_list[n].name));
+				glyph_list[n].name = malloc(16);
+				sprintf(glyph_list[n].name, "_b_%d", n);
 				WARNING_3 fprintf(stderr, "changing to %s\n", glyph_list[n].name);
 				break;
 			}
@@ -1314,8 +1344,8 @@ handle_gnames(void)
 			found = 0;
 			for (i = 0; i < n && !found; i++) {
 				if (strcmp(glyph_list[i].name, glyph_list[n].name) == 0) {
-					glyph_list[n].name = malloc(10);
-					sprintf(glyph_list[n].name, "_%d", n);
+					glyph_list[n].name = malloc(16);
+					sprintf(glyph_list[n].name, "_d_%d", n);
 					WARNING_3 fprintf(stderr,
 						"Glyph %d has the same name as %d: (%s), changing to %s\n",
 						n, i,

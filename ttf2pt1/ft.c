@@ -153,10 +153,9 @@ glnames(
 
 	for(i=0; i < face->num_glyphs; i++) {
 		if( FT_Get_Glyph_Name(face, i, bf, MAX_NAMELEN) || bf[0]==0 ) {
-			sprintf(bf, "_%d", i);
+			sprintf(bf, "_g_%d", i);
 			WARNING_2 fprintf(stderr,
-				"**** Glyph No. %d has no postscript name, becomes %s ****\n",
-				i, bf);
+				"Glyph No. %d has no postscript name, becomes %s\n", i, bf);
 		}
 		glyph_list[i].name = strdup(bf);
 		if(ISDBG(FT)) fprintf(stderr, "%d has name %s\n", i, bf);
