@@ -1689,6 +1689,9 @@ convert_glyf(
 
 			fforceconcise(g);
 			assertpath(g->entries, __FILE__, __LINE__, g->name);
+
+			fstraighten(g);
+			assertpath(g->entries, __FILE__, __LINE__, g->name);
 		}
 
 		pathtoint(g); 
@@ -1702,20 +1705,6 @@ convert_glyf(
 
 		/* int processing */
 		if (smooth) {
-			smoothjoints(g);
-			assertpath(g->entries, __FILE__, __LINE__, g->name);
-
-#if 0
-			straighten(g, 1);
-			assertpath(g->entries, __FILE__, __LINE__, g->name);
-
-			forceconcise(g);
-			assertpath(g->entries, __FILE__, __LINE__, g->name);
-#endif
-
-			straighten(g, 0);
-			assertpath(g->entries, __FILE__, __LINE__, g->name);
-
 			smoothjoints(g);
 			assertpath(g->entries, __FILE__, __LINE__, g->name);
 

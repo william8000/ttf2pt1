@@ -11,11 +11,13 @@ typedef struct gentry {
 
 	/* this list links all GENTRYs of one contour - 
 	 * of types GE_LINE and GE_CURVE only
-	 * back is also reused: in the very first entry (normally
+	 * bkwd is also reused: in the very first entry (normally
 	 * of type GE_MOVE) it points to g->entries
 	 */
-	struct gentry  *back;	/* double-linked circular list */
-	struct gentry  *forw;
+	struct gentry  *cntr[2]; /* double-linked circular list */
+/* convenience handles */
+#define bkwd cntr[0]
+#define frwd cntr[1]
 
 	union {
 		struct {
@@ -199,7 +201,8 @@ void iclosepaths( GLYPH * g);
 void fclosepaths( GLYPH * g);
 void smoothjoints( GLYPH * g);
 void buildstems( GLYPH * g);
-void straighten( GLYPH * g, int zigonly);
+void fstraighten( GLYPH * g);
+void istraighten( GLYPH * g, int zigonly);
 void isplitzigzags( GLYPH * g);
 void fsplitzigzags( GLYPH * g);
 void fforceconcise( GLYPH * g);

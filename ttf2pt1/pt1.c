@@ -66,6 +66,8 @@ static double fcvarea( GENTRY *ge);
 static int fckjoinedcv( GLYPH *g, double t, GENTRY *nge, 
 	GENTRY *old1, GENTRY *old2, double k);
 static double fcvval( GENTRY *ge, int axis, double t);
+static double fclosegap( GENTRY *from, GENTRY *to, int axis,
+	double gap, double *ret);
 
 static int
 isign(
@@ -237,26 +239,26 @@ assertpath(
 			break;
 		case GE_LINE:
 		case GE_CURVE:
-			if(ge->forw->back != ge) {
+			if(ge->frwd->bkwd != ge) {
 				fprintf(stderr, "**! assertpath: called from %s line %d (%s) ****\n", file, line, name);
-				fprintf(stderr, "unidirectional chain 0x%x -forw-> 0x%x -back-> 0x%x \n",
-					ge, ge->forw, ge->forw->back);
+				fprintf(stderr, "unidirectional chain 0x%x -frwd-> 0x%x -bkwd-> 0x%x \n",
+					ge, ge->frwd, ge->frwd->bkwd);
 				abort();
 			}
 			if(ge->prev->type == GE_MOVE) {
 				first = ge;
-				if(ge->back->next->type != GE_PATH) {
+				if(ge->bkwd->next->type != GE_PATH) {
 					fprintf(stderr, "**! assertpath: called from %s line %d (%s) ****\n", file, line, name);
-					fprintf(stderr, "broken first backlink 0x%x -back-> 0x%x -next-> 0x%x \n",
-						ge, ge->back, ge->back->next);
+					fprintf(stderr, "broken first backlink 0x%x -bkwd-> 0x%x -next-> 0x%x \n",
+						ge, ge->bkwd, ge->bkwd->next);
 					abort();
 				}
 			}
 			if(ge->next->type == GE_PATH) {
-				if(ge->forw != first) {
+				if(ge->frwd != first) {
 					fprintf(stderr, "**! assertpath: called from %s line %d (%s) ****\n", file, line, name);
-					fprintf(stderr, "broken loop 0x%x -...-> 0x%x -forwt-> 0x%x \n",
-						first, ge, ge->forw);
+					fprintf(stderr, "broken loop 0x%x -...-> 0x%x -frwd-> 0x%x \n",
+						first, ge, ge->frwd);
 					abort();
 				}
 			}
@@ -345,7 +347,7 @@ fg_rmoveto(
 		nge->type = GE_MOVE;
 		nge->fx3 = x;
 		nge->fy3 = y;
-		nge->back = (GENTRY*)&g->entries;
+		nge->bkwd = (GENTRY*)&g->entries;
 		g->entries = g->lastentry = nge;
 	}
 
@@ -392,7 +394,7 @@ ig_rmoveto(
 		nge->type = GE_MOVE;
 		nge->ix3 = x;
 		nge->iy3 = y;
-		nge->back = (GENTRY*)&g->entries;
+		nge->bkwd = (GENTRY*)&g->entries;
 		g->entries = g->lastentry = nge;
 	}
 
@@ -425,12 +427,12 @@ fg_rlineto(
 		}
 		if (g->path == 0) {
 			g->path = nge;
-			nge->back = nge->forw = nge;
+			nge->bkwd = nge->frwd = nge;
 		} else {
-			oge->forw = nge;
-			nge->back = oge;
-			g->path->back = nge;
-			nge->forw = g->path;
+			oge->frwd = nge;
+			nge->bkwd = oge;
+			g->path->bkwd = nge;
+			nge->frwd = g->path;
 		}
 
 		oge->next = nge;
@@ -472,12 +474,12 @@ ig_rlineto(
 		}
 		if (g->path == 0) {
 			g->path = nge;
-			nge->back = nge->forw = nge;
+			nge->bkwd = nge->frwd = nge;
 		} else {
-			oge->forw = nge;
-			nge->back = oge;
-			g->path->back = nge;
-			nge->forw = g->path;
+			oge->frwd = nge;
+			nge->bkwd = oge;
+			g->path->bkwd = nge;
+			nge->frwd = g->path;
 		}
 
 		oge->next = nge;
@@ -534,12 +536,12 @@ fg_rrcurveto(
 			}
 			if (g->path == 0) {
 				g->path = nge;
-				nge->back = nge->forw = nge;
+				nge->bkwd = nge->frwd = nge;
 			} else {
-				oge->forw = nge;
-				nge->back = oge;
-				g->path->back = nge;
-				nge->forw = g->path;
+				oge->frwd = nge;
+				nge->bkwd = oge;
+				g->path->bkwd = nge;
+				nge->frwd = g->path;
 			}
 
 			oge->next = nge;
@@ -599,12 +601,12 @@ ig_rrcurveto(
 			}
 			if (g->path == 0) {
 				g->path = nge;
-				nge->back = nge->forw = nge;
+				nge->bkwd = nge->frwd = nge;
 			} else {
-				oge->forw = nge;
-				nge->back = oge;
-				g->path->back = nge;
-				nge->forw = g->path;
+				oge->frwd = nge;
+				nge->bkwd = oge;
+				g->path->bkwd = nge;
+				nge->frwd = g->path;
 			}
 
 			oge->next = nge;
@@ -1303,15 +1305,12 @@ icheckcv(
 
 /* float connect the ends of open contours */
 
-/* XXX to be fixed: now doing small corrections in a simplistic way */
-
 void
 fclosepaths(
 	   GLYPH * g
 )
 {
-	GENTRY         *ge, *fge, *xge;
-	int             x = 0, y = 0;
+	GENTRY         *ge, *fge, *xge, *nge;
 	int             i, j;
 
 	assertisfloat(g, "fclosepaths float\n");
@@ -1327,7 +1326,7 @@ fclosepaths(
 			exit(1);
 		}
 
-		fge = ge->forw;
+		fge = ge->frwd;
 		if (fge->prev == 0 || fge->prev->type != GE_MOVE) {
 			fprintf(stderr, "**! Glyph %s got strange beginning of path\n",
 				g->name);
@@ -1340,72 +1339,32 @@ fclosepaths(
 			WARNING_4 fprintf(stderr, "Glyph %s got path open by dx=%g dy=%g\n",
 			g->name, fge->fx3 - ge->fx3, fge->fy3 - ge->fy3);
 
+
+			/* add a new line */
+			nge = newgentry(GEF_FLOAT);
+			(*nge) = (*ge);
+			nge->fx3 = fge->fx3;
+			nge->fy3 = fge->fy3;
+			nge->type = GE_LINE;
+
+			addgeafter(ge, nge);
+
 			if (fabs(ge->fx3 - fge->fx3) <= 2 && fabs(ge->fy3 - fge->fy3) <= 2) {
 				/*
-				 * small change, try to correct what
-				 * we have
+				 * small change, try to get rid of the new entry
 				 */
-				double          chg[2], rescale, base;
 
-				chg[0] = fge->fx3 - ge->fx3;
-				chg[1] = fge->fy3 - ge->fy3;
+				double df[2];
 
-				/* first try to fix a curve */
-				if (fcheckcv(ge, chg[0], chg[1])) {
-					for(i=0; i<2; i++) {
-						if(chg[i]==0)
-							continue;
-						base = ge->prev->fpoints[i][2];
-						rescale = 1 + chg[i] / (ge->fpoints[i][2] - base);
-						for(j=0; j<3; j++)
-							ge->fpoints[i][j] = base + rescale * (ge->fpoints[i][j] - base);
-					}
-				} else if (fcheckcv(fge->next, chg[0], chg[1])) {
-					for(i=0; i<2; i++) {
-						if(chg[i]==0)
-							continue;
-						base = fge->next->fpoints[i][2];
-						rescale = 1 - chg[i] / (fge->fpoints[i][2] - base);
-						fge->fpoints[i][2] = base + rescale * (fge->fpoints[i][2] - base);
-						for(j=0; j<2; j++)
-							fge->next->fpoints[i][j] = base 
-								+ rescale * (fge->next->fpoints[i][j] - base);
-					}
-
-					/* then try to fix a line */
-				} else if (ge->type == GE_LINE) {
-					ge->fx3 += chg[0];
-					ge->fy3 += chg[1];
-				} else if (fge->next->type == GE_LINE) {
-					fge->fx3 -= chg[0];
-					fge->fy3 -= chg[1];
-
-					/*
-					 * and as the last resort
-					 * draw a new line
-					 */
-				} else {
-					GENTRY         *nge;
-
-					nge = newgentry(GEF_FLOAT);
-					(*nge) = (*ge);
-					nge->fx3 = fge->fx3;
-					nge->fy3 = fge->fy3;
-					nge->type = GE_LINE;
-
-					addgeafter(ge, nge);
+				for(i=0; i<2; i++) {
+					df[i] = ge->fpoints[i][2] - fge->fpoints[i][2];
+					df[i] = fclosegap(nge, nge, i, df[i], NULL);
 				}
-			} else {
-				/* big change, add new line */
-				GENTRY         *nge;
 
-				nge = newgentry(GEF_FLOAT);
-				(*nge) = (*ge);
-				nge->fx3 = fge->fx3;
-				nge->fy3 = fge->fy3;
-				nge->type = GE_LINE;
-
-				addgeafter(ge, nge);
+				if(df[0] == 0. && df[1] == 0.) {
+					/* closed gap successfully, remove the added entry */
+					freethisge(nge);
+				}
 			}
 		}
 	}
@@ -1426,7 +1385,7 @@ iclosepaths(
 	assertisint(g, "iclosepaths int");
 
 	for (ge = g->entries; ge != 0; ge = ge->next) {
-		if ((fge = ge->forw) != ge->next) {
+		if ((fge = ge->frwd) != ge->next) {
 			if (fge->prev == 0 || fge->prev->type != GE_MOVE) {
 				WARNING_1 fprintf(stderr, "Glyph %s got strange beginning of path\n",
 					g->name);
@@ -1518,13 +1477,15 @@ smoothjoints(
 	int             dx1, dy1, dx2, dy2, k;
 	int             dir;
 
+	return; /* this stuff seems to create problems */
+
 	assertisint(g, "smoothjoints int");
 
 	if (g->entries == 0)	/* nothing to do */
 		return;
 
 	for (ge = g->entries->next; ge != 0; ge = ge->next) {
-		ne = ge->forw;
+		ne = ge->frwd;
 
 		/*
 		 * although there should be no one-line path * and any path
@@ -3260,8 +3221,8 @@ groupsubstems(
 		 * handle the last vert/horiz line of the path specially,
 		 * correct the hint for the first entry of the path
 		 */
-		if(ge->forw != ge->next && (nextvsi != -2 || nexthsi != -2) ) {
-			if( gssentry(ge->forw, hs, hpairs, nhs, vs, vpairs, nvs, s, egp, &nextvsi, &nexthsi) ) {
+		if(ge->frwd != ge->next && (nextvsi != -2 || nexthsi != -2) ) {
+			if( gssentry(ge->frwd, hs, hpairs, nhs, vs, vpairs, nvs, s, egp, &nextvsi, &nexthsi) ) {
 				WARNING_2 fprintf(stderr, "*** glyph %s requires over %d hint subroutines, ignored them\n",
 					g->name, NSTEMGRP);
 				/* it's better to have no substituted hints at all than have only part */
@@ -3461,7 +3422,7 @@ buildstems(
 				 * check the end of curve for a not smooth
 				 * local extremum
 				 */
-				nge = ge->forw;
+				nge = ge->frwd;
 
 				if (nge == 0)
 					continue;
@@ -3515,7 +3476,7 @@ buildstems(
 			}
 
 		} else if (ge->type == GE_LINE) {
-			nge = ge->forw;
+			nge = ge->frwd;
 
 			/* if it is horizontal, add a hstem */
 			/* and the ends as vstems if they brace the line */
@@ -3533,7 +3494,7 @@ buildstems(
 				}
 				hs[g->nhs].origin = ge->ix3;
 
-				pge = ge->back;
+				pge = ge->bkwd;
 
 				/* add beginning as vstem */
 				vs[g->nvs].value = pge->ix3;
@@ -3595,7 +3556,7 @@ buildstems(
 				}
 				vs[g->nvs].origin = ge->iy3;
 
-				pge = ge->back;
+				pge = ge->bkwd;
 
 				/* add beginning as hstem */
 				hs[g->nhs].value = pge->iy3;
@@ -3645,7 +3606,7 @@ buildstems(
 			 * check the end of line for a not smooth local
 			 * extremum
 			 */
-			nge = ge->forw;
+			nge = ge->frwd;
 
 			if (nge == 0)
 				continue;
@@ -3803,12 +3764,138 @@ buildstems(
 }
 
 /* convert weird curves that are close to lines into lines.
+*/
+
+void
+fstraighten(
+	   GLYPH * g
+)
+{
+	GENTRY         *ge, *pge, *nge, *ige;
+	double          df;
+	int             dir;
+	double          iln, oln;
+	int             svdir, i, o;
+
+	for (ige = g->entries; ige != 0; ige = ige->next) {
+		if (ige->type != GE_CURVE)
+			continue;
+
+		ge = ige;
+		pge = ge->bkwd;
+		nge = ge->frwd;
+
+		df = 0.;
+
+		/* look for vertical then horizontal */
+		for(i=0; i<2; i++) {
+			o = !i; /* other axis */
+
+			iln = fabs(ge->fpoints[i][2] - pge->fpoints[i][2]);
+			oln = fabs(ge->fpoints[o][2] - pge->fpoints[o][2]);
+			/*
+			 * if current curve is almost a vertical line, and it
+			 * doesn't begin or end horizontally (and the prev/next
+			 * line doesn't join smoothly ?)
+			 */
+			if( oln < 1.
+			|| ge->fpoints[o][2] == ge->fpoints[o][1] 
+			|| ge->fpoints[o][0] == pge->fpoints[o][2]
+			|| iln > 2.
+			|| iln > 1.  && iln/oln > 0.1 )
+				continue;
+
+
+			if(ISDBG(STRAIGHTEN)) 
+				fprintf(stderr,"** straighten almost %s\n", (i? "horizontal":"vertical"));
+
+			df = ge->fpoints[i][2] - pge->fpoints[i][2];
+			dir = fsign(ge->fpoints[o][2] - pge->fpoints[o][2]);
+			ge->type = GE_LINE;
+
+			/*
+			 * suck in all the sequence of such almost lines
+			 * going in the same direction but not deviating
+			 * too far from vertical
+			 */
+			iln = fabs(nge->fpoints[i][2] - ge->fpoints[i][2]);
+			oln = nge->fpoints[o][2] - ge->fpoints[o][2];
+
+			while (fabs(df) <= 5 && nge->type == GE_CURVE
+			&& dir == fsign(oln) /* that also gives oln != 0 */
+			&& iln <= 2.
+			&& ( iln <= 1.  || iln/fabs(oln) <= 0.1 ) ) {
+				ge->fx3 = nge->fx3;
+				ge->fy3 = nge->fy3;
+
+				if(ISDBG(STRAIGHTEN))
+					fprintf(stderr,"** straighten collapsing %s\n", (i? "horizontal":"vertical"));
+				freethisge(nge);
+				fixendpath(ge);
+				pge = ge->bkwd;
+				nge = ge->frwd;
+
+				df = ge->fpoints[i][2] - pge->fpoints[i][2];
+
+				iln = fabs(nge->fpoints[i][2] - ge->fpoints[i][2]);
+				oln = nge->fpoints[o][2] - ge->fpoints[o][2];
+			}
+
+			/* now check what do we have as previous/next line */
+
+			if(ge != pge) { 
+				if( pge->type == GE_LINE && pge->fpoints[i][2] == pge->prev->fpoints[i][2]
+				&& fabs(pge->fpoints[o][2] != pge->prev->fpoints[o][2]) ) {
+					if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten join with previous 0x%x 0x%x\n", pge, ge);
+					/* join the previous line with current */
+					pge->fx3 = ge->fx3;
+					pge->fy3 = ge->fy3;
+
+					ige = freethisge(ge)->prev; /* keep the iterator valid */
+					ge = pge;
+					fixendpath(ge);
+					pge = ge->bkwd;
+				}
+			}
+
+			if(ge != nge) { 
+				if (nge->type == GE_LINE && nge->fpoints[i][2] == ge->fpoints[i][2]
+				&& fabs(nge->fpoints[o][2] != ge->fpoints[o][2]) ) {
+					if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten join with next 0x%x 0x%x\n", ge, nge);
+					/* join the next line with current */
+					ge->fx3 = nge->fx3;
+					ge->fy3 = nge->fy3;
+
+					freethisge(nge);
+					fixendpath(ge);
+					pge = ge->bkwd;
+					nge = ge->frwd;
+
+				}
+			}
+
+			if(ge != pge) { 
+				/* try to align the lines if neccessary */
+				if(df != 0.)
+					fclosegap(ge, ge, i, df, NULL);
+			} else {
+				/* contour consists of only one line, get rid of it */
+				ige = freethisge(ge)->prev; /* keep the iterator valid */
+			}
+
+			break; /* don't bother looking at the other axis */
+		}
+	}
+}
+
+#ifdef notanymore
+/* convert weird curves that are close to lines into lines.
 ** the flag shows whether we should straighten only zigzags
 ** or other lines too
 */
 
 void
-straighten(
+istraighten(
 	   GLYPH * g,
 	   int zigonly
 )
@@ -3827,8 +3914,8 @@ straighten(
 			continue;
 
 		ge = ige;
-		pge = ge->back;
-		nge = ge->forw;
+		pge = ge->bkwd;
+		nge = ge->frwd;
 
 		dx = dy = 0;
 		prevlen = nextlen = 0;
@@ -3868,8 +3955,8 @@ straighten(
 				if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten collapsing vertical\n");
 				freethisge(nge);
 				fixendpath(ge);
-				pge = ge->back;
-				nge = ge->forw;
+				pge = ge->bkwd;
+				nge = ge->frwd;
 
 				dx = ge->ix3 - pge->ix3;
 			}
@@ -3916,8 +4003,8 @@ straighten(
 				if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten collapsing horizontal 0x%x 0x%x\n", ge, nge);
 				freethisge(nge);
 				fixendpath(ge);
-				pge = ge->back;
-				nge = ge->forw;
+				pge = ge->bkwd;
+				nge = ge->frwd;
 
 				dy = ge->iy3 - pge->iy3;
 			}
@@ -3938,7 +4025,7 @@ straighten(
 			ige = freethisge(ge)->prev; /* keep the iterator valid */
 			ge = pge;
 			fixendpath(ge);
-			pge = ge->back;
+			pge = ge->bkwd;
 		}
 		if (nextlen != 0 && ge != nge) {
 			if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten join with next 0x%x 0x%x\n", ge, nge);
@@ -3948,8 +4035,8 @@ straighten(
 
 			freethisge(nge);
 			fixendpath(ge);
-			pge = ge->back;
-			nge = ge->forw;
+			pge = ge->bkwd;
+			nge = ge->frwd;
 
 		}
 		/* if we have to align the lines */
@@ -4133,7 +4220,7 @@ straighten(
 			/* now stretch the neigboring elements */
 			if (dx != 0) {
 				if(ISDBG(STRAIGHTEN)) 
-					fprintf(stderr, "stretch dx=%d psx=%d nsx=%d 0x%x 0x%x 0x%x\n", dx, psx, nsx, pge, ge, nge);
+					fprintf(stderr, "stretch dx=%g psx=%g nsx=%g 0x%x 0x%x 0x%x\n", dx, psx, nsx, pge, ge, nge);
 				dx = isign(dx);
 
 				if (nsx != 0) {
@@ -4153,7 +4240,7 @@ straighten(
 			}
 			if (dy != 0) {
 				if(ISDBG(STRAIGHTEN)) 
-					fprintf(stderr, "stretch dy=%d psy=%d nsy=%d 0x%x 0x%x 0x%x\n", dy, psy, nsy, pge, ge, nge);
+					fprintf(stderr, "stretch dy=%g psy=%g nsy=%g 0x%x 0x%x 0x%x\n", dy, psy, nsy, pge, ge, nge);
 				dy = isign(dy);
 
 				if (nsy != 0) {
@@ -4195,6 +4282,7 @@ straighten(
 		}
 	}
 }
+#endif
 
 /* solve a square equation,
  * returns the number of solutions found, the solutions
@@ -4635,23 +4723,23 @@ freethisge(
 {
 	GENTRY *xge;
 
-	if (ge->back != ge->prev) {
+	if (ge->bkwd != ge->prev) {
 		/* at beginning of the contour */
 
-		xge = ge->back;
+		xge = ge->bkwd;
 		if(xge == ge) { /* was the only line in contour */
 			/* remove the contour completely */
 			/* prev is GE_MOVE, next is GE_PATH, remove them all */
 
-			/* may be the first contour, then ->back points to ge->entries */
+			/* may be the first contour, then ->bkwd points to ge->entries */
 			if(ge->prev->prev == 0)
-				*(GENTRY **)(ge->prev->back) = ge->next->next;
+				*(GENTRY **)(ge->prev->bkwd) = ge->next->next;
 			else
 				ge->prev->prev->next = ge->next->next;
 
 			if(ge->next->next) {
 				ge->next->next->prev = ge->prev->prev;
-				ge->next->next->back = ge->prev->back;
+				ge->next->next->bkwd = ge->prev->bkwd;
 			}
 
 			xge = ge->next->next;
@@ -4667,24 +4755,24 @@ freethisge(
 			ge->prev->ix3 = xge->ix3;
 			ge->prev->iy3 = xge->iy3;
 		}
-	} else if(ge->forw != ge->next) {
+	} else if(ge->frwd != ge->next) {
 		/* at end of the contour */
 
-		xge = ge->forw->prev;
+		xge = ge->frwd->prev;
 		/* move the start point of the contour */
 		if(ge->flags & GEF_FLOAT) {
-			xge->fx3 = ge->back->fx3;
-			xge->fy3 = ge->back->fy3;
+			xge->fx3 = ge->bkwd->fx3;
+			xge->fy3 = ge->bkwd->fy3;
 		} else {
-			xge->ix3 = ge->back->ix3;
-			xge->iy3 = ge->back->iy3;
+			xge->ix3 = ge->bkwd->ix3;
+			xge->iy3 = ge->bkwd->iy3;
 		}
 	}
 
 	ge->prev->next = ge->next;
 	ge->next->prev = ge->prev;
-	ge->back->forw = ge->forw;
-	ge->forw->back = ge->back;
+	ge->bkwd->frwd = ge->frwd;
+	ge->frwd->bkwd = ge->bkwd;
 
 	xge = ge->next;
 	free(ge);
@@ -4706,18 +4794,18 @@ addgeafter(
 		/* insert before next */
 		if(oge->next->type == GE_PATH) {
 			/* first and only GENTRY in path */
-			nge->forw = nge->back = nge;
+			nge->frwd = nge->bkwd = nge;
 		} else {
-			nge->forw = oge->next;
-			nge->back = oge->next->back;
-			oge->next->back->forw = nge;
-			oge->next->back = nge;
+			nge->frwd = oge->next;
+			nge->bkwd = oge->next->bkwd;
+			oge->next->bkwd->frwd = nge;
+			oge->next->bkwd = nge;
 		}
 	} else {
-		nge->forw = oge->forw;
-		nge->back = oge;
-		oge->forw->back = nge;
-		oge->forw = nge;
+		nge->frwd = oge->frwd;
+		nge->bkwd = oge;
+		oge->frwd->bkwd = nge;
+		oge->frwd = nge;
 	}
 
 	nge->next = oge->next;
@@ -4725,14 +4813,14 @@ addgeafter(
 	oge->next->prev = nge;
 	oge->next = nge;
 
-	if(nge->forw->prev->type == GE_MOVE) {
+	if(nge->frwd->prev->type == GE_MOVE) {
 		/* fix up the GE_MOVE entry */
 		if(nge->flags & GEF_FLOAT) {
-			nge->forw->prev->fx3 = nge->fx3;
-			nge->forw->prev->fy3 = nge->fy3;
+			nge->frwd->prev->fx3 = nge->fx3;
+			nge->frwd->prev->fy3 = nge->fy3;
 		} else {
-			nge->forw->prev->ix3 = nge->ix3;
-			nge->forw->prev->iy3 = nge->iy3;
+			nge->frwd->prev->ix3 = nge->ix3;
+			nge->frwd->prev->iy3 = nge->iy3;
 		}
 	}
 }
@@ -4750,7 +4838,7 @@ fixendpath(
 {
 	GENTRY *mge;
 
-	mge = ge->forw->prev;
+	mge = ge->frwd->prev;
 	if(mge->type == GE_MOVE) {
 		if(ge->flags & GEF_FLOAT) {
 			mge->fx3 = ge->fx3;
@@ -4760,6 +4848,132 @@ fixendpath(
 			mge->iy3 = ge->iy3;
 		}
 	}
+}
+
+/*
+ * This function adjusts the rest of path (the part from...to is NOT changed)
+ * to cover the specified gap by the specified axis (0 - X, 1 - Y).
+ * Gap is counted in direction (end_of_to - beginning_of_from).
+ * Returns by how much the gap was not closed (0.0 if it was fully closed).
+ * Ret contains by how much the first and last points of [from...to]
+ * were moved to bring them in consistence to the rest of the path.
+ * If ret==NULL then this info is not returned.
+ */
+
+static double
+fclosegap(
+	GENTRY *from,
+	GENTRY *to,
+	int axis,
+	double gap,
+	double *ret
+)
+{
+#define TIMESLARGER 10.	/* how many times larger must be a curve to not change too much */
+	double rm[2];
+	double oldpos[2];
+	double times, limit, df, dx;
+	int j, k;
+	GENTRY *xge, *pge, *nge, *bge[2];
+
+	/* remember the old points to calculate ret */
+	oldpos[0] = from->prev->fpoints[axis][2];
+	oldpos[1] = to->fpoints[axis][2];
+
+	rm[0] = rm[1] = gap / 2. ;
+
+	bge[0] = from; /* this is convenient for iterations */
+	bge[1] = to;
+
+	/* first try to modify large curves but if have none then settle for small */
+	for(times = (TIMESLARGER-1); times > 0.1; times /= 2. ) {
+
+		if(rm[0]+rm[1] == 0.)
+			break;
+
+		/* iterate in both directions, backwards then forwards */
+		for(j = 0; j<2; j++) {
+
+			if(rm[j] == 0.) /* if this direction is exhausted */
+				continue;
+
+			limit = fabs(rm[j]) * (1.+times);
+
+			for(xge = bge[j]->cntr[j]; xge != bge[!j]; xge = xge->cntr[j]) {
+				dx = xge->fpoints[axis][2] - xge->prev->fpoints[axis][2];
+				df = fabs(dx) - limit;
+				if( df <= 0 ) /* curve is too small to change */
+					continue;
+
+				if( df >= fabs(rm[j]) )
+					df = rm[j];
+				else 
+					df *= fsign(rm[j]); /* we may cover this part of rm */
+
+				rm[j] -= df;
+				limit = fabs(rm[j]) * (1.+times);
+
+				if(xge->type == GE_CURVE) { /* correct internal points */
+					double scale = ((dx+df) / dx) - 1.;
+					double base;
+
+					if(j)
+						base = xge->fpoints[axis][2];
+					else
+						base = xge->prev->fpoints[axis][2];
+
+					for(k = 0; k<2; k++)
+						xge->fpoints[axis][k] += scale * 
+							(xge->fpoints[axis][k] - base);
+				}
+
+				/* move all the intermediate lines */
+				if(j) {
+					df = -df; /* absolute direction */
+					pge = bge[1]->bkwd;
+					nge = xge->bkwd;
+				} else {
+					xge->fpoints[axis][2] += df;
+					pge = bge[0];
+					nge = xge->frwd;
+				}
+				while(nge != pge) {
+					if(nge->type == GE_CURVE) {
+						nge->fpoints[axis][0] +=df;
+						nge->fpoints[axis][1] +=df;
+					}
+					nge->fpoints[axis][2] += df;
+					if(nge->next != nge->frwd) { /* last entry of contour */
+						nge->frwd->prev->fpoints[axis][2] += df;
+					}
+					nge = nge->cntr[!j];
+				}
+
+				if(rm[j] == 0.)
+					break;
+			}
+		}
+	}
+
+	/* find the difference */
+	oldpos[0] -= from->prev->fpoints[axis][2];
+	oldpos[1] -= to->fpoints[axis][2];
+
+	if(ret) {
+		ret[0] = oldpos[0] - from->prev->fpoints[axis][2];
+		ret[1] = oldpos[1] - to->fpoints[axis][2];
+	}
+
+#if 0
+	if( rm[0]+rm[1] != gap - oldpos[1] + oldpos[0]) {
+		fprintf(stderr, "** gap=%g rm[0]=%g rm[1]=%g o[0]=%g o[1]=%g rg=%g og=%g\n",
+			gap, rm[0], rm[1], oldpos[0], oldpos[1], rm[0]+rm[1], 
+			gap - oldpos[1] + oldpos[0]);
+	}
+#endif
+
+	return rm[0]+rm[1];
+#undef TIMESLARGER
 }
 
 /* remove the lines or curves smaller or equal to the size limit */
@@ -4802,7 +5016,7 @@ fdelsmall(
 
 		/* check forwards if we have a whole sequence of them */
 		nge = ge;
-		for(xge = ge->forw; xge != ge; xge = xge->forw) {
+		for(xge = ge->frwd; xge != ge; xge = xge->frwd) {
 			d2m = 0;
 			for(i= (xge->type==GE_CURVE? 0: 2); i<3; i++) {
 				dx = xge->fxn[i] - xge->prev->fx3;
@@ -4820,7 +5034,7 @@ fdelsmall(
 
 		/* check backwards if we have a whole sequence of them */
 		pge = ge;
-		for(xge = ge->back; xge != ge; xge = xge->back) {
+		for(xge = ge->bkwd; xge != ge; xge = xge->bkwd) {
 			d2m = 0;
 			for(i= (xge->type==GE_CURVE? 0: 2); i<3; i++) {
 				dx = xge->fxn[i] - xge->prev->fx3;
@@ -4845,7 +5059,7 @@ fdelsmall(
 		/* reduce whole sequence to one part and remember the middle point */
 		if(pge != nge) {
 			while(1) {
-				xge = pge->forw;
+				xge = pge->frwd;
 				if(xge == nge) {
 					pge->fx1 = pge->fx2 = pge->fx3;
 					pge->fx3 = nge->fx3;
@@ -4855,7 +5069,7 @@ fdelsmall(
 					freethisge(nge);
 					break;
 				}
-				if(xge == nge->back) {
+				if(xge == nge->bkwd) {
 					pge->fx1 = pge->fx2 = (pge->fx3+xge->fx3)/2.;
 					pge->fx3 = nge->fx3;
 					pge->fy1 = pge->fy2 = (pge->fy3+xge->fy3)/2.;
@@ -4866,7 +5080,7 @@ fdelsmall(
 					break;
 				}
 				freethisge(pge); pge = xge;
-				xge = nge->back; freethisge(nge); nge = xge;
+				xge = nge->bkwd; freethisge(nge); nge = xge;
 			}
 		}
 		ge = pge;
@@ -4916,7 +5130,7 @@ fdelsmall(
 			continue; 
 		}
 
-		if(ge->forw == ge) { /* points to itself, just remove the path completely */
+		if(ge->frwd == ge) { /* points to itself, just remove the path completely */
 			WARNING_3 fprintf(stderr, "glyph %s had a path made of fragments < %g points each, removed\n",
 				g->name, minlen);
 
@@ -4926,102 +5140,30 @@ fdelsmall(
 
 		/* now close the gap by x and y */
 		for(i=0; i<2; i++) {
-			double rm[2];
+			double gap;
 
-			rm[0] = rm[1] = (ge->fpoints[i][2] - ge->prev->fpoints[i][2]) / 2. ;
-
-			/* first try to modify large curves but if have none then settle for small */
-			for(times = (TIMESLARGER-1); times > 0.1; times /= 2. ) {
-
-				/* iterate in both directions, backwards and forwards */
-				if(rm[0]+rm[1] == 0.)
-					break;
-
-				/* macros for traversal direction dependent values */
-#define jstep(j, ge)	((j)==0 ? (ge)->back : (ge)->forw)
-
-				for(j = 0; j<2; j++) {
-					double limit, df;
-
-					if(rm[j] == 0.) /* if this direction is exhausted */
-						continue;
-
-					limit = fabs(rm[j]) * (1.+times);
-
-					for(xge = jstep(j, ge); xge != ge; xge = jstep(j, xge)) {
-						dx = xge->fpoints[i][2] - xge->prev->fpoints[i][2];
-						df = fabs(dx) - limit;
-						if( df <= 0 ) /* curve is too small to change */
-							continue;
-
-						if( df >= fabs(rm[j]) )
-							df = rm[j];
-						else 
-							df *= fsign(rm[j]); /* we may cover this part of rm */
-
-						rm[j] -= df;
-						limit = fabs(rm[j]) * (1.+times);
-
-						if(xge->type == GE_CURVE) { /* correct internal points */
-							double scale = ((dx+df) / dx) - 1.;
-							double base;
-
-							if(j)
-								base = xge->fpoints[i][2];
-							else
-								base = xge->prev->fpoints[i][2];
-
-							for(k = 0; k<2; k++)
-								xge->fpoints[i][k] += scale * 
-									(xge->fpoints[i][k] - base);
-						}
-
-						/* move all the intermediate lines */
-						if(j) {
-							df = -df; /* absolute direction */
-							pge = ge->back;
-							nge = xge->back;
-						} else {
-							xge->fpoints[i][2] += df;
-							pge = ge;
-							nge = xge->forw;
-						}
-						while(nge != pge) {
-							if(nge->type == GE_CURVE) {
-								nge->fpoints[i][0] +=df;
-								nge->fpoints[i][2] +=df;
-							}
-							nge->fpoints[i][2] += df;
-							nge = jstep(1-j, nge);
-						}
-
-						if(rm[j] == 0.)
-							break;
-					}
-				}
-#undef jstep
-			}
-
-			if(rm[0]+rm[1] != 0.) {
+			gap = ge->fpoints[i][2] - ge->prev->fpoints[i][2];
+			if( fclosegap(ge, ge, i, gap, NULL) != 0.0 ) {
 				double scale, base;
 
 				/* not good, as the last resort just scale the next line */
+				gap = ge->fpoints[i][2] - ge->prev->fpoints[i][2];
+
 				if(ISDBG(FCONCISE)) 
 					fprintf(stderr, "    last resort on %c: closing next by %g\n",
-					(i==0 ? 'x' : 'y'), rm[0]+rm[1]);
+					(i==0 ? 'x' : 'y'), gap);
 
-				rm[0] = rm[0] + rm[1];
-				nge = ge->forw;
+				nge = ge->frwd;
 				base = nge->fpoints[i][2];
 				dx = ge->fpoints[i][2] - base;
-				scale = ((dx-rm[0]) / dx);
+				scale = ((dx-gap) / dx);
 
 				if(nge->type == GE_CURVE)
 					for(k = 0; k<2; k++)
 						nge->fpoints[i][k] = base + 
 							scale * (nge->fpoints[i][k] - base);
 
-				ge->fpoints[i][2] -= rm[0];
+				ge->fpoints[i][2] -= gap;
 			}
 		}
 
@@ -5327,7 +5469,7 @@ fforceconcise(
 			dxe1 = ge->fx3 - ge->fx2;
 			dye1 = ge->fy3 - ge->fy2;
 
-			nge = ge->forw;
+			nge = ge->frwd;
 
 			if (nge->type != GE_CURVE)
 				break;
@@ -5482,7 +5624,7 @@ iforceconcise(
 			if (dxe1 == 0 || dye1 == 0 || dxb1 * dxe1 < 0 || dyb1 * dye1 < 0)
 				break;
 
-			nge = ge->forw;
+			nge = ge->frwd;
 
 			if (nge->type != GE_CURVE)
 				break;
@@ -6289,7 +6431,7 @@ reversepathsfromto(
 	for (ge = from; ge != 0 && ge != to; ge = ge->next) {
 		if(ge->type == GE_LINE || ge->type == GE_CURVE) {
 			if (ISDBG(REVERSAL))
-				fprintf(stderr, "reverse path 0x%x <- 0x%x, 0x%x\n", ge, ge->prev, ge->back);
+				fprintf(stderr, "reverse path 0x%x <- 0x%x, 0x%x\n", ge, ge->prev, ge->bkwd);
 
 			/* cut out the path itself */
 			pge = ge->prev; /* GE_MOVE */
@@ -6297,10 +6439,10 @@ reversepathsfromto(
 				fprintf(stderr, "**! No MOVE before line !!! Fatal. ****\n");
 				exit(1);
 			}
-			nge = ge->back->next; /* GE_PATH */
+			nge = ge->bkwd->next; /* GE_PATH */
 			pge->next = nge;
 			nge->prev = pge;
-			ge->back->next = 0; /* mark end of chain */
+			ge->bkwd->next = 0; /* mark end of chain */
 
 			/* remember the starting point */
 			if(ge->flags & GEF_FLOAT) {
@@ -6420,8 +6562,8 @@ fixcontours(
 				minptr[ncont] = ge;
 			}
 		}
-		if (ge->forw != ge->next) {
-			start[ncont++] = ge->forw;
+		if (ge->frwd != ge->next) {
+			start[ncont++] = ge->frwd;
 			ymax[ncont] = -5000;
 			ymin[ncont] = 5000;
 		}
@@ -6430,7 +6572,7 @@ fixcontours(
 	/* determine the directions of contours */
 	for (i = 0; i < ncont; i++) {
 		ge = minptr[i];
-		nge = ge->forw;
+		nge = ge->frwd;
 
 		if (ge->type == GE_CURVE) {
 			dx1 = ge->ix3 - ge->ix2;
