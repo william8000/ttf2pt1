@@ -2547,7 +2547,7 @@ main(
 			short bbox[4];
 
 			cursw->glbbox(i, bbox);
-			print_glyph_metrics(i, i, bbox);
+			print_glyph_metrics(i, encoding[i], bbox);
 		}
 	}
 
