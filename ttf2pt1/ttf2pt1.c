@@ -75,6 +75,7 @@
 
 #include "pt1.h"
 #include "global.h"
+#include "version.h"
 
 /* globals */
 
@@ -1810,8 +1811,9 @@ usage(void)
 	fputs("  -p name - use specific front-end parser, run ttf2pt1 -p? for list\n", stderr);
 	fputs("  -u id - use this UniqueID, -u A means autogeneration\n", stderr);
 	fputs("  -v size - scale the font to make uppercase letters >size/1000 high\n", stderr);
+	fputs("  -V - print ttf2pt1 version number\n", stderr);
 	fputs("  -W <number> - set the level of permitted warnings (0 - disable)\n", stderr);
-	fputs("Obsolete options (will be removed in future releases, use -O? instead):\n", stderr); 
+	fputs("Obsolete options (will be removed in future releases, use -O? instead):\n", stderr);
 	fputs("  -f - don't try to guess the value of the ForceBold hint\n", stderr);
 	fputs("  -h - disable autogeneration of hints\n", stderr);
 	fputs("  -H - disable hint substitution\n", stderr);
@@ -1822,6 +1824,12 @@ usage(void)
 	fputs("The last '-' means 'use STDOUT'.\n", stderr);
 }
 
+static void
+printversion(void)
+{
+  fputs("ttf2pt1 "TTF2PT1_VERSION"\n", stderr);
+}
+  
 main(
      int argc,
      char **argv
@@ -1844,7 +1852,7 @@ main(
 		*(opotbl[i].valp) = opotbl[i].dflt;
 	}
 
-	while(( oc=getopt(argc, argv, "FaoebAsthHfwv:p:l:d:u:L:m:W:O:") )!= -1) {
+	while(( oc=getopt(argc, argv, "FaoebAsthHfwVv:p:l:d:u:L:m:W:O:") )!= -1) {
 		switch(oc) {
 		case 'W':
 			if(sscanf(optarg, "%d", &warnlevel) < 1 || warnlevel < 0) {
@@ -2085,6 +2093,10 @@ main(
 			}
 			uni_lang_converter = unicode_user;
 			unicode_init_user(optarg);
+			break;
+		case 'V':
+			printversion();
+			exit(0);
 			break;
 		default:
 			usage();
@@ -2350,7 +2362,7 @@ main(
 	fprintf(pfa_file, "%%!PS-AdobeFont-1.0: %s %s\n", fontm.name_ps, fontm.name_copyright);
 	time(&now);
 	fprintf(pfa_file, "%%%%CreationDate: %s", ctime(&now));
-	fprintf(pfa_file, "%% Converted from TrueType font %s by ttf2pt1 program\n%%\n", argv[1]);
+	fprintf(pfa_file, "%% Converted from TrueType font %s by ttf2pt1 "TTF2PT1_VERSION"\n%%\n", argv[1]);
 	fprintf(pfa_file, "%%%%EndComments\n");
 	fprintf(pfa_file, "12 dict begin\n/FontInfo 9 dict dup begin\n");
 

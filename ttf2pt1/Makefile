@@ -78,7 +78,7 @@ t1asm: t1asm.c
 ttf2pfa:	ttf2pfa.c ttf.h
 	$(CC) $(CFLAGS) -o ttf2pfa ttf2pfa.c $(LIBS)
 
-ttf2pt1.o: ttf2pt1.c ttf.h pt1.h global.h
+ttf2pt1.o: ttf2pt1.c ttf.h pt1.h global.h version.h
 	$(CC) $(CFLAGS) -c ttf2pt1.c
 
 pt1.o: pt1.c ttf.h pt1.h global.h
