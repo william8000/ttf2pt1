@@ -45,7 +45,7 @@ static void prkern( GLYPH *glyph_list, FILE *afm_file);
 struct frontsw ttf_sw = {
 	/*name*/       "ttf",
 	/*descr*/      "built-in TTF support",
-	/*suffix*/     { "ttf", "TTF" },
+	/*suffix*/     { "ttf" },
 	/*open*/       openfont,
 	/*close*/      closefont,
 	/*nglyphs*/    getnglyphs,

@@ -1809,9 +1809,13 @@ main(
 	/* try to guess the front-end parser by the file name suffix */
 	if(cursw==0) {
 		char *p = strrchr(argv[1], '.');
+		char *s;
 
-		if(p!=0) {
-			p++;
+		if(p!=0 && (s = strdup(p+1))!=0) {
+			for(p=s; *p; p++)
+				*p = tolower(*p);
+			p = s;
+
 			for(i=0; frontswtab[i] != 0 && cursw == 0; i++) {
 				for(j=0; j<MAXSUFFIX; j++)
 					if(frontswtab[i]->suffix[j]
@@ -1823,6 +1827,7 @@ main(
 						break;
 					}
 			}
+			free(s);
 		}
 
 		if(cursw==0) {

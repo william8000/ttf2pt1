@@ -37,7 +37,7 @@ static void prkern( GLYPH *glyph_list, FILE *afm_file);
 struct frontsw freetype_sw = {
 	/*name*/       "ft",
 	/*descr*/      "based on the FreeType library",
-	/*suffix*/     { "ttf", "TTF" },
+	/*suffix*/     { "ttf", "otf", "pfa", "pfb" },
 	/*open*/       openfont,
 	/*close*/      closefont,
 	/*nglyphs*/    getnglyphs,
@@ -182,6 +182,7 @@ glmetrics(
 	FT_Glyph gly;
 
 	for(i=0; i < face->num_glyphs; i++) {
+		g = &(glyph_list[i]);
 
 		/* XXX workaround for a FT2beta8 bug */
 		if( FT_Set_Char_Size(face,  0, face->units_per_EM, 1<<6, 1<<6) ) {
@@ -189,12 +190,11 @@ glmetrics(
 			exit(1);
 		}
 
-		if( FT_Load_Glyph(face, i, FT_LOAD_NO_BITMAP) ) {
+		if( FT_Load_Glyph(face, i, FT_LOAD_NO_BITMAP|FT_LOAD_NO_SCALE) ) {
 			fprintf(stderr, "Can't load glyph %s, skipped\n", g->name);
 			continue;
 		}
 
-		g = &(glyph_list[i]);
 		met = &face->glyph->metrics;
 
 		if(FT_HAS_HORIZONTAL(face)) {
@@ -211,7 +211,7 @@ glmetrics(
 			fprintf(stderr, "**** Cannot set the EM size ****\n");
 			exit(1);
 		}
-		if( FT_Load_Glyph(face, i, FT_LOAD_NO_BITMAP) ) {
+		if( FT_Load_Glyph(face, i, FT_LOAD_NO_BITMAP|FT_LOAD_NO_SCALE) ) {
 			fprintf(stderr, "Can't load glyph %s, skipped\n", g->name);
 			continue;
 		}
