@@ -60,7 +60,7 @@ CFLAGS_FT=
 # (if the include and lib directory do not match your installation,
 # modify them), also uncomment LIBS_FT
 #
-#CFLAGS_FT = -DUSE_FREETYPE -I/usr/local/include
+#CFLAGS_FT = -DUSE_FREETYPE -I/usr/local/include/freetype2
 
 # 
 # The FreeType-2 library flags (disabled by default)
