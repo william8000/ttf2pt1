@@ -14,7 +14,7 @@ TTF2PT1 -  CHANGES history
 >
 
 <H4>
-current
+3.4.1 -- June 13, 2002
 </H4>
 <!
 -------
@@ -22,7 +22,10 @@ current
 
 <b>New features:</b>
 <ul>
-<li> Added autotrace support for the bitmap fonts. It's horrible.
+<li> Added Autotrace support for the bitmap fonts (-OZ). It's horrible.
+<li> Added vectorization of bitmap fonts (-OV) - functionally the same thing as 
+  autotrace but home-grown. Works mostly decently but still with large
+  space for impprovement.
 <li> Relaxed the conditions for warnings about long glyphs.
 </ul>
 
@@ -35,8 +38,7 @@ current
 <li> The BDF reader does not fail on redefintion of the properties.
 <li> Fix for reading of BDF glyphs with 0 size.
 <li> Fix for a hang when guessing the boldness of some fonts.
-<li> Fix for scaling coefficients in composite glyphs by Adriano
-  Konzen.
+<li> Fix by Adriano Konzen for scaling coefficients in composite glyphs.
 </ul>
 
 <H4>

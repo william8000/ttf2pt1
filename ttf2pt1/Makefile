@@ -75,8 +75,10 @@ LIBS_FT=
 
 #
 # The flags for C compiler for the Autotrace library (disabled by default). 
-# The tested version is 0.29a (and it still does not work well at all,
-# in fact it sucks horribly).
+# USE OF THIS FEATURE IS STRONGLY DISCOURAGED, THE BUILT-IN TRACING
+# (AKA VECTORIZATION) PROVIDES MUCH BETTER RESULTS.
+# The tested version is 0.29a (and the fonts produced with it are
+# absolutely not usable).
 # http://download.sourceforge.net/autotrace/autotrace-0.29.tar.gz
 
 CFLAGS_AT= 
