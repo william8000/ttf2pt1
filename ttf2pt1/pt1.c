@@ -4166,7 +4166,7 @@ fclosegap(
 			for(xge = bge[j]->cntr[j]; xge != bge[!j]; xge = xge->cntr[j]) {
 				dx = xge->fpoints[axis][2] - xge->prev->fpoints[axis][2];
 				df = fabs(dx) - limit;
-				if( df <= 0 ) /* curve is too small to change */
+				if( df <= FEPS ) /* curve is too small to change */
 					continue;
 
 				if( df >= fabs(rm[j]) )
@@ -4420,6 +4420,9 @@ fdelsmall(
 				nge = ge->frwd;
 				base = nge->fpoints[i][2];
 				dx = ge->fpoints[i][2] - base;
+				if(fabs(dx) < FEPS)
+					continue;
+
 				scale = ((dx-gap) / dx);
 
 				if(nge->type == GE_CURVE)
