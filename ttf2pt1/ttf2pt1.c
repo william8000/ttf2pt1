@@ -4,7 +4,7 @@
  * Based on ttf2pfa by Andrew Weeks <ccsaw@bath.ac.uk> 
  * With help from Frank M. Siegert <fms@this.net> 
  *
- * see COPYRIGHT
+ * see COPYRIGHT for full copyright notice
  *
 ***********************************************************************
  *
