@@ -51,7 +51,7 @@ struct frontsw freetype_sw = {
 
 /* statics */
 
-static char * dupcnstring( char *s, int len);
+static char * dupcnstring( unsigned char *s, int len);
 
 static FT_Library library;
 static FT_Face face;
@@ -338,19 +338,24 @@ populate_map:
 /* duplicate a string with counter to a 0-terminated string */
 static char *
 dupcnstring(
-	char *s,
+	unsigned char *s,
 	int len
 )
 {
-	char *res;
+	char *res, *out;
+	int i, c;
 
 	if(( res = malloc(len+1) )==NULL) {
 		fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
 		exit(255);
 	}
 
-	memcpy(res, s, len);
-	res[len] = 0;
+	out = res;
+	for(i=0; i<len; i++) {
+		if(( c=s[i] )>=' ' && c!=127)
+			*out++ = c;
+	}
+	*out = 0;
 	return res;
 }
 
