@@ -4814,11 +4814,33 @@ fdotsegdist2(
 #define y2	seg[1][Y]
 #define xdot	dot[X]
 #define ydot	dot[Y]
+
 	double dx, dy; /* segment dimensions */
 	double kline, bline; /* segment line formula is y=k*x+b */
 	double kperp, bperp; /* perpendicular from the dot to the line */
 	double xcross, ycross; /* where the perpendicular crosses the segment */
-	int less12, lesscr1, lesscr2; /* ordering of points */
+
+/* handle the situation where the nearest point of the segment is its end */
+#define HANDLE_LIMITS(less12, lesscr1, lesscr2)	\
+	if( less12 ) { \
+		if( lesscr1 ) { \
+			xcross = x1; \
+			ycross = y1; \
+		} else if( !(lesscr2) ) { \
+			xcross = x2; \
+			ycross = y2; \
+		} \
+	} else { \
+		if( !(lesscr1) ) { \
+			xcross = x1; \
+			ycross = y1; \
+		} else if( lesscr2 ) { \
+			xcross = x2; \
+			ycross = y2; \
+		} \
+	} \
+	/* end of macro */
+
 
 	dx = x2 - x1;
 	dy = y2 - y1;
@@ -4830,9 +4852,7 @@ fdotsegdist2(
 #endif
 		xcross = x1;
 		ycross = ydot;
-		less12 = (y1 < y2);
-		lesscr1 = (ycross < y1);
-		lesscr2 = (ycross < y2);
+		HANDLE_LIMITS( y1 < y2, ycross < y1, ycross < y2);
 	} else if(fabs(dy) < FEPS) {
 		/* special case - horizontal line */
 #ifdef DEBUG_DOTSEG
@@ -4840,9 +4860,7 @@ fdotsegdist2(
 #endif
 		xcross = xdot;
 		ycross = y1;
-		less12 = (x1 < x2);
-		lesscr1 = (xcross < x1);
-		lesscr2 = (xcross < x2);
+		HANDLE_LIMITS( x1 < x2, xcross < x1, xcross < x2)
 	} else {
 		kline = dy/dx;
 		bline = y1 - x1*kline;
@@ -4852,32 +4870,11 @@ fdotsegdist2(
 		xcross = (bline-bperp) / (kperp-kline);
 		ycross = kline*xcross + bline;
 
-		less12 = (x1 < x2);
-		lesscr1 = (xcross < x1);
-		lesscr2 = (xcross < x2);
+		HANDLE_LIMITS( x1 < x2, xcross < x1, xcross < x2)
 	}
 #ifdef DEBUG_DOTSEG
 	printf("crossover at (%g,%g)\n", xcross, ycross);
 #endif
-
-	/* handle the case with the cross-point outside of the segment */
-	if( less12 ) {
-		if( lesscr1 ) {
-			xcross = x1;
-			ycross = y1;
-		} else if( !lesscr2 ) {
-			xcross = x2;
-			ycross = y2;
-		}
-	} else {
-		if( !lesscr1 ) {
-			xcross = x1;
-			ycross = y1;
-		} else if( lesscr2 ) {
-			xcross = x2;
-			ycross = y2;
-		}
-	}
 
 	dx = xdot-xcross;
 	dy = ydot-ycross;
@@ -4888,6 +4885,7 @@ fdotsegdist2(
 #undef y2
 #undef xdot
 #undef ydot
+#undef HANDLE_LIMITS
 }
 
 /* find the weighted quadratic average for the distance of a set
@@ -4920,7 +4918,7 @@ fdotcurvdist2(
 	double count[NWSECT];
 	int d, i, j;
 	int id1, id2;
-	double dist1, dist2, dist3, dx, dy;
+	double dist1, dist2, dist3, dx, dy, x, y;
 	double max = 0.;
 
 	if(!havett) {
@@ -4951,10 +4949,10 @@ fdotcurvdist2(
 		cvd[0][d] = curve[0][d]; /* endpoints */
 		cvd[NAPSECT][d] = curve[3][d];
 		for(i=1; i<NAPSECT; i++) {
-			cvd[i][d] = 0;
-			for(j=0; j<4; j++) {
-				cvd[i][d] += curve[j][d] * tt[i][j];
-			}
+			cvd[i][d] = curve[0][d] * tt[i][0]
+				+ curve[1][d] * tt[i][1]
+				+ curve[2][d] * tt[i][2]
+				+ curve[3][d] * tt[i][3];
 		}
 	}
 
@@ -4969,21 +4967,24 @@ fdotcurvdist2(
 		}
 #endif
 
+		x = dots[d].p[X];
+		y = dots[d].p[Y];
+
 		/* find the nearest dot on the curve
 		 * there may be up to 2 local minimums - so we start from the
 		 * ends of curve and go to the center
 		 */
 
 		id1 = 0;
-		dx = dots[d].p[X] - cvd[id1][X];
-		dy = dots[d].p[Y] - cvd[id1][Y];
+		dx = x - cvd[0][X];
+		dy = y - cvd[0][Y];
 		dist1 = dx*dx + dy*dy;
 #ifdef DEBUG_DOTCURVE
 		printf("  dot 0 "); printdot(cvd[id1]); printf(" dist=%g\n", sqrt(dist1));
 #endif
-		for(i = id1+1; i<=NAPSECT; i++) {
-			dx = dots[d].p[X] - cvd[i][X];
-			dy = dots[d].p[Y] - cvd[i][Y];
+		for(i = 1; i<=NAPSECT; i++) {
+			dx = x - cvd[i][X];
+			dy = y - cvd[i][Y];
 			dist3 = dx*dx + dy*dy;
 #ifdef DEBUG_DOTCURVE
 			printf("  dot %d ",i); printdot(cvd[i]); printf(" dist=%g\n", sqrt(dist3));
@@ -4997,15 +4998,15 @@ fdotcurvdist2(
 
 		if(id1 < NAPSECT-1) {
 			id2 = NAPSECT;
-			dx = dots[d].p[X] - cvd[id2][X];
-			dy = dots[d].p[Y] - cvd[id2][Y];
+			dx = x - cvd[NAPSECT][X];
+			dy = y - cvd[NAPSECT][Y];
 			dist2 = dx*dx + dy*dy;
 #ifdef DEBUG_DOTCURVE
 			printf("  +dot %d ", id2); printdot(cvd[id2]); printf(" dist=%g\n", sqrt(dist2));
 #endif
-			for(i = id2-1; i>id1+1; i--) {
-				dx = dots[d].p[X] - cvd[i][X];
-				dy = dots[d].p[Y] - cvd[i][Y];
+			for(i = NAPSECT-1; i>id1+1; i--) {
+				dx = x - cvd[i][X];
+				dy = y - cvd[i][Y];
 				dist3 = dx*dx + dy*dy;
 #ifdef DEBUG_DOTCURVE
 				printf("  dot %d ",i); printdot(cvd[i]); printf(" dist=%g\n", sqrt(dist3));
@@ -6081,20 +6082,6 @@ fforceconcise(
 {
 
 	GENTRY         *ge, *nge, *endge, *xge;
-#if 0
-	GENTRY          tge;
-	double          avsd2;
-	double          dxw1, dyw1, dxw2, dyw2, dxw3, dyw3;
-	double          maxsc1, maxsc2;
-	int             i, j, ndots, sdot, prevok, nextok;
-/* number of reference dots taken from each curve */
-#define NREFDOTS	3 /* 2^n-1 is recommended */
-/* maximal number of dots to be used as reference */
-#define MAXDOTS	((NREFDOTS+1)*11+NREFDOTS)
-	struct dot_dist dots[MAXDOTS];
-	double          apcv[4][2], prcv[4][2], nxcv[4][2];
-	double          prlen2, nxlen2, scale;
-#endif
 
 	assertisfloat(g, "enforcing conciseness");
 
@@ -6128,490 +6115,6 @@ fforceconcise(
 	for (ge = g->entries; ge != 0; ge = ge->next)
 		if (ge->type == GE_CURVE || ge->type == GE_LINE)
 			free(ge->ext);
-
-#if 0 /* intermediate { */
-	/* try to join curves that may be joined */
-	for (ge = g->entries; ge != 0; ge = ge->next) {
-		if (ge->type != GE_CURVE)
-			continue;
-
-		/* the whole direction of curve */
-		dxw1 = ge->fx3 - ge->prev->fx3;
-		dyw1 = ge->fy3 - ge->prev->fy3;
-
-		ndots = 0;
-		while (1) {
-			/* direction of the whole curve */
-			dxw1 = ge->fx3 - ge->prev->fx3;
-			dyw1 = ge->fy3 - ge->prev->fy3;
-
-			nge = ge->frwd;
-
-			if (nge->type != GE_CURVE)
-				break;
-
-			dxw2 = nge->fx3 - ge->fx3;
-			dyw2 = nge->fy3 - ge->fy3;
-
-			/* if curve changes direction */
-			if (dxw1*dxw2<0 || dyw1*dyw2<0)
-				break;
-
-			/* get possible scale limits within which we won't cross quadrants */
-			if( fcrossrays(ge, nge, &maxsc1, &maxsc2, &apcv[1]) == 0 ) {
-				if(ISDBG(FCONCISE)) {
-					fprintf(stderr, "glyph %s has curves with strange ends\n", g->name);
-					dumppaths(g, ge, nge);
-				}
-				break;
-			}
-
-			ge->dir = fgetcvdir(ge);
-			nge->dir = fgetcvdir(nge);
-
-			if( ((ge->dir&CVDIR_FRONT)-CVDIR_FEQUAL) * ((nge->dir&CVDIR_REAR)-CVDIR_REQUAL) < 0 )
-				/* would create a zigzag */
-				break;
-
-			/* try to guess a joined curve */
-			if(ndots == 0) {
-				/* the first curve was not sampled yet */
-				fsampledots(ge, &dots[0], NREFDOTS);
-				ndots += NREFDOTS;
-			} else if(MAXDOTS-ndots < NREFDOTS+1) {
-				/* reduce the number of dots for the 1st curve twice */
-				for(i=1, j=0; i<ndots; i+=2, j++)
-					dots[j] = dots[i];
-				ndots = j;
-			}
-			dots[ndots].p[X] = ge->fx3;
-			dots[ndots].p[Y] = ge->fy3;
-			ndots++;
-			fsampledots(nge, &dots[ndots], NREFDOTS);
-			ndots += NREFDOTS;
-
-			apcv[0][X] = ge->prev->fx3;
-			apcv[0][Y] = ge->prev->fy3;
-			/* apcv[1] and apcv[2] were filled by fcrossrays() */
-			apcv[3][X] = nge->fx3;
-			apcv[3][Y] = nge->fy3;
-
-			fapproxcurve(apcv, dots, ndots);
-			avsd2 = fdotcurvdist2(apcv, dots, ndots, NULL); 
-
-			if(ISDBG(FCONCISE))
-				fprintf(stderr, "avg dist is %g\n", sqrt(avsd2));
-
-			if(avsd2 > CVEPS2) {
-				/* The guess was not so good. Possibly this happened
-				 * because one of the curves is small and badly screwed up
-				 * in its previous life by something like rounding errors
-				 * to have a bad ending tangent.
-				 */
-
-				if(ISDBG(FCONCISE))
-					fprintf(stderr, "%s: s=%g", g->name, sqrt(avsd2));
-
-				/* see if adjusting the first part would help */
-				tge = *ge;
-				tge.fx1 = fcvval(ge, X, 0.5);
-				tge.fy1 = fcvval(ge, Y, 0.5);
-				fnormalizege(&tge);
-				/* get possible scale limits within which we won't cross quadrants */
-				if( fcrossrays(&tge, nge, &maxsc1, &maxsc2, &apcv[1]) ) {
-					if(ISDBG(FCONCISE))
-						fprintf(stderr, " first (%g, %g)", apcv[1][X], apcv[1][Y]);
-					fapproxcurve(apcv, dots, ndots);
-					avsd2 = fdotcurvdist2(apcv, dots, ndots, NULL); 
-
-					if(ISDBG(FCONCISE))
-						fprintf(stderr, " f=%g (%g, %g)", sqrt(avsd2), apcv[1][X], apcv[1][Y]);
-				}
-
-				if(avsd2 > CVEPS2) {
-					/* apparently it did not help, try adjusting the last part */
-					tge = *nge;
-					tge.fx2 = fcvval(nge, X, 0.5);
-					tge.fy2 = fcvval(nge, Y, 0.5);
-					/* get possible scale limits within which we won't cross quadrants */
-					fnormalizege(&tge);
-					if( fcrossrays(ge, &tge, &maxsc1, &maxsc2, &apcv[1]) ) {
-						if(ISDBG(FCONCISE))
-							fprintf(stderr, " last (%g, %g)", apcv[1][X], apcv[1][Y]);
-						fapproxcurve(apcv, dots, ndots);
-						avsd2 = fdotcurvdist2(apcv, dots, ndots, NULL); 
-
-						if(ISDBG(FCONCISE))
-							fprintf(stderr, " l=%g (%g, %g)", sqrt(avsd2), apcv[1][X], apcv[1][Y]);
-					}
-				}
-				if(ISDBG(FCONCISE))
-					fprintf(stderr, "\n", avsd2);
-			}
-
-			if(avsd2 <= CVEPS2) {
-				if(ISDBG(FCONCISE)) {
-					fprintf(stderr, "%s: %g %g (", g->name, ge->prev->fx3, ge->prev->fy3);
-					for(i=0; i<3; i++)
-						for(j=0; j<2; j++)
-							fprintf(stderr, "%g ", ge->fpoints[j][i]);
-					fprintf(stderr, ": ");
-					for(i=0; i<3; i++)
-						for(j=0; j<2; j++)
-							fprintf(stderr, "%g ", nge->fpoints[j][i]);
-					fprintf(stderr, ")->(");
-				}
-
-				/* we've guessed a curve that is close enough */
-				for(i=0; i<3; i++) {
-					ge->fxn[i] = apcv[i+1][X];
-					ge->fyn[i] = apcv[i+1][Y];
-				}
-				freethisge(nge);
-
-				if(ISDBG(FCONCISE)) {
-					for(i=0; i<3; i++)
-						for(j=0; j<2; j++)
-							fprintf(stderr, "%g ", ge->fpoints[j][i]);
-					fprintf(stderr, ")%s\n", fiszigzag(ge)?" ZIGZAG":"");
-					fprintf(stderr, "apcv");
-					for(i=0; i<4; i++) {
-						fprintf(stderr, " (%g, %g)", apcv[i][X], apcv[i][Y]);
-					}
-					fprintf(stderr, "\n");
-				}
-			} else
-				break;
-		}
-	}
-
-	/* try to join the straight lines and the curves looking like those */
-
-	/* the 2 first dots of apcv are reused as the segment endpoints */
-
-	/* find the curves that look like a line */
-	for (ge = g->entries; ge != 0; ge = ge->next) {
-		if (ge->type == GE_CURVE) {
-			for(i=0; i<2; i++) {
-				dots[0].p[i] = fcvval(ge, i, 0.5);
-				apcv[0][i] = ge->prev->fpoints[i][2];
-				apcv[1][i] = ge->fpoints[i][2];
-			}
-			avsd2 = fdotsegdist2(apcv, dots[0].p);
-			if(avsd2 <= CVEPS2) {
-				ge->flags |= GEF_LINE;
-			} else {
-				ge->flags &= ~GEF_LINE;
-			}
-		} else if(ge->type == GE_LINE)
-			ge->flags |= GEF_LINE;
-		else
-			ge->flags &= ~GEF_LINE;
-	}
-
-	/* now try to join as many segments as possible */
-	for (ge = g->entries; ge != 0; ge = ge->next) {
-		if (( ge->flags & GEF_LINE )==0)
-			continue;
-
-		while(1) {
-			/* nge is the beginning of the composite segment, 
-			 * endge is the end 
-			 */
-			nge = ge; 
-			for(endge = nge->frwd; endge != nge; endge = endge->frwd) {
-				if (( endge->flags & GEF_LINE )==0)
-					break;
-				/* see if we can add this segment */
-				for(i=0; i<2; i++) {
-					apcv[0][i] = nge->prev->fpoints[i][2];
-					apcv[1][i] = endge->fpoints[i][2];
-				}
-				for(xge = nge; xge != endge; xge = xge->frwd) {
-					dots[0].p[X] = xge->fx3;
-					dots[0].p[Y] = xge->fy3;
-					if(fdotsegdist2(apcv, dots[0].p) > CVEPS2)
-						break;
-				}
-				if(xge == endge) /* we can */
-					continue;
-
-				/* maybe we could add two segments at the end if we
-				 * leave alone one segment at the beginning ?
-				 */
-				if(endge->frwd == nge || (endge->frwd->flags&GEF_LINE)==0)
-					break; /* no, we can't */
-				for(i=0; i<2; i++) {
-					apcv[0][i] = nge->fpoints[i][2];
-					apcv[1][i] = endge->frwd->fpoints[i][2];
-				}
-				for(xge = nge->frwd; xge != endge->frwd; xge = xge->frwd) {
-					dots[0].p[X] = xge->fx3;
-					dots[0].p[Y] = xge->fy3;
-					if(fdotsegdist2(apcv, dots[0].p) > CVEPS2)
-						break;
-				}
-				if(xge != endge->frwd) 
-					break; /* no, we can't */
-
-				/* OK, forget the first segement and add two at the end */
-				nge = nge->frwd;
-				endge = endge->frwd;
-			}
-			if(nge->frwd != endge) {
-				/* combine these segments */
-				nge->type = GE_LINE;
-				nge->fx3 = nge->fx1 = endge->bkwd->fx3;
-				nge->fy3 = nge->fy1 = endge->bkwd->fy3;
-				nge->flags &= ~GEF_LINE; /* remove them from further consideration */
-				for(xge = nge->frwd; xge != endge; xge = nge->frwd)
-					freethisge(xge);
-			} else
-				break;
-		}
-	}
-#if 0
-	/* convert the curves looking like lines to lines */
-	for (ge = g->entries; ge != 0; ge = ge->next) {
-		if (ge->flags & GEF_LINE && ge->type == GE_CURVE)
-			ge->type = GE_LINE;
-	}
-#endif
-
-
-	/* try to join the short straight lines and adjacent curves */
-
-	for (ge = g->entries; ge != 0; ge = ge->next) {
-		if (ge->type != GE_LINE)
-			continue;
-
-		/* the dimensions of the line */
-		dxw1 = ge->fx3 - ge->prev->fx3;
-		dyw1 = ge->fy3 - ge->prev->fy3;
-
-		if( dxw1*dxw1 + dyw1*dyw1 > 30.*30. ) /* the line is not short */
-			continue;
-
-		/* check whether we have a suitable curve before this line */
-		xge = ge->bkwd;
-		if (xge->type != GE_CURVE)
-			prevok = 0;
-		else {
-			prevok = 1;
-
-			dxw2 = xge->fx3 - xge->prev->fx3;
-			dyw2 = xge->fy3 - xge->prev->fy3;
-
-			/* approximate squared length */
-			prlen2 = dxw2*dxw2 + dyw2*dyw2;
-
-			/* if the directions are incompatible */
-			if (dxw1*dxw2<0 || dyw1*dyw2<0
-			/* or the joint is too abrupt */
-			|| fjointsin2(xge, ge) > 0.25 /* 0.25==sin(30 degrees)^2 */
-			/* or the rays don't cross */
-			|| fcrossrays(xge, ge, &maxsc1, &maxsc2, &prcv[1]) == 0 )
-				prevok = 0;
-		}
-		/* check whether we have a suitable curve after this line */
-		nge = ge->frwd;
-		if (nge->type != GE_CURVE)
-			nextok = 0;
-		else {
-			nextok = 1;
-
-			dxw3 = nge->fx3 - ge->fx3;
-			dyw3 = nge->fy3 - ge->fy3;
-
-			/* approximate squared length */
-			nxlen2 = dxw3*dxw3 + dyw3*dyw3;
-
-			/* if the directions are incompatible */
-			if (dxw1*dxw3<0 || dyw1*dyw3<0
-			/* or the joint is too abrupt */
-			|| fjointsin2(ge, nge) > 0.25 /* 0.25==sin(30 degrees)^2 */
-			/* or the rays don't cross */
-			|| fcrossrays(ge, nge, &maxsc1, &maxsc2, &nxcv[1]) == 0 )
-				nextok = 0;
-		}
-		if(ISDBG(FCONCISE))
-			fprintf(stderr, "glyph %s around (%g, %g)-(%g, %g) p=%d n=%d\n", g->name,
-				xge->fx3, xge->fy3, ge->fx3, ge->fy3, prevok, nextok);
-		if(prevok && nextok) {
-			/* both curves are OK, so check whether we can join all 3 pieces */
-
-			xge->dir = fgetcvdir(ge->bkwd);
-			nge->dir = fgetcvdir(ge->frwd);
-
-			/* in the same quadrant and won't create a zigzag and the rays intersect */
-			if( dxw2*dxw3>=0 && dyw2*dyw3>=0
-			&& ((xge->dir&CVDIR_FRONT)-CVDIR_FEQUAL) * ((nge->dir&CVDIR_REAR)-CVDIR_REQUAL) >= 0
-			&& fcrossrays(xge, nge, &maxsc1, &maxsc2, &apcv[1]) ) {
-				/* try to join all 3 together */
-				fsampledots(ge->bkwd, &dots[0], NREFDOTS);
-				ndots = NREFDOTS;
-				dots[ndots].p[X] = xge->fx3;
-				dots[ndots].p[Y] = xge->fy3;
-				ndots++;
-				fsampledots(ge, &dots[ndots], NREFDOTS);
-				ndots += NREFDOTS;
-				dots[ndots].p[X] = ge->fx3;
-				dots[ndots].p[Y] = ge->fy3;
-				ndots++;
-				fsampledots(ge->frwd, &dots[ndots], NREFDOTS);
-				ndots += NREFDOTS;
-
-				apcv[0][X] = xge->prev->fx3;
-				apcv[0][Y] = xge->prev->fy3;
-				/* apcv[1] and apcv[2] were filled by fcrossrays() */
-				apcv[3][X] = nge->fx3;
-				apcv[3][Y] = nge->fy3;
-
-				fapproxcurve(apcv, dots, ndots);
-				avsd2 = fdotcurvdist2(apcv, dots, ndots, NULL); 
-				if(avsd2 <= CVEPS2) {
-					/* we've guessed a curve that is close enough */
-					if(ISDBG(FCONCISE))
-						fprintf(stderr, "glyph %s around (%g, %g) 3-way join\n", g->name,
-							ge->fx3, ge->fy3);
-
-					for(i=0; i<3; i++) {
-						xge->fxn[i] = apcv[i+1][X];
-						xge->fyn[i] = apcv[i+1][Y];
-					}
-					freethisge(nge);
-					ge = ge->prev; /* step backwards before freeing ge */
-					freethisge(ge->next);
-					if(ge->prev)
-						ge = ge->prev; /* may have to reconsider the previous line */
-					continue; /* this gentry is done with */
-				}
-			}
-
-			/* We were not able to join all 3, then try to split the
-			 * line between 2 curves. There is a chance that in result
-			 * of that split fcrossrays() will fail (return 0) for
-			 * any of the halves but this should be rare and caught later.
-			 */
-
-			/* the scale is weird quadratic but that's no big deal */
-			scale = prlen2/(prlen2+nxlen2);
-
-			prcv[3][X] = nxcv[0][X] = xge->fx3 + scale*dxw1;
-			prcv[3][Y] = nxcv[0][Y] = xge->fy3 + scale*dyw1;
-
-			if(ISDBG(FCONCISE))
-				fprintf(stderr, " midpoint (%g, %g)\n", prcv[3][X], prcv[3][Y]);
-		} else {
-			prcv[3][X] = ge->fx3;
-			prcv[3][Y] = ge->fy3;
-			nxcv[0][X] = xge->fx3;
-			nxcv[0][Y] = xge->fy3;
-		}
-		if(prevok) {
-			fsampledots(xge, &dots[0], NREFDOTS);
-			ndots = NREFDOTS;
-			dots[ndots].p[0] = ge->bkwd->fx3;
-			dots[ndots].p[Y] = ge->bkwd->fy3;
-			ndots++;
-			tge = *ge;
-			tge.fx3 = prcv[3][X];
-			tge.fy3 = prcv[3][Y];
-			fsampledots(&tge, &dots[ndots], NREFDOTS);
-			ndots += NREFDOTS;
-
-			prcv[0][X] = xge->bkwd->fx3;
-			prcv[0][Y] = xge->bkwd->fy3;
-
-			fapproxcurve(prcv, dots, ndots);
-			avsd2 = fdotcurvdist2(prcv, dots, ndots, NULL); 
-			if(avsd2 > CVEPS2) { /* the guess was bad */
-				if(ISDBG(FCONCISE))
-					fprintf(stderr, " prev ->0 (avsd %g)\n", sqrt(avsd2));
-
-				prevok = 0;
-				/* if the line was split, unsplit it */
-				nxcv[0][X] = xge->fx3;
-				nxcv[0][Y] = xge->fy3;
-			}
-		}
-		if(nextok) {
-			tge = *xge;
-			xge->fx3 = nxcv[0][X];
-			xge->fy3 = nxcv[0][Y];
-			fsampledots(ge, &dots[0], NREFDOTS);
-			*xge = tge;
-			ndots = NREFDOTS;
-			dots[ndots].p[X] = ge->fx3;
-			dots[ndots].p[Y] = ge->fy3;
-			ndots++;
-			fsampledots(nge, &dots[ndots], NREFDOTS);
-			ndots += NREFDOTS;
-
-			nxcv[3][X] = nge->fx3;
-			nxcv[3][Y] = nge->fy3;
-
-			fapproxcurve(nxcv, dots, ndots);
-			avsd2 = fdotcurvdist2(nxcv, dots, ndots, NULL); 
-			if(avsd2 > CVEPS2) { /* the guess was bad */
-				if(ISDBG(FCONCISE))
-					fprintf(stderr, " next ->0 (avsd %g)\n", sqrt(avsd2));
-
-				nextok = 0;
-				if(prevok) { /* the line was split, unsplit and recalculate */
-					prcv[3][X] = ge->fx3;
-					prcv[3][Y] = ge->fy3;
-
-					fsampledots(xge, &dots[0], NREFDOTS);
-					ndots = NREFDOTS;
-					dots[ndots].p[0] = ge->bkwd->fx3;
-					dots[ndots].p[Y] = ge->bkwd->fy3;
-					ndots++;
-					tge = *ge;
-					tge.fx3 = prcv[3][X];
-					tge.fy3 = prcv[3][Y];
-					fsampledots(&tge, &dots[ndots], NREFDOTS);
-					ndots += NREFDOTS;
-
-					fcrossrays(xge, ge, &maxsc1, &maxsc2, &prcv[1]);
-					fapproxcurve(prcv, dots, ndots);
-					avsd2 = fdotcurvdist2(prcv, dots, ndots, NULL); 
-					if(avsd2 > CVEPS2) { /* the guess was bad */
-						if(ISDBG(FCONCISE))
-							fprintf(stderr, " and prev ->0 (avsd %g)\n", sqrt(avsd2));
-
-						prevok = 0;
-					}
-				}
-			}
-		}
-
-		if(ISDBG(FCONCISE) && (prevok || nextok))
-			fprintf(stderr, " result p=%d n=%d\n", prevok, nextok);
-		/* finally join the parts that are still OK after all the tests */
-		if(prevok) {
-			for(i=0; i<3; i++) {
-				xge->fxn[i] = prcv[i+1][X];
-				xge->fyn[i] = prcv[i+1][Y];
-			}
-			if(!nextok) {
-				ge = ge->prev; /* step backwards before freeing ge */
-				freethisge(ge->next);
-			}
-		}
-		if(nextok) {
-			for(i=0; i<3; i++) {
-				ge->fxn[i] = nxcv[i+1][X];
-				ge->fyn[i] = nxcv[i+1][Y];
-			}
-			ge->type = GE_CURVE;
-			freethisge(nge);
-		}
-		if(prevok && ge->prev)
-			ge = ge->prev; /* may have to reconsider the previous line */
-	}
-#endif /* } intermediate */
-
 }
 
 void
