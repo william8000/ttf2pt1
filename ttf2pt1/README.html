@@ -223,6 +223,17 @@ The <B>options</B> are:
    name suffix (the leading "0x" is not included into the suffix).
 <p>
 
+<!-- =stop >
+   <B>NOTE:</B>
+<!-- =section t1 BUGS >
+   It seems that many Eastern fonts use features of the TTF format that are 
+   not supported by the ttf2pt1's built-in front-end parser. Because of
+   this for now we recommend using the FreeType-based parser (option
+   `<b>-p ft</b>') with the "<tt>plane</tt>" language.
+<p>
+<!-- =stop >
+
+<!-- =section t1 OPTIONS >
 <I>
    <B>NOTE:</B>
    You may notice that the language names are not uniform: some are the
