@@ -3384,7 +3384,8 @@ main(
 				 */
 				numUID += (numUID>>24) & 0xFF;
 			}
-			fprintf(pfa_file, "/UniqueID %lu def\n", numUID);
+			/* the range for private UIDs is 4 000 000 - 4 999 999 */
+			fprintf(pfa_file, "/UniqueID %lu def\n", numUID%1000000+4000000);
 		}
 	}
 
