@@ -354,11 +354,10 @@ The suboptions to disable/enable features are:
        <tt>.otf</tt>, <tt>.pfa</tt>, <tt>.pfb</tt>)
 <p>
 
-   The parser <tt>ft</tt> is NOT linked in by default. See <tt>Makefile</tt>
+   The parser <tt>ft</tt> is <b>NOT</b> linked in by default. See <tt>Makefile</tt>
    for instructions how to enable it. We do no support this parser on
    Windows: probably it will work but nobody tried and nobody knows how
-   to build it.  Also it's not quite functional, see the section on 
-   <a href="ftdisc">FreeType Issues</a> for more detail.
+   to build it. 
 <p>
 
 <TT><B>-u <I>number</I></TT></B> - Mark the font with this value as its
@@ -526,29 +525,6 @@ every release of ttf2pt1 would have a corresponding release of all optional
 packages. For example, to get the correct version of optional packages for an 
 imaginary release 8.3.4 of ttf2pt1 you would need to look for optional 
 packages of the highest version not higher than (but possibly equal to) 8.3.4.
-<p>
-
-<H4>
-FreeType Issues
-</H4>
-<!
----------------
->
-
-Alas, as it turned out, the auxiliary APIs of the FreeType library in version
-2-beta8 is of alpha quality. And these APIs is exactly what's needed to
-get the glyph metrics and font oulines to convert the fonts. So the current
-situation is that the code to interface with FreeType is there but it
-has no practical use due to bugs in the FreeType library. Worse yet,
-to get at least some result a few workarounds were required that won't
-work after these bugs will be fixed. So the current front-end probably
-won't work with a later version of FreeType than 2-beta8. The known problems
-are: bounding boxes are strange, font information strings are not fully
-accessible, glyph names are missing, the Type1 (pfa/pfb) parser does not
-give any outlines. Also the generated outlines are sometimes slightly
-different (the exact reason of this is not determined yet) and the 
-FreeType-based parser is about 2-3 times slower than the ttf2pt1's native 
-one.
 <p>
 
 <H4>
