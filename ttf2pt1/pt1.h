@@ -186,6 +186,14 @@ typedef struct glyph {
 
 }               GLYPH;
 
+/* description of a dot for calculation of its distance to a curve */
+
+struct dot_dist {
+	double p[2 /*X,Y*/]; /* coordinates of a dot */
+	double dist2; /* squared distance from the dot to the curve */
+	short seg; /* the closest segment of the curve */
+};
+
 extern int      stdhw, stdvw;	/* dominant stems widths */
 extern int      stemsnaph[12], stemsnapv[12];	/* most typical stem width */
 
@@ -240,3 +248,10 @@ void stemstatistics(void);
 void docorrectwidth(void);
 void addkernpair( unsigned id1, unsigned id2, int unscval);
 void print_kerning( FILE *afm_file);
+
+int fcrossrayscv( double curve[4][2], double *max1, double *max2);
+int fcrossraysge( GENTRY *ge1, GENTRY *ge2, double *max1, double *max2,
+	double crossdot[2][2]);
+double fdotsegdist2( double seg[2][2], double dot[2]);
+double fdotcurvdist2( double curve[4][2], struct dot_dist *dots, int ndots, double *maxp);
+void fapproxcurve( double cv[4][2], struct dot_dist *dots, int ndots);

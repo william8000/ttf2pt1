@@ -31,14 +31,6 @@
 #define X	0
 #define	Y	1
 
-/* description of a dot for calculation of its distance to a curve */
-
-struct dot_dist {
-	double p[2 /*X,Y*/]; /* coordinates of a dot */
-	double dist2; /* squared distance from the dot to the curve */
-	short seg; /* the closest segment of the curve */
-};
-
 /* the GENTRY extension structure used in fforceconcise() */
 
 struct gex_con {
@@ -149,11 +141,7 @@ static int joinmainstems( STEM * s, int nold, int useblues);
 static void joinsubstems( STEM * s, short *pairs, int nold, int useblues);
 static void fixendpath( GENTRY *ge);
 static void fdelsmall( GLYPH *g, double minlen);
-static int fcrossrays( GENTRY *ge1, GENTRY *ge2, double *max1, double *max2, double crossdot[2][2]);
-static double fdotsegdist2( double seg[2][2], double dot[2]);
-static double fdotcurvdist2( double curve[4][2], struct dot_dist *dots, int ndots, double *maxp);
 static void alloc_gex_con( GENTRY *ge);
-static void fapproxcurve( double cv[4][2], struct dot_dist *dots, int ndots);
 static double fjointsin2( GENTRY *ge1, GENTRY *ge2);
 static double fcvarea( GENTRY *ge);
 static double fcvval( GENTRY *ge, int axis, double t);
@@ -4317,7 +4305,7 @@ fsplitzigzags(
 			double maxsc1, maxsc2; 
 			fprintf(stderr, "split a zigzag ");
 			fnormalizege(ge);
-			if( fcrossrays(ge, ge, &maxsc1, &maxsc2, NULL) ) {
+			if( fcrossraysge(ge, ge, &maxsc1, &maxsc2, NULL) ) {
 				fprintf(stderr, "sc1=%g sc2=%g\n", maxsc1, maxsc2);
 			} else {
 				fprintf(stderr, "(rays don't cross)\n");
@@ -4824,48 +4812,35 @@ fdelsmall(
 }
 
 /* find the point where two rays continuing vectors cross
- * rays are defined as beginning of curve1 and end of curve 2
  * returns 1 if they cross, 0 if they don't
  * If they cross optionally (if the pointers are not NULL) returns 
  * the maximal scales for both vectors and also optionally the point 
  * where the rays cross (twice).
  * Expects that the curves are normalized.
+ *
+ * For convenience there are 2 front-end functions taking
+ * arguments in different formats
+ */
+
+struct ray {
+	double x1, y1, x2, y2;
+	int isvert;
+	double k, b; /* lines are represented as y = k*x + b */
+	double *maxp;
+};
+static struct ray ray[3];
+
+/* the back-end doing the actual work
+ * the rays are defined in the static array ray[]
  */
 
 static int
-fcrossrays(
-	GENTRY *ge1,
-	GENTRY *ge2,
-	double *max1,
-	double *max2,
+fcrossraysxx(
 	double crossdot[2][2]
 )
 {
-	struct ray {
-		double x1, y1, x2, y2;
-		int isvert;
-		double k, b; /* lines are represented as y = k*x + b */
-		double *maxp;
-	} ray [3];
 	double x, y, max;
 	int i;
-
-	ray[0].x1 = ge1->prev->fx3;
-	ray[0].y1 = ge1->prev->fy3;
-	ray[0].x2 = ge1->fpoints[X][ge1->ftg];
-	ray[0].y2 = ge1->fpoints[Y][ge1->ftg];
-	ray[0].maxp = max1;
-
-	ray[1].x1 = ge2->fx3;
-	ray[1].y1 = ge2->fy3;
-	if(ge2->rtg < 0) {
-		ray[1].x2 = ge2->prev->fx3;
-		ray[1].y2 = ge2->prev->fy3;
-	} else {
-		ray[1].x2 = ge2->fpoints[X][ge2->rtg];
-		ray[1].y2 = ge2->fpoints[Y][ge2->rtg];
-	}
-	ray[1].maxp = max2;
 
 	for(i=0; i<2; i++) {
 		if(ray[i].x1 == ray[i].x2) 
@@ -4921,6 +4896,67 @@ fcrossrays(
 	return 1;
 }
 
+/* the front-end getting the arguments from 4 dots defining
+ * a curve in the same format as for fapproxcurve():
+ * rays are defined as beginning and end of the curve,
+ * the crossdot is inserted as the two middle dots of the curve
+ */
+
+int
+fcrossrayscv(
+	double curve[4][2 /*X,Y*/],
+	double *max1,
+	double *max2
+)
+{
+	ray[0].x1 = curve[0][X];
+	ray[0].y1 = curve[0][Y];
+	ray[0].x2 = curve[1][X];
+	ray[0].y2 = curve[1][Y];
+	ray[0].maxp = max1;
+
+	ray[1].x1 = curve[2][X];
+	ray[1].y1 = curve[2][Y];
+	ray[1].x2 = curve[3][X];
+	ray[1].y2 = curve[3][Y];
+	ray[1].maxp = max2;
+
+	return fcrossraysxx(&curve[1]);
+}
+
+/* the front-end getting the arguments from gentries:
+ * rays are defined as beginning of curve1 and end of curve 2
+ */
+
+int
+fcrossraysge(
+	GENTRY *ge1,
+	GENTRY *ge2,
+	double *max1,
+	double *max2,
+	double crossdot[2][2]
+)
+{
+	ray[0].x1 = ge1->prev->fx3;
+	ray[0].y1 = ge1->prev->fy3;
+	ray[0].x2 = ge1->fpoints[X][ge1->ftg];
+	ray[0].y2 = ge1->fpoints[Y][ge1->ftg];
+	ray[0].maxp = max1;
+
+	ray[1].x1 = ge2->fx3;
+	ray[1].y1 = ge2->fy3;
+	if(ge2->rtg < 0) {
+		ray[1].x2 = ge2->prev->fx3;
+		ray[1].y2 = ge2->prev->fy3;
+	} else {
+		ray[1].x2 = ge2->fpoints[X][ge2->rtg];
+		ray[1].y2 = ge2->fpoints[Y][ge2->rtg];
+	}
+	ray[1].maxp = max2;
+
+	return fcrossraysxx(crossdot);
+}
+
 /* debugging printout functions */
 
 #if defined(DEBUG_DOTSEG) || defined(DEBUG_DOTCURVE) || defined(DEBUG_APPROXCV)
@@ -4952,7 +4988,7 @@ printseg(
  * Find squared distance from a dot to a line segment
  */
 
-static double
+double
 fdotsegdist2(
 	double seg[2][2 /*X,Y*/],
 	double dot[2 /*X,Y*/]
@@ -5044,7 +5080,7 @@ fdotsegdist2(
  * distance in there
  */
 
-static double
+double
 fdotcurvdist2(
 	double curve[4][2 /*X,Y*/ ],
 	struct dot_dist *dots,
@@ -5226,7 +5262,7 @@ fdotcurvdist2(
  * than these segments).
  */
 
-static void
+void
 fapproxcurve(
 	double cv[4][2 /*X,Y*/ ], /* points 0-3 are passed in, points 1,2 - out */
 	struct dot_dist *dots, /* the dots to approximate - distances returned 
@@ -5711,7 +5747,7 @@ fanalyzejoint(
 	if( ((ge->dir&CVDIR_FRONT)-CVDIR_FEQUAL) * ((nge->dir&CVDIR_REAR)-CVDIR_REQUAL) < 0 )
 		goto try_flatone;
 
-	if( fcrossrays(ge, nge, NULL, NULL, NULL) )
+	if( fcrossraysge(ge, nge, NULL, NULL, NULL) )
 		gex->flags |= GEXF_JGOOD;
 
 try_flatone:
@@ -5726,7 +5762,7 @@ try_flatone:
 		tge.fx1 = tge.fx3;
 		tge.fy1 = tge.fy3;
 		fnormalizege(&tge);
-		if( fcrossrays(&tge, nge, NULL, NULL, NULL) )
+		if( fcrossraysge(&tge, nge, NULL, NULL, NULL) )
 			gex->flags |= GEXF_JFLAT|GEXF_JFLAT1;
 	}
 	if( ngex->flags & GEXF_FLAT ) {
@@ -5734,7 +5770,7 @@ try_flatone:
 		tge.fx2 = ge->fx3;
 		tge.fy2 = ge->fy3;
 		fnormalizege(&tge);
-		if( fcrossrays(ge, &tge, NULL, NULL, NULL) )
+		if( fcrossraysge(ge, &tge, NULL, NULL, NULL) )
 			gex->flags |= GEXF_JFLAT|GEXF_JFLAT2;
 	}
 
@@ -5747,14 +5783,14 @@ try_idealone:
 		tge.fx1 = tge.fx3;
 		tge.fy1 = ge->prev->fy3; /* force horizontal */
 		fnormalizege(&tge);
-		if( fcrossrays(&tge, nge, NULL, NULL, NULL) )
+		if( fcrossraysge(&tge, nge, NULL, NULL, NULL) )
 			gex->flags |= GEXF_JID|GEXF_JID1;
 	} else if( gex->flags & GEXF_VERT && gex->isd[Y]*ngex->isd[Y]>=0 ) {
 		tge = *ge;
 		tge.fx1 = ge->prev->fx3; /* force vertical */
 		tge.fy1 = tge.fy3;
 		fnormalizege(&tge);
-		if( fcrossrays(&tge, nge, NULL, NULL, NULL) )
+		if( fcrossraysge(&tge, nge, NULL, NULL, NULL) )
 			gex->flags |= GEXF_JID|GEXF_JID1;
 	}
 	if( ngex->flags & GEXF_HOR && gex->isd[X]*ngex->isd[X]>=0 ) {
@@ -5762,14 +5798,14 @@ try_idealone:
 		tge.fx2 = ge->fx3;
 		tge.fy2 = nge->fy3; /* force horizontal */
 		fnormalizege(&tge);
-		if( fcrossrays(ge, &tge, NULL, NULL, NULL) )
+		if( fcrossraysge(ge, &tge, NULL, NULL, NULL) )
 			gex->flags |= GEXF_JID|GEXF_JID2;
 	} else if( ngex->flags & GEXF_VERT && gex->isd[Y]*ngex->isd[Y]>=0 ) {
 		tge = *nge;
 		tge.fx2 = nge->fx3; /* force vertical */
 		tge.fy2 = ge->fy3;
 		fnormalizege(&tge);
-		if( fcrossrays(ge, &tge, NULL, NULL, NULL) )
+		if( fcrossraysge(ge, &tge, NULL, NULL, NULL) )
 			gex->flags |= GEXF_JID|GEXF_JID2;
 	}
 
@@ -5999,10 +6035,10 @@ fconcisecontour(
 
 			fnormalizege(&tpge);
 			fnormalizege(&tnge);
-			if( fcrossrays(&tpge, &tnge, NULL, NULL, &apcv[1]) ) {
+			if( fcrossraysge(&tpge, &tnge, NULL, NULL, &apcv[1]) ) {
 				apcv[0][X] = tpge.bkwd->fx3;
 				apcv[0][Y] = tpge.bkwd->fy3;
-				/* apcv[1] and apcv[2] were filled by fcrossrays() */
+				/* apcv[1] and apcv[2] were filled by fcrossraysge() */
 				apcv[3][X] = tnge.fx3;
 				apcv[3][Y] = tnge.fy3;
 
