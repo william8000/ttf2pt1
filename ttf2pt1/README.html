@@ -479,6 +479,35 @@ are described shortly in <A HREF="other/README.html">others/README</a>.
 <p>
 
 <H4>
+Optional packages
+</H4>
+<!
+-----------------
+>
+
+Some auxiliary files are not needed by everyone and are big enough that
+moving them to a separate package speeds up the downloads of the main
+package significantly. As of now we have one such optional package:
+<p>
+
+&nbsp;&nbsp;<b>ttf2pt1-chinese</b> - contains the Chinese conversion maps
+<p>
+
+The general versioning policy for the optional packages is the following:
+These packages may have no direct dependency on the ttf2pt1 version.
+But they may be updated in future, as well as some versions of optional
+packages may have dependencies on certain versions of ttf2pt1.
+To avoid unneccessary extra releases on one hand and keep the updates in 
+sync with the ttf2pt1 itself on the other hand, a new version of an optional 
+package will be released only if there are any changes to it and it will be 
+given the same version number as ttf2pt1 released at the same time. So not 
+every release of ttf2pt1 would have a corresponding release of all optional 
+packages. For example, to get the correct version of optional packages for an 
+imaginary release 8.3.4 of ttf2pt1 you would need to look for optional 
+packages of the highest version not higher than (but possibly equal to) 8.3.4.
+<p>
+
+<H4>
 TO DO:
 </H4>
 <!
