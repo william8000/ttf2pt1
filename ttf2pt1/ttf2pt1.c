@@ -1643,11 +1643,17 @@ convert_glyf(
 		ncurves = cursw->glpath(glyphno, glyph_list);
 		assertpath(g->entries, __FILE__, __LINE__, g->name);
 
-		pathtoint(g); 
-		/* all processing past this point expects integer path */
+		fclosepaths(g);
 		assertpath(g->entries, __FILE__, __LINE__, g->name);
 
-		closepaths(g);
+		/* float processing */
+		if(smooth) {
+			ffixquadrants(g);
+			assertpath(g->entries, __FILE__, __LINE__, g->name);
+		}
+
+		pathtoint(g); 
+		/* all processing past this point expects integer path */
 		assertpath(g->entries, __FILE__, __LINE__, g->name);
 
 #if 0
@@ -1655,6 +1661,7 @@ convert_glyf(
 		testfixcvdir(g);
 #endif
 
+		/* int processing */
 		if (smooth) {
 			smoothjoints(g);
 			assertpath(g->entries, __FILE__, __LINE__, g->name);
@@ -1677,6 +1684,7 @@ convert_glyf(
 			flattencurves(g);
 		}
 
+		/* XXX we have to count curves _after_ processing, not before */
 		if (ncurves > 100) {
 			WARNING_2 fprintf(stderr,
 			"** Glyph %s is too long, may display incorrectly\n",

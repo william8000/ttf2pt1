@@ -10,25 +10,31 @@ typedef struct gentry {
 	struct gentry  *first;	/* first entry in path */
 	union {
 		struct {
-			int  x[3], y[3];	/* integer values */
+			int  val[2][3];	/* integer values */
 		} i;
 		struct {
-			double  x[3], y[3];	/* floating values */
+			double  val[2][3];	/* floating values */
 		} f;
 	} points; /* absolute values, NOT deltas */
 /* convenience handles */
-#define ix1	points.i.x[0]
-#define ix2 points.i.x[1]
-#define ix3 points.i.x[2]
-#define iy1	points.i.y[0]
-#define iy2 points.i.y[1]
-#define iy3 points.i.y[2]
-#define fx1	points.f.x[0]
-#define fx2 points.f.x[1]
-#define fx3 points.f.x[2]
-#define fy1	points.f.y[0]
-#define fy2 points.f.y[1]
-#define fy3 points.f.y[2]
+#define ipoints	points.i.val
+#define fpoints	points.f.val
+#define ixn ipoints[0]
+#define iyn ipoints[1]
+#define fxn fpoints[0]
+#define fyn fpoints[1]
+#define ix1	ixn[0]
+#define ix2 ixn[1]
+#define ix3 ixn[2]
+#define iy1	iyn[0]
+#define iy2 iyn[1]
+#define iy3 iyn[2]
+#define fx1	fxn[0]
+#define fx2 fxn[1]
+#define fx3 fxn[2]
+#define fy1	fyn[0]
+#define fy2 fyn[1]
+#define fy3 fyn[2]
 
 	char            flags; 
 #define GEF_FLOAT	0x02 /* entry contains floating point data */
@@ -177,9 +183,11 @@ void ig_rrcurveto( GLYPH * g, int x1, int y1,
 void g_closepath( GLYPH * g);
 
 void pathtoint( GLYPH *g);
+void ffixquadrants( GLYPH *g);
 void flattencurves( GLYPH * g);
 int checkcv( GENTRY * ge, int dx, int dy);
-void closepaths( GLYPH * g);
+void iclosepaths( GLYPH * g);
+void fclosepaths( GLYPH * g);
 void smoothjoints( GLYPH * g);
 void debugstems( char *name, STEM * hstems, int nhs, STEM * vstems, int nvs);
 int addbluestems( STEM *s, int n);

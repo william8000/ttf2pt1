@@ -37,20 +37,34 @@ GLYPH   *glyph_list;
 int    encoding[256];	/* inverse of glyph[].char_no */
 
 /* prototypes */
-static int sign( int x);
+static int isign( int x);
+static int fsign( double x);
 static void fixcvdir( GENTRY * ge, int dir);
 static void fixcvends( GENTRY * ge);
 static int fgetcvdir( GENTRY * ge);
 static int igetcvdir( GENTRY * ge);
 
 static int
-sign(
+isign(
      int x
 )
 {
 	if (x > 0)
 		return 1;
 	else if (x < 0)
+		return -1;
+	else
+		return 0;
+}
+
+static int
+fsign(
+     double x
+)
+{
+	if (x > 0.0)
+		return 1;
+	else if (x < 0.0)
 		return -1;
 	else
 		return 0;
@@ -625,10 +639,10 @@ fixcvends(
 			/* make sure that it's still on the same side */
 			if (abs(x3 - x0) * abs(dy) < abs(y3 - y0) * abs(dx)) {
 				if (abs(x3 - x0) * abs(ge->iy1 - y0) > abs(y3 - y0) * abs(ge->ix1 - x0))
-					ge->ix1 += sign(dx);
+					ge->ix1 += isign(dx);
 			} else {
 				if (abs(x3 - x0) * abs(ge->iy1 - y0) < abs(y3 - y0) * abs(ge->ix1 - x0))
-					ge->iy1 += sign(dy);
+					ge->iy1 += isign(dy);
 			}
 
 			ge->ix2 += (x3 - x2) / 8;
@@ -636,10 +650,10 @@ fixcvends(
 			/* make sure that it's still on the same side */
 			if (abs(x3 - x0) * abs(y3 - y2) < abs(y3 - y0) * abs(x3 - x2)) {
 				if (abs(x3 - x0) * abs(y3 - ge->iy2) > abs(y3 - y0) * abs(x3 - ge->ix2))
-					ge->iy1 -= sign(y3 - y2);
+					ge->iy1 -= isign(y3 - y2);
 			} else {
 				if (abs(x3 - x0) * abs(y3 - ge->iy2) < abs(y3 - y0) * abs(x3 - ge->ix2))
-					ge->ix1 -= sign(x3 - x2);
+					ge->ix1 -= isign(x3 - x2);
 			}
 
 		}
@@ -676,10 +690,10 @@ fixcvends(
 			/* make sure that it's still on the same side */
 			if (abs(x3 - x0) * abs(dy) < abs(y3 - y0) * abs(dx)) {
 				if (abs(x3 - x0) * abs(ge->iy2 - y3) > abs(y3 - y0) * abs(ge->ix2 - x3))
-					ge->ix2 += sign(dx);
+					ge->ix2 += isign(dx);
 			} else {
 				if (abs(x3 - x0) * abs(ge->iy2 - y3) < abs(y3 - y0) * abs(ge->ix2 - x3))
-					ge->iy2 += sign(dy);
+					ge->iy2 += isign(dy);
 			}
 
 			ge->ix1 += (x0 - x1) / 8;
@@ -687,10 +701,10 @@ fixcvends(
 			/* make sure that it's still on the same side */
 			if (abs(x3 - x0) * abs(y0 - y1) < abs(y3 - y0) * abs(x0 - x1)) {
 				if (abs(x3 - x0) * abs(y0 - ge->iy1) > abs(y3 - y0) * abs(x0 - ge->ix1))
-					ge->iy1 -= sign(y0 - y1);
+					ge->iy1 -= isign(y0 - y1);
 			} else {
 				if (abs(x3 - x0) * abs(y0 - ge->iy1) < abs(y3 - y0) * abs(x0 - ge->ix1))
-					ge->ix1 -= sign(x0 - x1);
+					ge->ix1 -= isign(x0 - x1);
 			}
 
 		}
@@ -760,15 +774,15 @@ fixcvdir(
 
 	fdir = (dir & CVDIR_FRONT) - CVDIR_FEQUAL;
 	if ((dir & CVDIR_REAR) == CVDIR_RSAME)
-		rdir = fdir; /* we need only sign, exact value doesn't matter */
+		rdir = fdir; /* we need only isign, exact value doesn't matter */
 	else
 		rdir = (dir & CVDIR_REAR) - CVDIR_REQUAL;
 
 	fixcvends(ge);
 
-	c = sign(ge->ix3 - ge->prev->ix3);	/* note the direction of
+	c = isign(ge->ix3 - ge->prev->ix3);	/* note the direction of
 						 * curve */
-	d = sign(ge->iy3 - ge->prev->iy3);
+	d = isign(ge->iy3 - ge->prev->iy3);
 
 	a = ge->iy2 - ge->iy1;
 	b = ge->ix2 - ge->ix1;
@@ -872,7 +886,7 @@ fixcvdir(
 
 /* Get the directions of ends of curve for further usage */
 
-/* expects that the previous element is also floating */
+/* expects that the previous element is also float */
 
 static int
 fgetcvdir(
@@ -910,43 +924,8 @@ fgetcvdir(
 	return dir;
 }
 
-/* expects that the previous element is integer */
 
-static int
-fi_getcvdir(
-	 GENTRY * ge
-)
-{
-	double          a, b;
-	double          k, k1, k2;
-	int             dir = 0;
-
-	a = ge->fy2 - ge->fy1;
-	b = ge->fx2 - ge->fx1;
-	k = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ( b / a));
-	a = ge->fy1 - ge->prev->iy3;
-	b = ge->fx1 - ge->prev->ix3;
-	k1 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ( b / a));
-	a = ge->fy3 - ge->fy2;
-	b = ge->fx3 - ge->fx2;
-	k2 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ( b / a));
-
-	if (k1 < k)
-		dir |= CVDIR_FUP;
-	else if (k1 > k)
-		dir |= CVDIR_FDOWN;
-	else
-		dir |= CVDIR_FEQUAL;
-
-	if (k2 > k)
-		dir |= CVDIR_RUP;
-	else if (k2 < k)
-		dir |= CVDIR_RDOWN;
-	else
-		dir |= CVDIR_REQUAL;
-
-	return dir;
-}
+/* expects that the previous element is also int */
 
 static int
 igetcvdir(
@@ -1023,7 +1002,6 @@ pathtoint(
 	GENTRY *ge;
 	int x[3], y[3];
 	int i;
-	int dir;
 
 
 	if(ISDBG(TOINT))
@@ -1062,27 +1040,21 @@ pathtoint(
 			if(ISDBG(TOINT))
 				fprintf(stderr," %c float ", ge->type);
 
-			if( ISDBG(TOINT) ) {
-				dir = fi_getcvdir(ge);
-				if( dir != ge->dir)
-					fprintf(stderr, "dir changed from 0x%x to 0x%x\n", ge->dir, dir);
-			}
-
 			for(i=0; i<3; i++) {
 				if(ISDBG(TOINT))
-					fprintf(stderr,"(%g, %g) ", ge->points.f.x[i], ge->points.f.y[i]);
-				x[i] = round(ge->points.f.x[i]);
-				y[i] = round(ge->points.f.y[i]);
+					fprintf(stderr,"(%g, %g) ", ge->fxn[i], ge->fyn[i]);
+				x[i] = round(ge->fxn[i]);
+				y[i] = round(ge->fyn[i]);
 			}
 
 			if(ISDBG(TOINT))
 				fprintf(stderr,"\n   int   ");
 
 			for(i=0; i<3; i++) {
-				ge->points.i.x[i] = x[i];
-				ge->points.i.y[i] = y[i];
+				ge->ixn[i] = x[i];
+				ge->iyn[i] = y[i];
 				if(ISDBG(TOINT))
-					fprintf(stderr,"(%d, %d) ", ge->points.i.x[i], ge->points.i.y[i]);
+					fprintf(stderr,"(%d, %d) ", ge->ixn[i], ge->iyn[i]);
 			}
 			ge->flags &= ~GEF_FLOAT; /* for fixcvdir */
 			fixcvdir(ge, ge->dir);
@@ -1090,7 +1062,7 @@ pathtoint(
 			if(ISDBG(TOINT)) {
 				fprintf(stderr,"\n   fixed ");
 				for(i=0; i<3; i++)
-					fprintf(stderr,"(%d, %d) ", ge->points.i.x[i], ge->points.i.y[i]);
+					fprintf(stderr,"(%d, %d) ", ge->ixn[i], ge->iyn[i]);
 				fprintf(stderr,"\n");
 			}
 
@@ -1105,8 +1077,33 @@ pathtoint(
 /* check whether we can fix up the curve to change its size by (dx,dy) */
 /* 0 means NO, 1 means YES */
 
+/* for float: if scaling would be under 10% */
+
 int
-checkcv(
+fcheckcv(
+	GENTRY * ge,
+	double dx,
+	double dy
+)
+{
+	double             xdep, ydep;
+
+	if (ge->type != GE_CURVE)
+		return 0;
+
+	if( fabs(ge->fx3 - ge->prev->fx3) < fabs(dx) * 10 )
+		return 0;
+
+	if( fabs(ge->fy3 - ge->prev->fy3) < fabs(dy) * 10 )
+		return 0;
+
+	return 1;
+}
+
+/* for int: if won't create new zigzags at the ends */
+
+int
+icheckcv(
 	GENTRY * ge,
 	int dx,
 	int dy
@@ -1128,10 +1125,123 @@ checkcv(
 		return 0;
 }
 
-/* connect the ends of open contours */
+/* float connect the ends of open contours */
+
+/* XXX to be fixed: now doing small corrections in a simplistic way */
 
 void
-closepaths(
+fclosepaths(
+	   GLYPH * g
+)
+{
+	GENTRY         *ge, *fge;
+	int             x = 0, y = 0;
+	int             i, j;
+
+	for (ge = g->entries; ge != 0; ge = ge->next) {
+		if ((fge = ge->first) != 0) {
+			if (fge->prev == 0 || fge->prev->type != GE_MOVE) {
+				fprintf(stderr, "**! Glyph %s got strange beginning of path\n",
+					g->name);
+				exit(1);
+			}
+			fge = fge->prev;
+			if (fge->fx3 != ge->fx3 || fge->fy3 != ge->fy3) {
+				/* we have to fix this open path */
+
+				WARNING_4 fprintf(stderr, "Glyph %s got path open by dx=%g dy=%g\n",
+				g->name, fge->fx3 - ge->fx3, fge->fy3 - ge->fy3);
+
+				if (fabs(ge->fx3 - fge->fx3) <= 2 && fabs(ge->fy3 - fge->fy3) <= 2) {
+					/*
+					 * small change, try to correct what
+					 * we have
+					 */
+					double          chg[2], rescale, base;
+
+					chg[0] = fge->fx3 - ge->fx3;
+					chg[1] = fge->fy3 - ge->fy3;
+
+					/* first try to fix a curve */
+					if (fcheckcv(ge, chg[0], chg[1])) {
+						for(i=0; i<2; i++) {
+							if(chg[i]==0)
+								continue;
+							base = ge->prev->fpoints[i][2];
+							rescale = 1 + chg[i] / (ge->fpoints[i][2] - base);
+							for(j=0; j<3; j++)
+								ge->fpoints[i][j] = base + rescale * (ge->fpoints[i][j] - base);
+						}
+					} else if (fcheckcv(fge->next, chg[0], chg[1])) {
+						for(i=0; i<2; i++) {
+							if(chg[i]==0)
+								continue;
+							base = fge->next->fpoints[i][2];
+							rescale = 1 - chg[i] / (fge->fpoints[i][2] - base);
+							fge->fpoints[i][2] = base + rescale * (fge->fpoints[i][2] - base);
+							for(j=0; j<2; j++)
+								fge->next->fpoints[i][j] = base 
+									+ rescale * (fge->next->fpoints[i][j] - base);
+						}
+
+						/* then try to fix a line */
+					} else if (ge->type == GE_LINE) {
+						ge->fx3 += chg[0];
+						ge->fy3 += chg[1];
+					} else if (fge->next->type == GE_LINE) {
+						fge->fx3 -= chg[0];
+						fge->fy3 -= chg[1];
+
+						/*
+						 * and as the last resort
+						 * draw a new line
+						 */
+					} else {
+						GENTRY         *nge;
+
+						nge = newgentry();
+						(*nge) = (*ge);
+						nge->fx3 = fge->fx3;
+						nge->fy3 = fge->fy3;
+						nge->type = GE_LINE;
+
+						nge->prev = ge;
+						nge->next = ge->next;
+						nge->first = ge->first;
+
+						ge->next->prev = nge;
+						ge->next = nge;
+						ge->first = 0;
+						ge = nge;
+					}
+				} else {
+					/* big change, add new line */
+					GENTRY         *nge;
+
+					nge = newgentry();
+					(*nge) = (*ge);
+					nge->fx3 = fge->fx3;
+					nge->fy3 = fge->fy3;
+					nge->type = GE_LINE;
+
+					nge->prev = ge;
+					nge->next = ge->next;
+					nge->first = ge->first;
+
+					ge->next->prev = nge;
+					ge->next = nge;
+					ge->first = 0;
+					ge = nge;
+				}
+			}
+		}
+	}
+}
+
+/* int connect the ends of open contours */
+
+void
+iclosepaths(
 	   GLYPH * g
 )
 {
@@ -1149,7 +1259,7 @@ closepaths(
 			if (fge->ix3 != ge->ix3 || fge->iy3 != ge->iy3) {
 				/* we have to fix this open path */
 
-				WARNING_3 fprintf(stderr, "Glyph %s got path open by dx=%d dy=%d\n",
+				WARNING_4 fprintf(stderr, "Glyph %s got path open by dx=%d dy=%d\n",
 				g->name, fge->ix3 - ge->ix3, fge->iy3 - ge->iy3);
 
 				if (abs(ge->ix3 - fge->ix3) <= 2 && abs(ge->iy3 - fge->iy3) <= 2) {
@@ -1157,25 +1267,20 @@ closepaths(
 					 * small change, try to correct what
 					 * we have
 					 */
-					int             xopen, yopen, xdep,
-					                ydep, fxdep, fydep;
+					int             xopen, yopen;
 
 					xopen = fge->ix3 - ge->ix3;
 					yopen = fge->iy3 - ge->iy3;
-					xdep = ge->ix3 - ge->prev->ix3;
-					ydep = ge->iy3 - ge->prev->iy3;
-					fxdep = fge->next->ix3 - fge->ix3;
-					fydep = fge->next->iy3 - fge->iy3;
 
 					/* first try to fix a curve */
-					if (checkcv(ge, xopen, yopen)) {
+					if (icheckcv(ge, xopen, yopen)) {
 						dir = igetcvdir(ge);
 						ge->ix2 += xopen;
 						ge->ix3 += xopen;
 						ge->iy2 += yopen;
 						ge->iy3 += yopen;
 						fixcvdir(ge, dir);
-					} else if (checkcv(fge->next, xopen, yopen)) {
+					} else if (icheckcv(fge->next, xopen, yopen)) {
 						dir = igetcvdir(fge->next);
 						fge->ix3 -= xopen;
 						fge->next->ix1 -= xopen;
@@ -1199,6 +1304,7 @@ closepaths(
 						GENTRY         *nge;
 
 						nge = newgentry();
+						(*nge) = (*ge);
 						nge->ix3 = fge->ix3;
 						nge->iy3 = fge->iy3;
 						nge->type = GE_LINE;
@@ -1217,6 +1323,7 @@ closepaths(
 					GENTRY         *nge;
 
 					nge = newgentry();
+					(*nge) = (*ge);
 					nge->ix3 = fge->ix3;
 					nge->iy3 = fge->iy3;
 					nge->type = GE_LINE;
@@ -1310,7 +1417,7 @@ smoothjoints(
 
 			/* if the line is nearly horizontal and we can fix it */
 			if (dx1 != 0 && 5 * abs(dy1) / abs(dx1) == 0
-			    && checkcv(ne, 0, -dy1)
+			    && icheckcv(ne, 0, -dy1)
 			    && abs(dy1) <= 4) {
 				dir = igetcvdir(ne);
 				ge->iy3 -= dy1;
@@ -1320,7 +1427,7 @@ smoothjoints(
 					ne->prev->iy3 -= dy1;
 				dy1 = 0;
 			} else if (dy1 != 0 && 5 * abs(dx1) / abs(dy1) == 0
-				   && checkcv(ne, -dx1, 0)
+				   && icheckcv(ne, -dx1, 0)
 				   && abs(dx1) <= 4) {
 				/* the same but vertical */
 				dir = igetcvdir(ne);
@@ -1357,7 +1464,7 @@ smoothjoints(
 
 			/* if the line is nearly horizontal and we can fix it */
 			if (dx2 != 0 && 5 * abs(dy2) / abs(dx2) == 0
-			    && checkcv(ge, 0, dy2)
+			    && icheckcv(ge, 0, dy2)
 			    && abs(dy2) <= 4) {
 				dir = igetcvdir(ge);
 				ge->iy3 += dy2;
@@ -1367,7 +1474,7 @@ smoothjoints(
 					ne->prev->iy3 += dy2;
 				dy2 = 0;
 			} else if (dy2 != 0 && 5 * abs(dx2) / abs(dy2) == 0
-				   && checkcv(ge, dx2, 0)
+				   && icheckcv(ge, dx2, 0)
 				   && abs(dx2) <= 4) {
 				/* the same but vertical */
 				dir = igetcvdir(ge);
@@ -3612,13 +3719,13 @@ straighten(
 		if (ge->iy3 != ge->iy2 && ge->iy1 != pge->iy3
 		    && abs(ge->ix3 - pge->ix3) <= 2
 		    && (!zigonly && (abs(ge->ix3 - pge->ix3) <= 1 || abs(ge->iy3 - pge->iy3) >= 10)
-		     || sign(ge->ix1 - pge->ix3) + sign(ge->ix2 - ge->ix3) == 0)
+		     || isign(ge->ix1 - pge->ix3) + isign(ge->ix2 - ge->ix3) == 0)
 			) {
 
 			if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten almost vertical\n");
 
 			dx = ge->ix3 - pge->ix3;
-			dir = sign(ge->iy3 - pge->iy3);
+			dir = isign(ge->iy3 - pge->iy3);
 			ge->type = GE_LINE;
 
 			/*
@@ -3631,8 +3738,8 @@ straighten(
 			       && nge->iy3 != nge->iy2 && nge->iy1 != ge->iy3
 			       && abs(nge->ix3 - ge->ix3) <= 2
 			       && (!zigonly && (abs(nge->ix3 - ge->ix3) <= 1 || abs(nge->iy3 - ge->iy3) >= 10)
-				   || sign(nge->ix1 - ge->ix3) + sign(nge->ix2 - nge->ix3) == 0)
-			       && dir == sign(nge->iy3 - ge->iy3)) {
+				   || isign(nge->ix1 - ge->ix3) + isign(nge->ix2 - nge->ix3) == 0)
+			       && dir == isign(nge->iy3 - ge->iy3)) {
 				ge->iy3 = nge->iy3;
 				ge->ix3 = nge->ix3;
 
@@ -3678,13 +3785,13 @@ straighten(
 		else if (ge->ix3 != ge->ix2 && ge->ix1 != pge->ix3
 			 && abs(ge->iy3 - pge->iy3) <= 2
 			 && (!zigonly && (abs(ge->iy3 - pge->iy3) <= 1 || abs(ge->ix3 - pge->ix3) >= 10)
-			     || sign(ge->iy1 - pge->iy3) + sign(ge->iy2 - ge->iy3) == 0)
+			     || isign(ge->iy1 - pge->iy3) + isign(ge->iy2 - ge->iy3) == 0)
 			) {
 
 			if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten almost horizontal\n");
 
 			dy = ge->iy3 - pge->iy3;
-			dir = sign(ge->ix3 - pge->ix3);
+			dir = isign(ge->ix3 - pge->ix3);
 			ge->type = GE_LINE;
 
 			/*
@@ -3697,8 +3804,8 @@ straighten(
 			       && nge->ix3 != nge->ix2 && nge->ix1 != ge->ix3
 			       && abs(nge->iy3 - ge->iy3) <= 2
 			       && (!zigonly && (abs(nge->iy3 - ge->iy3) <= 1 || abs(nge->ix3 - ge->ix3) >= 10)
-				   || sign(nge->iy1 - ge->iy3) + sign(nge->iy2 - nge->iy3) == 0)
-			       && dir == sign(nge->ix3 - ge->ix3)) {
+				   || isign(nge->iy1 - ge->iy3) + isign(nge->iy2 - nge->iy3) == 0)
+			       && dir == isign(nge->ix3 - ge->ix3)) {
 				ge->ix3 = nge->ix3;
 				ge->iy3 = nge->iy3;
 
@@ -3800,11 +3907,11 @@ straighten(
 			} else {/* beginning of contour, can't stretch */
 				psx = psy = 0;
 			}
-			if (sign(psx) == sign(dx))
+			if (isign(psx) == isign(dx))
 				psx = 1000;	/* unlimited */
 			else
 				psx = abs(psx);
-			if (sign(psy) == sign(dy))
+			if (isign(psy) == isign(dy))
 				psy = 1000;	/* unlimited */
 			else
 				psy = abs(psy);
@@ -3819,11 +3926,11 @@ straighten(
 			} else {/* beginning of contour, can't stretch */
 				nsx = nsy = 0;
 			}
-			if (sign(nsx) == sign(-dx))
+			if (isign(nsx) == isign(-dx))
 				nsx = 1000;	/* unlimited */
 			else
 				nsx = abs(nsx);
-			if (sign(nsy) == sign(-dy))
+			if (isign(nsy) == isign(-dy))
 				nsy = 1000;	/* unlimited */
 			else
 				nsy = abs(nsy);
@@ -3855,6 +3962,7 @@ straighten(
 					GENTRY         *zzge;
 
 					zzge = newgentry();
+					(*zzge) = (*ge);
 					zzge->type = GE_LINE;
 					zzge->ix3 = ge->ix3;
 					zzge->iy3 = ge->iy3;
@@ -3867,7 +3975,7 @@ straighten(
 					ge->first = 0;
 					ge->ix3 -= dx;
 					if (abs(ge->iy3 - pge->iy3) >= 10)
-						ge->iy3 -= 5 * sign(ge->iy3 - pge->iy3);
+						ge->iy3 -= 5 * isign(ge->iy3 - pge->iy3);
 					else
 						ge->iy3 -= (ge->iy3 - pge->iy3) / 2;
 
@@ -3923,6 +4031,7 @@ straighten(
 					GENTRY         *zzge;
 
 					zzge = newgentry();
+					(*zzge) = (*ge);
 					zzge->type = GE_LINE;
 					zzge->ix3 = ge->ix3;
 					zzge->iy3 = ge->iy3;
@@ -3935,7 +4044,7 @@ straighten(
 					ge->first = 0;
 					ge->iy3 -= dy;
 					if (abs(ge->ix3 - pge->ix3) >= 10)
-						ge->ix3 -= 5 * sign(ge->ix3 - pge->ix3);
+						ge->ix3 -= 5 * isign(ge->ix3 - pge->ix3);
 					else
 						ge->ix3 -= (ge->ix3 - pge->ix3) / 2;
 
@@ -3967,7 +4076,7 @@ straighten(
 			}
 			/* now stretch the neigboring elements */
 			if (dx != 0) {
-				dx = sign(dx);
+				dx = isign(dx);
 
 				if (nsx != 0) {
 					ge->ix3 -= dx * nsx;
@@ -3989,7 +4098,7 @@ straighten(
 				}
 			}
 			if (dy != 0) {
-				dy = sign(dy);
+				dy = isign(dy);
 
 				if (nsy != 0) {
 					ge->iy3 -= dy * nsy;
@@ -4012,6 +4121,239 @@ straighten(
 			}
 		}
 	}
+}
+
+/* solve a square equation,
+ * returns the number of solutions found, the solutions
+ * are stored in res which should point to array of two doubles.
+ * min and max limit the area for solutions
+ */
+
+static int
+fsqequation(
+	double a,
+	double b,
+	double c,
+	double *res,
+	double min,
+	double max
+)
+{
+	double D;
+	int n;
+
+	if(ISDBG(SQEQ)) fprintf(stderr, "sqeq(%g,%g,%g) [%g;%g]\n", a, b, c, min, max);
+
+	if(fabs(a) < 0.000001) { /* if a linear equation */
+		n=0;
+		if(fabs(b) < 0.000001) /* not an equation at all */
+			return 0;
+		res[0] = -c/b;
+		if(ISDBG(SQEQ)) fprintf(stderr, "sqeq: linear t=%g\n", res[0]);
+		if(res[0] >= min && res[0] <= max)
+			n++;
+		return n;
+	}
+
+	D = b*b - 4.0*a*c;
+	if(ISDBG(SQEQ)) fprintf(stderr, "sqeq: D=%g\n", D);
+	if(D<0)
+		return 0;
+
+	D = sqrt(D);
+
+	n=0;
+	res[0] = (-b+D) / (2*a);
+	if(ISDBG(SQEQ)) fprintf(stderr, "sqeq: t1=%g\n", res[0]);
+	if(res[0] >= min && res[0] <= max)
+		n++;
+
+	res[n] = (-b-D) / (2*a);
+	if(ISDBG(SQEQ)) fprintf(stderr, "sqeq: t2=%g\n", res[n]);
+	if(res[n] >= min && res[n] <= max)
+		n++;
+
+	/* return 2nd solution only if it's different enough */
+	if(n==2 && fabs(res[0]-res[1])<0.000001)
+		n=1;
+
+	return n;
+}
+
+/* check that the curves don't cross quadrant boundary */
+/* (float) */
+
+/*
+  Here we make sure that the curve does not continue past
+  horizontal or vertical extremums. The horizontal points are
+  explained, vertical points are by analogy.
+
+  The horizontal points are where the derivative
+  dy/dx is equal to 0. But the Bezier curves are defined by
+  parametric formulas
+   x=fx(t)
+   y=fy(t)
+  so finding this derivative is complicated.
+  Also even if we find some point (x,y) splitting at this point
+  is far not obvious. Fortunately we can use dy/dt = 0 instead,
+  this gets to a rather simple square equation and splitting
+  at a known value of t is simple.
+
+  The formulas are:
+
+  y = A*(1-t)^3 + B*(1-t)^2*t + C*(1-t)*t^2 + D*t^3
+  y = (-A+3*B-3*C+D)*t^3 + (3*A-6*B+3*C)*t^2 + (-3*A+3*B)*t + A
+  dy/dt = 3*(-A+3*B-3*C+D)*t^2 + 2*(3*A-6*B+3*C)*t + (-3*A+3*B)
+ */
+
+void
+ffixquadrants(
+	GLYPH *g
+)
+{
+	GENTRY         *ge, *nge;
+	int	i, j, np, oldnp;
+	double	sp[5]; /* split points, last one empty */
+	char dir[5]; /* for debugging, direction by which split happened */
+	double a, b, *pts; /* points of a curve */
+
+	for (ge = g->entries; ge != 0; ge = ge->next) {
+		if (ge->type != GE_CURVE)
+			continue;
+		
+	doagain:
+		np = 0; /* no split points yet */
+		if(ISDBG(QUAD)) {
+			fprintf(stderr, "%s: trying 0x%x (%g %g) (%g %g) (%g %g) (%g %g)\n  ", g->name,
+				ge,  ge->prev->fx3, ge->prev->fy3, ge->fx1, ge->fy1, ge->fx2, ge->fy2,
+				ge->fx3, ge->fy3);
+		}
+		for(i=0; i<2; i++) { /* first for x then for y */
+			/* find the cooridnates of control points */
+			a = ge->prev->fpoints[i][2];
+			pts = &ge->fpoints[i][0];
+
+			oldnp = np;
+			np += fsqequation(
+				3.0*(-a + 3.0*pts[0] - 3.0*pts[1] + pts[2]),
+				6.0*(a - 2.0*pts[0] + pts[1]),
+				3.0*(-a + pts[0]),
+				&sp[np],
+				0.0, 1.0); /* XXX range is [0;1] */
+
+			if(np == oldnp)
+				continue;
+
+			if(ISDBG(QUAD))
+				fprintf(stderr, "%s: 0x%x: %d pts(%c): ", 
+					g->name, ge, np-oldnp, i? 'y':'x');
+
+			/* remove points that are too close to the ends 
+			 * because hor/vert ends are permitted, also
+			 * if the split point is VERY close to the ends
+			 * but not exactly then just flatten it and check again.
+			 */
+			for(j = oldnp; j<np; j++) {
+				dir[j] = i;
+				if(ISDBG(QUAD))
+					fprintf(stderr, "%g ", sp[j]);
+				if(sp[j] < 0.01) { /* front end of curve */
+					if(ge->fpoints[i][0] != ge->prev->fpoints[i][2]) {
+						ge->fpoints[i][0] = ge->prev->fpoints[i][2];
+						if(ISDBG(QUAD)) fprintf(stderr, "flattened at front\n");
+						goto doagain;
+					}
+					if( ge->fpoints[i][1] != ge->fpoints[i][0]
+					&& fsign(ge->fpoints[i][2] - ge->fpoints[i][1])
+							!= fsign(ge->fpoints[i][1] - ge->fpoints[i][0]) ) {
+						ge->fpoints[i][1] = ge->fpoints[i][0];
+						if(ISDBG(QUAD)) fprintf(stderr, "flattened zigzag at front\n");
+						goto doagain;
+					}
+					sp[j] = sp[j+1]; np--; j--;
+					if(ISDBG(QUAD)) fprintf(stderr, "(front flat)  ");
+				} else if(sp[j] > 0.99) { /* rear end of curve */
+					if(ge->fpoints[i][1] != ge->fpoints[i][2]) {
+						ge->fpoints[i][1] = ge->fpoints[i][2];
+						if(ISDBG(QUAD)) fprintf(stderr, "flattened at rear\n");
+						goto doagain;
+					}
+					if( ge->fpoints[i][0] != ge->fpoints[i][1]
+					&& fsign(ge->prev->fpoints[i][2] - ge->fpoints[i][0])
+							!= fsign(ge->fpoints[i][0] - ge->fpoints[i][1]) ) {
+						ge->fpoints[i][0] = ge->fpoints[i][1];
+						if(ISDBG(QUAD)) fprintf(stderr, "flattened zigzag at rear\n");
+						goto doagain;
+					}
+					sp[j] = sp[j+1]; np--; j--;
+					if(ISDBG(QUAD)) fprintf(stderr, "(rear flat)  ");
+				} 
+			}
+			if(ISDBG(QUAD)) fprintf(stderr, "\n");
+		}
+
+		if(np==0) /* no split points, leave it alone */
+			continue;
+
+		if(ISDBG(QUAD)) {
+			fprintf(stderr, "%s: splitting 0x%x (%g %g) (%g %g) (%g %g) (%g %g) at %d points\n  ", g->name,
+				ge,  ge->prev->fx3, ge->prev->fy3, ge->fx1, ge->fy1, ge->fx2, ge->fy2,
+				ge->fx3, ge->fy3, np);
+			for(i=0; i<np; i++)
+				fprintf(stderr, "%g(%c) ", sp[i], dir[i] ? 'y':'x');
+			fprintf(stderr, "\n");
+		}
+
+		/* sort the points ascending */
+		for(i=0; i<np; i++)
+			for(j=i+1; j<np; j++)
+				if(sp[i] > sp[j]) {
+					a = sp[i]; sp[i] = sp[j]; sp[j] = a;
+				}
+
+		/* now finally do the split on each point */
+		for(j=0; j<np; j++) {
+			double k1, k2, c;
+
+			k1 = sp[j];
+			k2 = 1 - k1;
+
+			if(ISDBG(QUAD)) fprintf(stderr, "   0x%x %g/%g\n", ge, k1, k2);
+
+			nge = newgentry();
+			(*nge) = (*ge);
+
+#define SPLIT(pt1, pt2)	( (pt1) + k1*((pt2)-(pt1)) ) /* order is important! */
+			for(i=0; i<2; i++) { /* for x and y */
+				a = ge->fpoints[i][0]; /* get the middle points */
+				b = ge->fpoints[i][1];
+
+				/* calculate new internal points */
+				c = SPLIT(a, b);
+
+				ge->fpoints[i][0] = SPLIT(ge->prev->fpoints[i][2], a);
+				ge->fpoints[i][1] = SPLIT(ge->fpoints[i][0], c);
+
+				nge->fpoints[i][1] = SPLIT(b, nge->fpoints[i][2]);
+				nge->fpoints[i][0] = SPLIT(c, nge->fpoints[i][1]);
+
+				ge->fpoints[i][2] = SPLIT(ge->fpoints[i][1],
+					+ nge->fpoints[i][0]);
+			}
+#undef SPLIT
+
+			ge->next = nge;
+			ge->first = 0;
+			nge->prev = ge;
+			nge->next->prev = nge;
+
+			/* go to the next part, adjust remaining points */
+			ge = nge;
+			for(i=j+1; i<np; i++)
+				sp[i] = (sp[i]-k1) / k2;
+		}
+	}
+
 }
 
 /* find the approximate length of curve */
@@ -4090,6 +4432,7 @@ splitzigzags(
 
 		/* split the curve */
 		nge = newgentry();
+		(*nge) = (*ge);
 		nge->type = GE_CURVE;
 
 		nge->next = ge->next;
@@ -4219,26 +4562,26 @@ forceconcise(
 			dye2 = nge->iy3 - nge->iy2;
 
 			/* if curve changes direction */
-			if (sign(dxw1) != sign(dxw2) || sign(dyw1) != sign(dyw2))
+			if (isign(dxw1) != isign(dxw2) || isign(dyw1) != isign(dyw2))
 				break;
 
 			/* if the next curve crosses quadrant boundaries */
 			/* or joints very abruptly */
 			if (dxb2 * dxe2 < 0 || dyb2 * dye2 < 0
-			    || sign(dxb2) != sign(dxe1) || sign(dyb2) != sign(dye1))
+			    || isign(dxb2) != isign(dxe1) || isign(dyb2) != isign(dye1))
 				break;
 
 			/* if the arch is going in other direction */
-			if (sign(abs(dxb1 * dyw1) - abs(dyb1 * dxw1))
-			    * sign(abs(dxe2 * dyw2) - abs(dye2 * dxw2)) >= 0)
+			if (isign(abs(dxb1 * dyw1) - abs(dyb1 * dxw1))
+			    * isign(abs(dxe2 * dyw2) - abs(dye2 * dxw2)) >= 0)
 				break;
 
 			/* if the next curve is not continuing the trend set */
 			/* by the end of the first curve, i.e. could make a zigzag */
 			/* note, the previous one has ">=", this one has ">" */
 
-			if( sign(abs(dye1 * dxw2) - abs(dyw2 * dxe1))
-				* sign(abs(dye1 * dxw1) - abs(dyw1 * dxe1)) > 0 )
+			if( isign(abs(dye1 * dxw2) - abs(dyw2 * dxe1))
+				* isign(abs(dye1 * dxw1) - abs(dyw1 * dxe1)) > 0 )
 				break;
 
 			/* OK, it seeme like we can join these two curves */
