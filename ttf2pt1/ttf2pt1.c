@@ -131,6 +131,7 @@ int      hints;	/* enables autogeneration of hints */
 int      subhints;	/* enables autogeneration of substituted hints */
 int      trybold;	/* try to guess whether the font is bold */
 int      correctwidth;	/* try to correct the character width */
+int      vectorize;	/* vectorize the bitmaps */
 int      use_autotrace;	/* use the autotrace library on bitmap */
 /* options - suboptions of File Generation, defaults are set in table */
 int      gen_pfa;	/* generate the font file */
@@ -1298,8 +1299,8 @@ convert_glyf(
 			for(ge = g->entries; ge; ge = ge->next)
 				ncurves++;
 		}
-		if (ncurves > 100) {
-			WARNING_2 fprintf(stderr,
+		if (ncurves > 200) {
+			WARNING_3 fprintf(stderr,
 			"** Glyph %s is too long, may display incorrectly\n",
 				g->name);
 		}
@@ -1684,6 +1685,7 @@ main(
 		{ 's', 0/*auto-set*/, &smooth, 1, "smoothing and repair of outlines" },
 		{ 't', 0/*auto-set*/, &transform, 1, "auto-scaling to the standard matrix 1000x1000" },
 		{ 'w', 0/*auto-set*/, &correctwidth, 0, "correct the glyph widths (use only for buggy fonts)" },
+		{ 'v', 0/*auto-set*/, &vectorize, 0, "vectorize (trace) the bitmaps" },
 #ifdef USE_AUTOTRACE
 		{ 'z', 0/*auto-set*/, &use_autotrace, 0, "use the autotrace library on bitmaps (works badly)" },
 #endif /*USE_AUTOTRACE*/
