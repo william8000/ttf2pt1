@@ -16,7 +16,7 @@
 #	include <netinet/in.h>
 #	include <unistd.h>
 #else
-#	define M_PI  3.14159265359
+#	include "windows.h"
 #endif
 
 #include "ttf.h"

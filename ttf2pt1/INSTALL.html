@@ -394,11 +394,33 @@ MS Windows
 ===========
 >
 
-MS Windows requires a different way to build the converter instead of the
-Makefile. An example of batch file <tt>winbuild.bat</tt> is provided
-for MS Visual C/C++. Probably it can be easily adapted for other 32-bit Windows
-and DOS compilers. The important part is to define the preprocessor symbol 
-WINDOWS during compilation.
+<b>Ttf2pt1</b> can be built on Windows either with native compiler or in
+POSIX emulation mode.
+<p>
+
+Native MS Windows compilers require a different way to build the converter 
+instead of the Makefile (their <tt>make</tt> programs commonly are quite weird
+and limited in capabilities). An example of batch file <tt>winbuild.bat</tt> 
+is provided for MS Visual C/C++. Probably it can be easily adapted for other 
+32-bit Windows and DOS compilers. The important part is to define the 
+preprocessor symbol WINDOWS during compilation.
+<p>
+
+Cygnus <tt>make</tt> almost supports full Makefiles but not quite. Seems
+like its POSIX support is also of the same quality "almost but not quite".
+So another batch file <tt>cygbuild.bat</tt> is provided for Cygnus GNU C, also 
+with the preprocessor symbol WINDOWS defined. To run the programs produced by
+the Cygnus compiler the Cygnus library file <tt>CYGWIN1.DLL</tt> should be 
+copied first into <tt>C:\WINDOWS</tt>.
+<p>
+
+To run the accompanying scripts Perl for Windows will be required as well as 
+other tools from the Cygnus set.
+<p>
+
+The Windows support was not particularly tested, so in case of problems with
+building or running the converter please let us know.
+<p>
 
 <A NAME="netscape"></a>
 <H3>

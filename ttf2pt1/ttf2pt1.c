@@ -69,6 +69,7 @@
 #	include <unistd.h>
 #	include <netinet/in.h>
 #else
+#	define WINDOWS_FUNCTIONS /* ask to define functions - in one file only */
 #	include "windows.h"
 #endif
 

@@ -2,8 +2,15 @@
  * Implementation of things missing in Windows
  */
 
-#define M_PI  3.14159265359
+#ifndef M_PI
+#define M_PI  3.14159265358979323846
+#endif
 
+#undef ntohs
+#undef ntohl
+#undef htonl
+
+#ifdef WINDOWS_FUNCTONS
 /* byte order */
 
 static unsigned short StoM(unsigned short inv) {
@@ -35,10 +42,6 @@ static unsigned int ItoM(unsigned int inv) {
 
     return (outv.ui);
 }
-
-#undef ntohs
-#undef ntohl
-#undef htonl
 
 unsigned short ntohs(unsigned short inv) { return StoM(inv); }
 unsigned long ntohl(unsigned long inv) { return ItoM(inv); }
@@ -77,3 +80,14 @@ char getopt(int argc, char **argv, char *args) {
 	return -1;
 }
 
+#else
+
+unsigned short ntohs(unsigned short inv);
+unsigned long ntohl(unsigned long inv);
+unsigned long htonl(unsigned long inv);
+
+extern char *optarg;
+extern int optind;
+
+char getopt(int argc, char **argv, char *args);
+#endif
