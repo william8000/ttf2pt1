@@ -441,6 +441,9 @@ fnmetrics(
 	} else
 		fm->name_ps = dupcnstring(sn.string, sn.string_len);
 #endif /* ENABLE_SFNT */
+	for(i=0; fm->name_ps[i]!=0; i++)
+		if(fm->name_ps[i] == ' ')
+			fm->name_ps[i] = '_'; /* no spaces in the Postscript name *m
 
 	/* guess the boldness from the font names */
 	fm->force_bold=0;
