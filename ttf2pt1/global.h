@@ -12,7 +12,7 @@ extern int      correctvsize;	/* try to correct the vertical size of characters 
 extern int      wantuid;	/* user wants UniqueID entry in the font */
 extern int      allglyphs;	/* convert all glyphs, not only 256 of them */
 extern int      warnlevel;	/* the level of permitted warnings */
-extern int      forceunicode; /* consider any fonr as Unicode for mapping purposes */
+extern int      forcemap; /* do mapping even on non-Unicode fonts */
 /* options - maximal limits */
 extern int      max_stemdepth;	/* maximal depth of stem stack in interpreter */
 /* options - debugging */

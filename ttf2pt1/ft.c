@@ -268,7 +268,7 @@ glenc(
 
 	/* next check for a direct Adobe mapping */
 
-	if(!forceunicode) {
+	if(!forcemap) {
 		for(e=0; e < face->num_charmaps; e++) {
 			if(face->charmaps[e]->encoding == ft_encoding_adobe_custom) {
 				WARNING_1 fputs("Found Adobe Custom Encoding\n", stderr);
@@ -307,9 +307,6 @@ glenc(
 		WARNING_1 fputs("No Microsoft encoding, using first encoding available\n", stderr);
 		e = 0;
 	}
-	if(forceunicode) {
-		WARNING_1 fputs("Forcing Unicode Encoding\n", stderr);
-	}
 	
 	if( FT_Set_Charmap(face, face->charmaps[e]) ) {
 		fprintf(stderr, "**** Cannot set charmap in FreeType ****\n");
@@ -321,7 +318,7 @@ populate_map:
 	for(i=0; i<ENCTABSZ; i++) {
 		if(encoding[i] != -1)
 			continue;
-		if(enc_type == 1 || forceunicode) {
+		if(enc_type == 1 || forcemap) {
 			code = unimap[i];
 			if(code == (unsigned) -1)
 				continue;

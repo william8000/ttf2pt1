@@ -1167,7 +1167,7 @@ handle_ms_encoding(
 			} else {
 				set_ok = 1;
 			}
-			if (enc_type==1 || forceunicode) {
+			if (enc_type==1 || forcemap) {
 				kk = unicode_rev_lookup(k);
 				if(ISDBG(UNICODE))
 					fprintf(stderr, "Unicode %s - 0x%04x\n",glyph_list[n].name,k);
@@ -1305,9 +1305,6 @@ glenc(
 						fputs("Treating it like Symbol encoding\n", stderr);
 					}
 					break;
-				}
-				if (forceunicode) {
-					WARNING_1 fputs("Forcing Unicode Encoding\n", stderr);
 				}
 			}
 

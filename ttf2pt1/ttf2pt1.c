@@ -115,7 +115,7 @@ int      correctvsize=0;	/* try to correct the vertical size of characters */
 int      wantuid = 0;	/* user wants UniqueID entry in the font */
 int      allglyphs = 0;	/* convert all glyphs, not only 256 of them */
 int      warnlevel = 3;	/* the level of permitted warnings */
-int      forceunicode = 0; /* consider any fonr as Unicode for mapping purposes */
+int      forcemap = 0; /* do mapping even on non-Unicode fonts */
 /* options - maximal limits */
 int      max_stemdepth = 128;	/* maximal depth of stem stack in interpreter (128 - limit from X11) */
 /* options - debugging */
@@ -626,6 +626,11 @@ unicode_init_user(
 				if(found) /* no need to read further */
 					break;
 			}
+			continue;
+		}
+
+		if(sscanf(buffer, "id %d %d", force_pid, force_eid)==2) {
+			forcemap = 1;
 			continue;
 		}
 
@@ -1515,7 +1520,7 @@ main(
 			}
 			break;
 		case 'F':
-			forceunicode = 1;
+			forcemap = 1;
 			break;
 		case 'o':
 			fputs("Warning: option -o is obsolete, use -Oo instead\n", stderr);
