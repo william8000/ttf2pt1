@@ -2120,8 +2120,8 @@ main(
     fprintf(afm_file, "Characters %d\n", nchars);
     fprintf(afm_file, "ItalicAngle %.1f\n", italic_angle);
 
-    fprintf(afm_file, "Ascender %d\n", fontm.ascender);
-    fprintf(afm_file, "Descender %d\n", fontm.descender);
+    fprintf(afm_file, "Ascender %d\n", iscale(fontm.ascender));
+    fprintf(afm_file, "Descender %d\n", iscale(fontm.descender));
 
 	fprintf(pfa_file, "/UnderlinePosition %d def\n",
 		iscale(fontm.underline_position));
