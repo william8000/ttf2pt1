@@ -8,7 +8,7 @@
  *
 ***********************************************************************
  *
- * Sergey Babkin <babkin@bellatlantic.net>, <sab123@hotmail.com>
+ * Sergey Babkin <babkin@users.sourceforge.net>, <sab123@hotmail.com>
  *
  * Added post-processing of resulting outline to correct the errors
  * both introduced during conversion and present in the original font,
@@ -125,7 +125,7 @@ int      correctwidth;	/* try to correct the character width */
 static struct {
 	char disbl; /* character to disable - enforced lowercase */
 	char enbl;  /* character to enable - auto-set as toupper(disbl) */
-	int *valp; /* pointer to the actual variable containign value */
+	int *valp; /* pointer to the actual variable containing value */
 	int  dflt; /* default value */
 	char *descr; /* description */
 } opotbl[] = {
@@ -377,18 +377,38 @@ static char    *adobe_StandardEncoding[256] = {
  */
 
 #define MAXUNIALIAS 10
+#define MAXUNITABLES 3
 
 /* the character used as the language argument separator */
 #define LANG_ARG_SEP '+'
 
-/* type of Unicode converter function */
-typedef int uni_conv_t(int unival, char *name, char *arg);
-/* type of Unicode language initialization function */
+
+/*
+ * Types of language-related routines. Arguments are:
+ * name is the glyph name
+ * arg is the user-specified language-dependent argument
+ *   which can for example select the subfont plane for Eastern fonts.
+ *   If none is supplied by user then an empty string ("") is passed.
+ *   If no language is specified by user and auto-guessing happens
+ *   then NULL is passed.
+ * when shows if the conversion by name was called before conversion by
+ *   map or after (it's called twice)
+ */
+
+/* type of the Unicode map initialization routine */
 typedef void uni_init_t(char *arg);
 
+/* type of Unicode converter-by-name function
+ * it's called for each glyph twice: one time for each glyph
+ * before doing conversion by map and one time after
+ */
+typedef int uni_conv_t(char *name, char *arg, int when);
+#define UNICONV_BYNAME_BEFORE 0
+#define UNICONV_BYNAME_AFTER 1
+
 struct uni_language {
-	uni_init_t	*init; /* the initialization function */
-	uni_conv_t	*conv; /* the conversion function */
+	uni_init_t	*init[MAXUNITABLES]; /* map initialization routines */
+	uni_conv_t	*convbyname; /* the name-based conversion function */
 	char *name; /* the language name */
 	char *descr; /* description */
 	char *alias[MAXUNIALIAS]; /* aliases of the language name */
@@ -405,25 +425,15 @@ static char uni_suffix_buf[UNI_MAX_SUFFIX_LEN+1];
  * Prototypes of the conversion routines
  */
 
-/*
- * unival is unicode value to translate
- * name is the glyph name
- * arg is the user-specified language-dependent argument
- *   which can for example select the subfont plane for Eastern fonts.
- *   If none is supplied by user then an empty string ("") is passed.
- *   If no language is specified by user and auto-guessing happens
- *   then NULL is passed.
- */
-
-static uni_conv_t unicode_latin1;
-static uni_conv_t unicode_latin2;
-static uni_conv_t unicode_latin4;
-static uni_conv_t unicode_latin5;
-static uni_conv_t unicode_russian;
-static uni_conv_t unicode_adobestd;
+static uni_init_t unicode_latin1;
+static uni_init_t unicode_latin2;
+static uni_init_t unicode_latin4;
+static uni_init_t unicode_latin5;
+static uni_init_t unicode_russian;
+static uni_init_t unicode_adobestd;
+static uni_conv_t unicode_adobestd_byname;
 
 static uni_init_t unicode_init_user;
-static uni_conv_t unicode_user;
 
 /*
  * The order of descriptions is important: if we can't guess the
@@ -433,56 +443,56 @@ static uni_conv_t unicode_user;
 static struct uni_language uni_lang[]= {
 	/* pseudo-language for all the languages using Latin1 */
 	{
-		0, /* no init function */
-		unicode_latin1, 
+		{ unicode_latin1 },
+		0, /* no name-based mapping */
 		"latin1",
 		"works for most of the Western languages",
 		{ "en_", "de_", "fr_", "nl_", "no_", "da_", "it_" },
 		'A'
 	},
 	{ /* by Szalay Tamas <tomek@elender.hu> */
-		0, /* no init function */
-		unicode_latin2, 
+		{ unicode_latin2 },
+		0, /* no name-based mapping */
 		"latin2",
 		"works for Central European languages",
 		{ "hu_","pl_","cz_","si_","sk_" },
 		'A'
 	},
 	{ /* by Rièardas Èepas <rch@WriteMe.Com> */
-		0, /* no init function */
-		unicode_latin4, 
+		{ unicode_latin4 }, 
+		0, /* no name-based mapping */
 		"latin4",
 		"works for Baltic languages",
 		{ "lt_", "lv_" }, /* doubt about ee_ */
 		'A'
 	},
 	{ /* by Turgut Uyar <uyar@cs.itu.edu.tr> */
-		0, /* no init function */
-		unicode_latin5, 
+		{ unicode_latin5 }, 
+		0, /* no name-based mapping */
 		"latin5",
 		"for Turkish",
 		{ "tr_" },
 		'A'
 	},
 	{
-		0, /* no init function */
-		unicode_russian,
+		{ unicode_russian, unicode_latin1 },
+		0, /* no name-based mapping */
 		"russian",
 		"in Windows encoding",
 		{ "ru_", "su_" },
 		'A'
 	},
 	{
-		0, /* no init function */
-		unicode_russian, /* a hack to allow different converters */
+		{ unicode_russian, unicode_latin1 },
+		0, /* no name-based mapping */
 		"bulgarian",
 		"in Windows encoding",
 		{ "bg_" }, /* not sure whether the Bulgarian locale is named this way */
 		'A'
 	},
 	{
-		0, /* no init function */
-		unicode_adobestd,
+		{ unicode_adobestd },
+		unicode_adobestd_byname,
 		"adobestd",
 		"Adobe Standard, expected by TeX",
 		{ NULL },
@@ -490,8 +500,8 @@ static struct uni_language uni_lang[]= {
 	},
 #if 0 /* nonfunctional, needs a translation map - here only as example */
 	{
-		unicode_init_GBK,
-		unicode_GBK,
+		{ unicode_GBK },
+		0, /* no name-based mapping */
 		"GBK",
 		"Chinese in GBK encoding",
 		{ "zh_CN.GBK" }, /* not sure if it's right */
@@ -500,7 +510,16 @@ static struct uni_language uni_lang[]= {
 #endif
 };
 
-static uni_conv_t *uni_lang_converter=0; /* 0 means "unknown, try all" */
+static struct uni_language uni_lang_user = {
+	{ unicode_init_user }, 
+	0, /* no name-based mapping */
+	0, /* no name */
+	0, /* no description */
+	{ 0 },
+	0 /* no sample */
+};
+
+static struct uni_language *uni_lang_selected=0; /* 0 means "unknown, try all" */
 static int uni_sample='A'; /* sample of an uppercase character */
 static char *uni_lang_arg=""; /* user-supplied language-dependent argument */
 
@@ -534,7 +553,7 @@ extern int      runt1asm(int);
 
 static DEF_BITMAP(uni_user_buckets, 1<<BUCKET_ID_BITS);
 
-static unsigned short unicode_map[256]; /* font-encoding to unicode map */
+static unsigned int unicode_map[256]; /* font-encoding to unicode map */
 
 static void
 unicode_init_user(
@@ -613,7 +632,6 @@ unicode_init_user(
 		/* try the format of Roman Czyborra's files */
 		if (sscanf (buffer, " =%x U+%4x", &code, &unicode) == 2) {
 			if (code < 256) {
-				MARK_UNI_BUCKET(unicode);
 				unicode_map[code] = unicode;
 				glyph_rename[code] = NULL;
 			}
@@ -621,7 +639,6 @@ unicode_init_user(
 		/* try the format of Linux locale charmap file */
 		else if (sscanf (buffer, " <%*s /x%x <U%4x>", &code, &unicode) == 2) {
 			if (code < 256) {
-				MARK_UNI_BUCKET(unicode);
 				unicode_map[code] = unicode;
 				glyph_rename[code] = NULL;
 			}
@@ -630,7 +647,6 @@ unicode_init_user(
 		else if (sscanf (buffer, " !%x U+%4x %128s", &code,
 			&unicode, name) == 3) {
 			if (code < 256) {
-				MARK_UNI_BUCKET(unicode);
 				unicode_map[code] = unicode;
 				glyph_rename[code] = strdup(name);
 			}
@@ -645,7 +661,6 @@ unicode_init_user(
 					exit(1);
 				}
 				if(ISDBG(EXTMAP)) fprintf(stderr, "=== 0x%d -> 0x%x\n", curpos, unicode);
-				MARK_UNI_BUCKET(unicode);
 				unicode_map[curpos++] = unicode;
 				p += cnt;
 				if( sscanf(p, " %[,-]%n", &next,&cnt) == 1 ) {
@@ -665,7 +680,6 @@ unicode_init_user(
 								exit(1);
 							}
 							if(ISDBG(EXTMAP)) fprintf(stderr, "=== 0x%x -> 0x%x\n", curpos, unicode);
-							MARK_UNI_BUCKET(unicode);
 							unicode_map[curpos++] = unicode;
 						}
 					}
@@ -688,148 +702,93 @@ unicode_init_user(
 		uni_sample = 0; /* don't make any assumptions */
 }
 
-static int
-unicode_user(
-		 int unival,
-		 char *name,
-		 char *arg
-)
-{
-	int res;
-
-	if( ! IS_UNI_BUCKET(unival) )
-		return -1;
-
-	for (res = 0; res < 256; res++)
-		if (unicode_map[res] == unival)
-			return res;
-	return -1;
-}
-
-static int
+static void
 unicode_russian(
-		 int unival,
-		 char *name,
 		 char *arg
 )
 {
-	int res;
-	static DEF_BITMAP(used, 256);
+	int i;
+	static unsigned int russian_unicode_map[] = {
+		0x0080, 0x0081, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021,  /* 80 */
+		0x02c6, 0x2030, 0x0160, 0x2039, 0x0152, 0x008d, 0x017d, 0x008f,  /* 88 */
+		0x0090, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014,  /* 90 */
+		0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0x009d, 0x017e, 0x0178,  /* 98 */
+		0x00a0, 0x00a1, 0x00a2, 0x0451, 0x00a4, 0x00a5, 0x00a6, 0x00a7,  /* A0 */
+		0x00a8, 0x00a9, 0x00aa, 0x00ab, 0x00ac, 0x00ad, 0x00ae, 0x00af,  /* A8 direct */
+		0x00b0, 0x00b1, 0x00b2, 0x0401, 0x00b4, 0x00b5, 0x00b6, 0x00b7,  /* B0 */
+		0x00b8, 0x00b9, 0x00ba, 0x00bb, 0x00bc, 0x00bd, 0x00be, 0x00bf,  /* B8 direct */
+	};
 
-	if (unival <= 0x0081) {
-		SET_BITMAP(used, unival);
-		return unival;
-	} else if (unival >= 0x0410 && unival < 0x0450) {	/* cyrillic letters */
-		res = unival - 0x410 + 0xc0;
-		SET_BITMAP(used, res);
-		return res;
-	} else if (unival >= 0x00a0 && unival <= 0x00bf
-	&& unival!=0x00a3 && unival!=0x00b3) {
-		SET_BITMAP(used, unival);
-		return unival;
-	} else {
-		switch (unival) {
-		case 0x0401:
-			SET_BITMAP(used, 0xb3);
-			return 0xb3;	/* cyrillic YO */
-		case 0x0451:
-			SET_BITMAP(used, 0xa3);
-			return 0xa3;	/* cyrillic yo */
-		}
-	}
+	for(i=0; i<=0x7F; i++)
+		unicode_map[i] = i;
 
-	/* there are enough broken fonts that pretend to be Latin1 */
-	res=unicode_latin1(unival, name, NULL);
-	if(res<256 && res>=0 && !IS_BITMAP(used, res))
-		return res;
-	else
-		return -1;
+	for(i=0x80; i<=0xBF; i++)
+		unicode_map[i] = russian_unicode_map[i-0x80];
+
+	for(i=0xC0; i<=0xFF; i++)
+		unicode_map[i] = i+0x350;
+
 }
 
-static int
+static void
 unicode_latin1(
-		 int unival,
-		 char *name,
 		 char *arg
 )
 {
-	if (unival <= 0x007f) {
-		return unival;
-	} else if (unival >= 0x00a0 && unival <= 0x00ff) {
-		return unival;
-	} else {
-		switch (unival) {
-		case 0x008d:
-			return 0x8d;
-		case 0x017d:
-			return 0x8e;
-		case 0x008f:
-			return 0x8f;
-		case 0x0090:
-			return 0x90;
-		case 0x009d:
-			return 0x9d;
-		case 0x017e:
-			return 0x9e;
-		case 0x0152:
-			return 0x8c;
-		case 0x0153:
-			return 0x9c;
-		case 0x0160:
-			return 0x8a;
-		case 0x0161:
-			return 0x9a;
-		case 0x0178:
-			return 0x9f;
-		case 0x0192:
-			return 0x83;
-		case 0x02c6:
-			return 0x88;
-		case 0x02dc:
-			return 0x98;
-		case 0x2013:
-			return 0x96;
-		case 0x2014:
-			return 0x97;
-		case 0x2018:
-			return 0x91;
-		case 0x2019:
-			return 0x92;
-		case 0x201a:
-			return 0x82;
-		case 0x201c:
-			return 0x93;
-		case 0x201d:
-			return 0x94;
-		case 0x201e:
-			return 0x84;
-		case 0x2020:
-			return 0x86;
-		case 0x2021:
-			return 0x87;
-		case 0x2022:
-			return 0x95;
-		case 0x2026:
-			return 0x85;
-		case 0x2030:
-			return 0x89;
-		case 0x2039:
-			return 0x8b;
-		case 0x203a:
-			return 0x9b;
-		case 0x2122:
-			return 0x99;
-		case 0x20ac:
-			return 0x80;
-		default:
-			return -1;
-		}
-	}
+	int i;
+	static unsigned int latin1_unicode_map[] = {
+		0x20ac,     -1, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021,  /* 80 */
+		0x02c6, 0x2030, 0x0160, 0x2039, 0x0152, 0x008d, 0x017d, 0x008f,  /* 88 */
+		0x0090, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014,  /* 90 */
+		0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0x009d, 0x017e, 0x0178,  /* 98 */
+	};
+
+	for(i=0; i<=0x7F; i++)
+		unicode_map[i] = i;
+
+	for(i=0x80; i<=0x9F; i++)
+		unicode_map[i] = latin1_unicode_map[i-0x80];
+
+	for(i=0xA0; i<=0xFF; i++)
+		unicode_map[i] = i;
+}
+
+static void
+unicode_adobestd(
+		 char *arg
+)
+{
+	int i;
+	static unsigned int adobestd_unicode_map[] = {
+			-1, 0x00a1, 0x00a2, 0x00a3, 0x2215, 0x00a5, 0x0192, 0x00a7,  /* A0 */
+		0x00a4, 0x0027, 0x201c, 0x00ab, 0x2039, 0x203a, 0xfb01, 0xfb02,  /* A8 */
+			-1, 0x2013, 0x2020, 0x2021, 0x2219,     -1, 0x00b6, 0x2022,  /* B0 */
+		0x201a, 0x201e, 0x201d, 0x00bb, 0x2026, 0x2030,     -1, 0x00bf,  /* B8 */
+			-1, 0x0060, 0x00b4, 0x02c6, 0x02dc, 0x02c9, 0x02d8, 0x02d9,  /* C0 */
+		0x00a8,     -1, 0x02da, 0x00b8,     -1, 0x02dd, 0x02db, 0x02c7,  /* C8 */
+		0x2014,     -1,     -1,     -1,     -1,     -1,     -1,     -1,  /* D0 */
+			-1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,  /* D8 */
+			-1, 0x00c6,     -1, 0x00aa,     -1,     -1,     -1,     -1,  /* E0 */
+		0x0141, 0x00d8, 0x0152, 0x00ba,     -1,     -1,     -1,     -1,  /* E8 */
+			-1, 0x00e6,     -1,     -1,     -1, 0x0131,     -1,     -1,  /* F0 */
+		0x0142, 0x00f8, 0x0153, 0x00df,     -1,     -1,     -1,     -1,  /* F8 */
+	};
+
+	for(i=0; i<=0x7F; i++)
+		unicode_map[i] = i;
+
+	unicode_map[0x27] = 0x2019;
+	unicode_map[0x60] = -1;
+
+	/* 0x80 to 0x9F is a hole */
+
+	for(i=0xA0; i<=0xFF; i++)
+		unicode_map[i] = adobestd_unicode_map[i-0xA0];
 }
 
 /*
  * Not all of the Adobe glyphs are in the Unicode
- * standard mapps, so the font creators have
+ * standard maps, so the font creators have
  * different ideas about their codes. Because
  * of this we try to map based on the glyph
  * names instead of Unicode codes. If there are
@@ -838,666 +797,233 @@ unicode_latin1(
  */
 
 static int
-unicode_adobestd(
-		 int unival,
+unicode_adobestd_byname(
 		 char *name,
+		 char *arg,
+		 int where
+)
+{
+	int i;
+
+	/* names always take precedence over codes */
+	if(where == UNICONV_BYNAME_AFTER)
+		return -1;
+
+	for(i=32; i<256; i++) {
+		if(!strcmp(name, adobe_StandardEncoding[i]))
+			return i;
+	}
+	return -1;
+
+}
+
+static void
+unicode_latin2(
 		 char *arg
 )
 {
 	int i;
-	static unsigned short cvttab[][2]={
-		{ 0x2019,  39 }, /* quoteright */
-		{ 0x00a1, 161 }, /* exclamdown */
-		{ 0x00a2, 162 },
-		{ 0x00a3, 163 },
-		{ 0x2215, 164 },
-		{ 0x00a5, 165 },
-		{ 0x0192, 166 },
-		{ 0x00a7, 167 },
-		{ 0x00a4, 168 }, /* currency */
-		{ 0x0027, 169 },
-		{ 0x201c, 170 },
-		{ 0x00ab, 171 },
-		{ 0x2039, 172 },
-		{ 0x203a, 173 },
-		{ 0xfb01, 174 },
-		{ 0xfb02, 175 },
-		{ 0x2013, 177 },
-		{ 0x2020, 178 },
-		{ 0x2021, 179 }, /* daggerdbl */
-		{ 0x2219, 180 },
-		{ 0x00b6, 182 },
-		{ 0x2022, 183 },
-		{ 0x201a, 184 },
-		{ 0x201e, 185 },
-		{ 0x201d, 186 },
-		{ 0x00bb, 187 },
-		{ 0x2026, 188 },
-		{ 0x2030, 189 },
-		{ 0x00bf, 191 },
-		{ 0x0060, 193 },
-		{ 0x00b4, 194 },
-		{ 0x02c6, 195 }, /* circumflex */
-		{ 0x02dc, 196 },
-		{ 0x02c9, 197 },
-		{ 0x02d8, 198 },
-		{ 0x02d9, 199 },
-		{ 0x00a8, 200 },
-		{ 0x02da, 202 },
-		{ 0x00b8, 203 },
-		{ 0x02dd, 205 },
-		{ 0x02db, 206 },
-		{ 0x02c7, 207 },
-		{ 0x2014, 208 },
-		{ 0x00c6, 225 }, /* AE */
-		{ 0x00aa, 227 },
-		{ 0x0141, 232 },
-		{ 0x00d8, 233 },
-		{ 0x0152, 234 },
-		{ 0x00ba, 235 }, /* ordmasculine */
-		{ 0x00e6, 241 },
-		{ 0x0131, 245 },
-		{ 0x0142, 248 },
-		{ 0x00f8, 249 },
-		{ 0x0153, 250 },
-		{ 0x00df, 251 }, 
-		{ 0xffff,   0 } /* end of table */
+	static unsigned int latin2_unicode_map[] = {
+		0x00a0, 0x0104, 0x02d8, 0x0141, 0x00a4, 0x013d, 0x015a, 0x00a7,  /* A0 */
+		0x00a8, 0x0160, 0x015e, 0x0164, 0x0179, 0x00ad, 0x017d, 0x017b,  /* A8 */
+		0x00b0, 0x0105, 0x02db, 0x0142, 0x00b4, 0x013e, 0x015b, 0x02c7,  /* B0 */
+		0x00b8, 0x0161, 0x015f, 0x0165, 0x017a, 0x02dd, 0x017e, 0x017c,  /* B8 */
+		0x0154, 0x00c1, 0x00c2, 0x0102, 0x00c4, 0x0139, 0x0106, 0x00c7,  /* C0 */
+		0x010c, 0x00c9, 0x0118, 0x00cb, 0x011a, 0x00cd, 0x00ce, 0x010e,  /* C8 */
+		0x0110, 0x0143, 0x0147, 0x00d3, 0x00d4, 0x0150, 0x00d6, 0x00d7,  /* D0 */
+		0x0158, 0x016e, 0x00da, 0x0170, 0x00dc, 0x00dd, 0x0162, 0x00df,  /* D8 */
+		0x0155, 0x00e1, 0x00e2, 0x0103, 0x00e4, 0x013a, 0x0107, 0x00e7,  /* E0 */
+		0x010d, 0x00e9, 0x0119, 0x00eb, 0x011b, 0x00ed, 0x00ee, 0x010f,  /* E8 */
+		0x0111, 0x0144, 0x0148, 0x00f3, 0x00f4, 0x0151, 0x00f6, 0x00f7,  /* F0 */
+		0x0159, 0x016f, 0x00fa, 0x0171, 0x00fc, 0x00fd, 0x0163, 0x02d9,  /* F8 */
 	};
 
-	if(!ps_fmt_3) {
-		for(i=32; i<256; i++) {
-			if(!strcmp(name, adobe_StandardEncoding[i]))
-				return i;
-		}
-		return -1;
-	} else {
-		for(i=0; cvttab[i][0]!=0xffff; i++)
-			if(cvttab[i][0]==unival)
-				return cvttab[i][1];
+	for(i=0; i<=0x7E; i++)
+		unicode_map[i] = i;
 
-		/* must be after table check because of 0x0027 */
-		if (unival <= 0x007F) {
-			return unival;
-		} else {
-			return -1;
-		}
-	}
+	/* 7F-9F are unused */
+
+	for(i=0xA0; i<=0xFF; i++)
+		unicode_map[i] = latin2_unicode_map[i-0xA0];
 }
 
-static int
-unicode_latin2(
-		 int unival,
-		 char *name,
-		 char *arg
-)
-{
-	if (unival <= 0x007E) {
-		return unival;
-	} else {
-		switch (unival) {
-		case 0x00A0:
-			return 0xA0;
-		case 0x0104:
-			return 0xA1;
-		case 0x02D8:
-			return 0xA2;
-		case 0x0141:
-			return 0xA3;
-		case 0x00A4:
-			return 0xA4;
-		case 0x013D:
-			return 0xA5;
-		case 0x015A:
-			return 0xA6;
-		case 0x00A7:
-			return 0xA7;
-		case 0x00A8:
-			return 0xA8;
-		case 0x0160:
-			return 0xA9;
-		case 0x015E:
-			return 0xAA;
-		case 0x0164:
-			return 0xAB;
-		case 0x0179:
-			return 0xAC;
-		case 0x00AD:
-			return 0xAD;
-		case 0x017D:
-			return 0xAE;
-		case 0x017B:
-			return 0xAF;
-		case 0x00B0:
-			return 0xB0;
-		case 0x0105:
-			return 0xB1;
-		case 0x02DB:
-			return 0xB2;
-		case 0x0142:
-			return 0xB3;
-		case 0x00B4:
-			return 0xB4;
-		case 0x013E:
-			return 0xB5;
-		case 0x015B:
-			return 0xB6;
-		case 0x02C7:
-			return 0xB7;
-		case 0x00B8:
-			return 0xB8;
-		case 0x0161:
-			return 0xB9;
-		case 0x015F:
-			return 0xBA;
-		case 0x0165:
-			return 0xBB;
-		case 0x017A:
-			return 0xBC;
-		case 0x02DD:
-			return 0xBD;
-		case 0x017E:
-			return 0xBE;
-		case 0x017C:
-			return 0xBF;
-		case 0x0154:
-			return 0xC0;
-		case 0x00C1:
-			return 0xC1;
-		case 0x00C2:
-			return 0xC2;
-		case 0x0102:
-			return 0xC3;
-		case 0x00C4:
-			return 0xC4;
-		case 0x0139:
-			return 0xC5;
-		case 0x0106:
-			return 0xC6;
-		case 0x00C7:
-			return 0xC7;
-		case 0x010C:
-			return 0xC8;
-		case 0x00C9:
-			return 0xC9;
-		case 0x0118:
-			return 0xCA;
-		case 0x00CB:
-			return 0xCB;
-		case 0x011A:
-			return 0xCC;
-		case 0x00CD:
-			return 0xCD;
-		case 0x00CE:
-			return 0xCE;
-		case 0x010E:
-			return 0xCF;
-		case 0x0110:
-			return 0xD0;
-		case 0x0143:
-			return 0xD1;
-		case 0x0147:
-			return 0xD2;
-		case 0x00D3:
-			return 0xD3;
-		case 0x00D4:
-			return 0xD4;
-		case 0x0150:
-			return 0xD5;
-		case 0x00D6:
-			return 0xD6;
-		case 0x00D7:
-			return 0xD7;
-		case 0x0158:
-			return 0xD8;
-		case 0x016E:
-			return 0xD9;
-		case 0x00DA:
-			return 0xDA;
-		case 0x0170:
-			return 0xDB;
-		case 0x00DC:
-			return 0xDC;
-		case 0x00DD:
-			return 0xDD;
-		case 0x0162:
-			return 0xDE;
-		case 0x00DF:
-			return 0xDF;
-		case 0x0155:
-			return 0xE0;
-		case 0x00E1:
-			return 0xE1;
-		case 0x00E2:
-			return 0xE2;
-		case 0x0103:
-			return 0xE3;
-		case 0x00E4:
-			return 0xE4;
-		case 0x013A:
-			return 0xE5;
-		case 0x0107:
-			return 0xE6;
-		case 0x00E7:
-			return 0xE7;
-		case 0x010D:
-			return 0xE8;
-		case 0x00E9:
-			return 0xE9;
-		case 0x0119:
-			return 0xEA;
-		case 0x00EB:
-			return 0xEB;
-		case 0x011B:
-			return 0xEC;
-		case 0x00ED:
-			return 0xED;
-		case 0x00EE:
-			return 0xEE;
-		case 0x010F:
-			return 0xEF;
-		case 0x0111:
-			return 0xF0;
-		case 0x0144:
-			return 0xF1;
-		case 0x0148:
-			return 0xF2;
-		case 0x00F3:
-			return 0xF3;
-		case 0x00F4:
-			return 0xF4;
-		case 0x0151:
-			return 0xF5;
-		case 0x00F6:
-			return 0xF6;
-		case 0x00F7:
-			return 0xF7;
-		case 0x0159:
-			return 0xF8;
-		case 0x016F:
-			return 0xF9;
-		case 0x00FA:
-			return 0xFA;
-		case 0x0171:
-			return 0xFB;
-		case 0x00FC:
-			return 0xFC;
-		case 0x00FD:
-			return 0xFD;
-		case 0x0163:
-			return 0xFE;
-		case 0x02D9:
-			return 0xFF;
-		default:
-			return -1;
-		}
-	}
-}
-
-static int
+static void
 unicode_latin4(
-		 int unival,
-		 char *name,
 		 char *arg
 )
 {
-	if (unival <= 0x0081) {
-		return unival;
-	} else {
-		switch (unival) {
-		case 0x201e:
-			return 0x90; /* these two quotes are a hack only */
-		case 0x201c:
-			return 0x91; /* these two quotes are a hack only */
-		case 0x008d:
-			return 0x8d;
-		case 0x008e:
-			return 0x8e;
-		case 0x008f:
-			return 0x8f;
-		case 0x009d:
-			return 0x9d;
-		case 0x009e:
-			return 0x9e;
-		case 0x0152:
-			return 0x8c;
-		case 0x0153:
-			return 0x9c;
-		case 0x0178:
-			return 0x9f;
-		case 0x0192:
-			return 0x83;
-		case 0x02c6:
-			return 0x88;
-		case 0x02dc:
-			return 0x98;
-		case 0x2013:
-			return 0x96;
-		case 0x2014:
-			return 0x97;
-		case 0x2019:
-			return 0x92;
-		case 0x201a:
-			return 0x82;
-		case 0x201d:
-			return 0x94;
-		case 0x2020:
-			return 0x86;
-		case 0x2021:
-			return 0x87;
-		case 0x2022:
-			return 0x95;
-		case 0x2026:
-			return 0x85;
-		case 0x2030:
-			return 0x89;
-		case 0x2039:
-			return 0x8b;
-		case 0x203a:
-			return 0x9b;
-		case 0x2122:
-			return 0x99;
-			
-		case 0x00A0: 
-			return 0xA0; /*  NO-BREAK SPACE */
-		case 0x0104: 
-			return 0xA1; /*  LATIN CAPITAL LETTER A WITH OGONEK */
-		case 0x0138: 
-			return 0xA2; /*  LATIN SMALL LETTER KRA */
-		case 0x0156: 
-			return 0xA3; /*  LATIN CAPITAL LETTER R WITH CEDILLA */
-		case 0x00A4: 
-			return 0xA4; /*  CURRENCY SIGN */
-		case 0x0128: 
-			return 0xA5; /*  LATIN CAPITAL LETTER I WITH TILDE */
-		case 0x013B: 
-			return 0xA6; /*  LATIN CAPITAL LETTER L WITH CEDILLA */
-		case 0x00A7: 
-			return 0xA7; /*  SECTION SIGN */
-		case 0x00A8: 
-			return 0xA8; /*  DIAERESIS */
-		case 0x0160: 
-			return 0xA9; /*  LATIN CAPITAL LETTER S WITH CARON */
-		case 0x0112: 
-			return 0xAA; /*  LATIN CAPITAL LETTER E WITH MACRON */
-		case 0x0122: 
-			return 0xAB; /*  LATIN CAPITAL LETTER G WITH CEDILLA */
-		case 0x0166: 
-			return 0xAC; /*  LATIN CAPITAL LETTER T WITH STROKE */
-		case 0x00AD: 
-			return 0xAD; /*  SOFT HYPHEN */
-		case 0x017D: 
-			return 0xAE; /*  LATIN CAPITAL LETTER Z WITH CARON */
-		case 0x00AF: 
-			return 0xAF; /*  MACRON */
-		case 0x00B0: 
-			return 0xB0; /*  DEGREE SIGN */
-		case 0x0105: 
-			return 0xB1; /*  LATIN SMALL LETTER A WITH OGONEK */
-		case 0x02DB: 
-			return 0xB2; /*  OGONEK */
-		case 0x0157: 
-			return 0xB3; /*  LATIN SMALL LETTER R WITH CEDILLA */
-		case 0x00B4: 
-			return 0xB4; /*  ACUTE ACCENT */
-		case 0x0129: 
-			return 0xB5; /*  LATIN SMALL LETTER I WITH TILDE */
-		case 0x013C: 
-			return 0xB6; /*  LATIN SMALL LETTER L WITH CEDILLA */
-		case 0x02C7: 
-			return 0xB7; /*  CARON */
-		case 0x00B8: 
-			return 0xB8; /*  CEDILLA */
-		case 0x0161: 
-			return 0xB9; /*  LATIN SMALL LETTER S WITH CARON */
-		case 0x0113: 
-			return 0xBA; /*  LATIN SMALL LETTER E WITH MACRON */
-		case 0x0123: 
-			return 0xBB; /*  LATIN SMALL LETTER G WITH CEDILLA */
-		case 0x0167: 
-			return 0xBC; /*  LATIN SMALL LETTER T WITH STROKE */
-		case 0x014A: 
-			return 0xBD; /*  LATIN CAPITAL LETTER ENG */
-		case 0x017E: 
-			return 0xBE; /*  LATIN SMALL LETTER Z WITH CARON */
-		case 0x014B: 
-			return 0xBF; /*  LATIN SMALL LETTER ENG */
-		case 0x0100: 
-			return 0xC0; /*  LATIN CAPITAL LETTER A WITH MACRON */
-		case 0x00C1: 
-			return 0xC1; /*  LATIN CAPITAL LETTER A WITH ACUTE */
-		case 0x00C2: 
-			return 0xC2; /*  LATIN CAPITAL LETTER A WITH CIRCUMFLEX */
-		case 0x00C3: 
-			return 0xC3; /*  LATIN CAPITAL LETTER A WITH TILDE */
-		case 0x00C4: 
-			return 0xC4; /*  LATIN CAPITAL LETTER A WITH DIAERESIS */
-		case 0x00C5: 
-			return 0xC5; /*  LATIN CAPITAL LETTER A WITH RING ABOVE */
-		case 0x00C6: 
-			return 0xC6; /*  LATIN CAPITAL LIGATURE AE */
-		case 0x012E: 
-			return 0xC7; /*  LATIN CAPITAL LETTER I WITH OGONEK */
-		case 0x010C: 
-			return 0xC8; /*  LATIN CAPITAL LETTER C WITH CARON */
-		case 0x00C9: 
-			return 0xC9; /*  LATIN CAPITAL LETTER E WITH ACUTE */
-		case 0x0118: 
-			return 0xCA; /*  LATIN CAPITAL LETTER E WITH OGONEK */
-		case 0x00CB: 
-			return 0xCB; /*  LATIN CAPITAL LETTER E WITH DIAERESIS */
-		case 0x0116: 
-			return 0xCC; /*  LATIN CAPITAL LETTER E WITH DOT ABOVE */
-		case 0x00CD: 
-			return 0xCD; /*  LATIN CAPITAL LETTER I WITH ACUTE */
-		case 0x00CE: 
-			return 0xCE; /*  LATIN CAPITAL LETTER I WITH CIRCUMFLEX */
-		case 0x012A: 
-			return 0xCF; /*  LATIN CAPITAL LETTER I WITH MACRON */
-		case 0x0110: 
-			return 0xD0; /*  LATIN CAPITAL LETTER D WITH STROKE */
-		case 0x0145: 
-			return 0xD1; /*  LATIN CAPITAL LETTER N WITH CEDILLA */
-		case 0x014C: 
-			return 0xD2; /*  LATIN CAPITAL LETTER O WITH MACRON */
-		case 0x0136: 
-			return 0xD3; /*  LATIN CAPITAL LETTER K WITH CEDILLA */
-		case 0x00D4: 
-			return 0xD4; /*  LATIN CAPITAL LETTER O WITH CIRCUMFLEX */
-		case 0x00D5: 
-			return 0xD5; /*  LATIN CAPITAL LETTER O WITH TILDE */
-		case 0x00D6: 
-			return 0xD6; /*  LATIN CAPITAL LETTER O WITH DIAERESIS */
-		case 0x00D7: 
-			return 0xD7; /*  MULTIPLICATION SIGN */
-		case 0x00D8: 
-			return 0xD8; /*  LATIN CAPITAL LETTER O WITH STROKE */
-		case 0x0172: 
-			return 0xD9; /*  LATIN CAPITAL LETTER U WITH OGONEK */
-		case 0x00DA: 
-			return 0xDA; /*  LATIN CAPITAL LETTER U WITH ACUTE */
-		case 0x00DB: 
-			return 0xDB; /*  LATIN CAPITAL LETTER U WITH CIRCUMFLEX */
-		case 0x00DC: 
-			return 0xDC; /*  LATIN CAPITAL LETTER U WITH DIAERESIS */
-		case 0x0168: 
-			return 0xDD; /*  LATIN CAPITAL LETTER U WITH TILDE */
-		case 0x016A: 
-			return 0xDE; /*  LATIN CAPITAL LETTER U WITH MACRON */
-		case 0x00DF: 
-			return 0xDF; /*  LATIN SMALL LETTER SHARP S */
-		case 0x0101: 
-			return 0xE0; /*  LATIN SMALL LETTER A WITH MACRON */
-		case 0x00E1: 
-			return 0xE1; /*  LATIN SMALL LETTER A WITH ACUTE */
-		case 0x00E2: 
-			return 0xE2; /*  LATIN SMALL LETTER A WITH CIRCUMFLEX */
-		case 0x00E3: 
-			return 0xE3; /*  LATIN SMALL LETTER A WITH TILDE */
-		case 0x00E4: 
-			return 0xE4; /*  LATIN SMALL LETTER A WITH DIAERESIS */
-		case 0x00E5: 
-			return 0xE5; /*  LATIN SMALL LETTER A WITH RING ABOVE */
-		case 0x00E6: 
-			return 0xE6; /*  LATIN SMALL LIGATURE AE */
-		case 0x012F: 
-			return 0xE7; /*  LATIN SMALL LETTER I WITH OGONEK */
-		case 0x010D: 
-			return 0xE8; /*  LATIN SMALL LETTER C WITH CARON */
-		case 0x00E9: 
-			return 0xE9; /*  LATIN SMALL LETTER E WITH ACUTE */
-		case 0x0119: 
-			return 0xEA; /*  LATIN SMALL LETTER E WITH OGONEK */
-		case 0x00EB: 
-			return 0xEB; /*  LATIN SMALL LETTER E WITH DIAERESIS */
-		case 0x0117: 
-			return 0xEC; /*  LATIN SMALL LETTER E WITH DOT ABOVE */
-		case 0x00ED: 
-			return 0xED; /*  LATIN SMALL LETTER I WITH ACUTE */
-		case 0x00EE: 
-			return 0xEE; /*  LATIN SMALL LETTER I WITH CIRCUMFLEX */
-		case 0x012B: 
-			return 0xEF; /*  LATIN SMALL LETTER I WITH MACRON */
-		case 0x0111: 
-			return 0xF0; /*  LATIN SMALL LETTER D WITH STROKE */
-		case 0x0146: 
-			return 0xF1; /*  LATIN SMALL LETTER N WITH CEDILLA */
-		case 0x014D: 
-			return 0xF2; /*  LATIN SMALL LETTER O WITH MACRON */
-		case 0x0137: 
-			return 0xF3; /*  LATIN SMALL LETTER K WITH CEDILLA */
-		case 0x00F4: 
-			return 0xF4; /*  LATIN SMALL LETTER O WITH CIRCUMFLEX */
-		case 0x00F5: 
-			return 0xF5; /*  LATIN SMALL LETTER O WITH TILDE */
-		case 0x00F6: 
-			return 0xF6; /*  LATIN SMALL LETTER O WITH DIAERESIS */
-		case 0x00F7: 
-			return 0xF7; /*  DIVISION SIGN */
-		case 0x00F8: 
-			return 0xF8; /*  LATIN SMALL LETTER O WITH STROKE */
-		case 0x0173: 
-			return 0xF9; /*  LATIN SMALL LETTER U WITH OGONEK */
-		case 0x00FA: 
-			return 0xFA; /*  LATIN SMALL LETTER U WITH ACUTE */
-		case 0x00FB: 
-			return 0xFB; /*  LATIN SMALL LETTER U WITH CIRCUMFLEX */
-		case 0x00FC: 
-			return 0xFC; /*  LATIN SMALL LETTER U WITH DIAERESIS */
-		case 0x0169: 
-			return 0xFD; /*  LATIN SMALL LETTER U WITH TILDE */
-		case 0x016B: 
-			return 0xFE; /*  LATIN SMALL LETTER U WITH MACRON */
-		case 0x02D9: 
-			return 0xFF; /*  DOT ABOVE */
-			
-			
-		default:
-			return -1;
-		}
-	}
+	int i;
+	static unsigned int latin4_unicode_map[] = {
+		0x0080, 0x0081, 0x201a, 0x0192,     -1, 0x2026, 0x2020, 0x2021,  /* 80 */
+		0x02c6, 0x2030,     -1, 0x2039, 0x0152, 0x008d, 0x008e, 0x008f,  /* 88 */
+		0x201e, 0x201c, 0x2019,     -1, 0x201d, 0x2022, 0x2013, 0x2014,  /* 90 */
+		0x02dc, 0x2122,     -1, 0x203a, 0x0153, 0x009d, 0x009e, 0x0178,  /* 98 */
+		0x00a0, 0x0104, 0x0138, 0x0156, 0x00a4, 0x0128, 0x013b, 0x00a7,  /* A0 */
+		0x00a8, 0x0160, 0x0112, 0x0122, 0x0166, 0x00ad, 0x017d, 0x00af,  /* A8 */
+		0x00b0, 0x0105, 0x02db, 0x0157, 0x00b4, 0x0129, 0x013c, 0x02c7,  /* B0 */
+		0x00b8, 0x0161, 0x0113, 0x0123, 0x0167, 0x014a, 0x017e, 0x014b,  /* B8 */
+		0x0100, 0x00c1, 0x00c2, 0x00c3, 0x00c4, 0x00c5, 0x00c6, 0x012e,  /* C0 */
+		0x010c, 0x00c9, 0x0118, 0x00cb, 0x0116, 0x00cd, 0x00ce, 0x012a,  /* C8 */
+		0x0110, 0x0145, 0x014c, 0x0136, 0x00d4, 0x00d5, 0x00d6, 0x00d7,  /* D0 */
+		0x00d8, 0x0172, 0x00da, 0x00db, 0x00dc, 0x0168, 0x016a, 0x00df,  /* D8 */
+		0x0101, 0x00e1, 0x00e2, 0x00e3, 0x00e4, 0x00e5, 0x00e6, 0x012f,  /* E0 */
+		0x010d, 0x00e9, 0x0119, 0x00eb, 0x0117, 0x00ed, 0x00ee, 0x012b,  /* E8 */
+		0x0111, 0x0146, 0x014d, 0x0137, 0x00f4, 0x00f5, 0x00f6, 0x00f7,  /* F0 */
+		0x00f8, 0x0173, 0x00fa, 0x00fb, 0x00fc, 0x0169, 0x016b, 0x02d9,  /* F8 */
+	};
+
+	for(i=0; i<=0x7F; i++)
+		unicode_map[i] = i;
+
+	for(i=0x80; i<=0xFF; i++)
+		unicode_map[i] = latin4_unicode_map[i-0x80];
+
+#if 0 /* for documentation purposes only */
+	case 0x201e: return 0x90; /* these two quotes are a hack only */
+	case 0x201c: return 0x91; /* these two quotes are a hack only */
+	case 0x00A0: return 0xA0; /*  NO-BREAK SPACE */
+	case 0x0104: return 0xA1; /*  LATIN CAPITAL LETTER A WITH OGONEK */
+	case 0x0138: return 0xA2; /*  LATIN SMALL LETTER KRA */
+	case 0x0156: return 0xA3; /*  LATIN CAPITAL LETTER R WITH CEDILLA */
+	case 0x00A4: return 0xA4; /*  CURRENCY SIGN */
+	case 0x0128: return 0xA5; /*  LATIN CAPITAL LETTER I WITH TILDE */
+	case 0x013B: return 0xA6; /*  LATIN CAPITAL LETTER L WITH CEDILLA */
+	case 0x00A7: return 0xA7; /*  SECTION SIGN */
+	case 0x00A8: return 0xA8; /*  DIAERESIS */
+	case 0x0160: return 0xA9; /*  LATIN CAPITAL LETTER S WITH CARON */
+	case 0x0112: return 0xAA; /*  LATIN CAPITAL LETTER E WITH MACRON */
+	case 0x0122: return 0xAB; /*  LATIN CAPITAL LETTER G WITH CEDILLA */
+	case 0x0166: return 0xAC; /*  LATIN CAPITAL LETTER T WITH STROKE */
+	case 0x00AD: return 0xAD; /*  SOFT HYPHEN */
+	case 0x017D: return 0xAE; /*  LATIN CAPITAL LETTER Z WITH CARON */
+	case 0x00AF: return 0xAF; /*  MACRON */
+	case 0x00B0: return 0xB0; /*  DEGREE SIGN */
+	case 0x0105: return 0xB1; /*  LATIN SMALL LETTER A WITH OGONEK */
+	case 0x02DB: return 0xB2; /*  OGONEK */
+	case 0x0157: return 0xB3; /*  LATIN SMALL LETTER R WITH CEDILLA */
+	case 0x00B4: return 0xB4; /*  ACUTE ACCENT */
+	case 0x0129: return 0xB5; /*  LATIN SMALL LETTER I WITH TILDE */
+	case 0x013C: return 0xB6; /*  LATIN SMALL LETTER L WITH CEDILLA */
+	case 0x02C7: return 0xB7; /*  CARON */
+	case 0x00B8: return 0xB8; /*  CEDILLA */
+	case 0x0161: return 0xB9; /*  LATIN SMALL LETTER S WITH CARON */
+	case 0x0113: return 0xBA; /*  LATIN SMALL LETTER E WITH MACRON */
+	case 0x0123: return 0xBB; /*  LATIN SMALL LETTER G WITH CEDILLA */
+	case 0x0167: return 0xBC; /*  LATIN SMALL LETTER T WITH STROKE */
+	case 0x014A: return 0xBD; /*  LATIN CAPITAL LETTER ENG */
+	case 0x017E: return 0xBE; /*  LATIN SMALL LETTER Z WITH CARON */
+	case 0x014B: return 0xBF; /*  LATIN SMALL LETTER ENG */
+	case 0x0100: return 0xC0; /*  LATIN CAPITAL LETTER A WITH MACRON */
+	case 0x00C1: return 0xC1; /*  LATIN CAPITAL LETTER A WITH ACUTE */
+	case 0x00C2: return 0xC2; /*  LATIN CAPITAL LETTER A WITH CIRCUMFLEX */
+	case 0x00C3: return 0xC3; /*  LATIN CAPITAL LETTER A WITH TILDE */
+	case 0x00C4: return 0xC4; /*  LATIN CAPITAL LETTER A WITH DIAERESIS */
+	case 0x00C5: return 0xC5; /*  LATIN CAPITAL LETTER A WITH RING ABOVE */
+	case 0x00C6: return 0xC6; /*  LATIN CAPITAL LIGATURE AE */
+	case 0x012E: return 0xC7; /*  LATIN CAPITAL LETTER I WITH OGONEK */
+	case 0x010C: return 0xC8; /*  LATIN CAPITAL LETTER C WITH CARON */
+	case 0x00C9: return 0xC9; /*  LATIN CAPITAL LETTER E WITH ACUTE */
+	case 0x0118: return 0xCA; /*  LATIN CAPITAL LETTER E WITH OGONEK */
+	case 0x00CB: return 0xCB; /*  LATIN CAPITAL LETTER E WITH DIAERESIS */
+	case 0x0116: return 0xCC; /*  LATIN CAPITAL LETTER E WITH DOT ABOVE */
+	case 0x00CD: return 0xCD; /*  LATIN CAPITAL LETTER I WITH ACUTE */
+	case 0x00CE: return 0xCE; /*  LATIN CAPITAL LETTER I WITH CIRCUMFLEX */
+	case 0x012A: return 0xCF; /*  LATIN CAPITAL LETTER I WITH MACRON */
+	case 0x0110: return 0xD0; /*  LATIN CAPITAL LETTER D WITH STROKE */
+	case 0x0145: return 0xD1; /*  LATIN CAPITAL LETTER N WITH CEDILLA */
+	case 0x014C: return 0xD2; /*  LATIN CAPITAL LETTER O WITH MACRON */
+	case 0x0136: return 0xD3; /*  LATIN CAPITAL LETTER K WITH CEDILLA */
+	case 0x00D4: return 0xD4; /*  LATIN CAPITAL LETTER O WITH CIRCUMFLEX */
+	case 0x00D5: return 0xD5; /*  LATIN CAPITAL LETTER O WITH TILDE */
+	case 0x00D6: return 0xD6; /*  LATIN CAPITAL LETTER O WITH DIAERESIS */
+	case 0x00D7: return 0xD7; /*  MULTIPLICATION SIGN */
+	case 0x00D8: return 0xD8; /*  LATIN CAPITAL LETTER O WITH STROKE */
+	case 0x0172: return 0xD9; /*  LATIN CAPITAL LETTER U WITH OGONEK */
+	case 0x00DA: return 0xDA; /*  LATIN CAPITAL LETTER U WITH ACUTE */
+	case 0x00DB: return 0xDB; /*  LATIN CAPITAL LETTER U WITH CIRCUMFLEX */
+	case 0x00DC: return 0xDC; /*  LATIN CAPITAL LETTER U WITH DIAERESIS */
+	case 0x0168: return 0xDD; /*  LATIN CAPITAL LETTER U WITH TILDE */
+	case 0x016A: return 0xDE; /*  LATIN CAPITAL LETTER U WITH MACRON */
+	case 0x00DF: return 0xDF; /*  LATIN SMALL LETTER SHARP S */
+	case 0x0101: return 0xE0; /*  LATIN SMALL LETTER A WITH MACRON */
+	case 0x00E1: return 0xE1; /*  LATIN SMALL LETTER A WITH ACUTE */
+	case 0x00E2: return 0xE2; /*  LATIN SMALL LETTER A WITH CIRCUMFLEX */
+	case 0x00E3: return 0xE3; /*  LATIN SMALL LETTER A WITH TILDE */
+	case 0x00E4: return 0xE4; /*  LATIN SMALL LETTER A WITH DIAERESIS */
+	case 0x00E5: return 0xE5; /*  LATIN SMALL LETTER A WITH RING ABOVE */
+	case 0x00E6: return 0xE6; /*  LATIN SMALL LIGATURE AE */
+	case 0x012F: return 0xE7; /*  LATIN SMALL LETTER I WITH OGONEK */
+	case 0x010D: return 0xE8; /*  LATIN SMALL LETTER C WITH CARON */
+	case 0x00E9: return 0xE9; /*  LATIN SMALL LETTER E WITH ACUTE */
+	case 0x0119: return 0xEA; /*  LATIN SMALL LETTER E WITH OGONEK */
+	case 0x00EB: return 0xEB; /*  LATIN SMALL LETTER E WITH DIAERESIS */
+	case 0x0117: return 0xEC; /*  LATIN SMALL LETTER E WITH DOT ABOVE */
+	case 0x00ED: return 0xED; /*  LATIN SMALL LETTER I WITH ACUTE */
+	case 0x00EE: return 0xEE; /*  LATIN SMALL LETTER I WITH CIRCUMFLEX */
+	case 0x012B: return 0xEF; /*  LATIN SMALL LETTER I WITH MACRON */
+	case 0x0111: return 0xF0; /*  LATIN SMALL LETTER D WITH STROKE */
+	case 0x0146: return 0xF1; /*  LATIN SMALL LETTER N WITH CEDILLA */
+	case 0x014D: return 0xF2; /*  LATIN SMALL LETTER O WITH MACRON */
+	case 0x0137: return 0xF3; /*  LATIN SMALL LETTER K WITH CEDILLA */
+	case 0x00F4: return 0xF4; /*  LATIN SMALL LETTER O WITH CIRCUMFLEX */
+	case 0x00F5: return 0xF5; /*  LATIN SMALL LETTER O WITH TILDE */
+	case 0x00F6: return 0xF6; /*  LATIN SMALL LETTER O WITH DIAERESIS */
+	case 0x00F7: return 0xF7; /*  DIVISION SIGN */
+	case 0x00F8: return 0xF8; /*  LATIN SMALL LETTER O WITH STROKE */
+	case 0x0173: return 0xF9; /*  LATIN SMALL LETTER U WITH OGONEK */
+	case 0x00FA: return 0xFA; /*  LATIN SMALL LETTER U WITH ACUTE */
+	case 0x00FB: return 0xFB; /*  LATIN SMALL LETTER U WITH CIRCUMFLEX */
+	case 0x00FC: return 0xFC; /*  LATIN SMALL LETTER U WITH DIAERESIS */
+	case 0x0169: return 0xFD; /*  LATIN SMALL LETTER U WITH TILDE */
+	case 0x016B: return 0xFE; /*  LATIN SMALL LETTER U WITH MACRON */
+	case 0x02D9: return 0xFF; /*  DOT ABOVE */
+#endif
 }
 
-static int
+static void
 unicode_latin5(
-		 int unival,
-		 char *name,
 		 char *arg
 )
 {
-	if (unival <= 0x0081) {
-		return unival;
-	} else if (unival >= 0x00a0 && unival <= 0x00ff) {
-		return unival;
-	} else {
-		switch (unival) {
-		case 0x008d:
-			return 0x8d;
-		case 0x008e:
-			return 0x8e;
-		case 0x008f:
-			return 0x8f;
-		case 0x0090:
-			return 0x90;
-		case 0x009d:
-			return 0x9d;
-		case 0x009e:
-			return 0x9e;
-		case 0x011e:
-			return 0xd0;	/* G breve */
-		case 0x011f:
-			return 0xf0;	/* g breve */
-		case 0x0130:
-			return 0xdd;	/* I dot */
-		case 0x0131:
-			return 0xfd;	/* dotless i */
-		case 0x0152:
-			return 0x8c;
-		case 0x0153:
-			return 0x9c;
-		case 0x015e:
-			return 0xde;	/* S cedilla */
-		case 0x015f:
-			return 0xfe;	/* s cedilla */
-		case 0x0160:
-			return 0x8a;
-		case 0x0161:
-			return 0x9a;
-		case 0x0178:
-			return 0x9f;
-		case 0x0192:
-			return 0x83;
-		case 0x02c6:
-			return 0x88;
-		case 0x02dc:
-			return 0x98;
-		case 0x2013:
-			return 0x96;
-		case 0x2014:
-			return 0x97;
-		case 0x2018:
-			return 0x91;
-		case 0x2019:
-			return 0x92;
-		case 0x201a:
-			return 0x82;
-		case 0x201c:
-			return 0x93;
-		case 0x201d:
-			return 0x94;
-		case 0x201e:
-			return 0x84;
-		case 0x2020:
-			return 0x86;
-		case 0x2021:
-			return 0x87;
-		case 0x2022:
-			return 0x95;
-		case 0x2026:
-			return 0x85;
-		case 0x2030:
-			return 0x89;
-		case 0x2039:
-			return 0x8b;
-		case 0x203a:
-			return 0x9b;
-		case 0x2122:
-			return 0x99;
-		default:
-			return -1;
-		}
-	}
+	int i;
+	static unsigned int latin5_unicode_map1[] = {
+		0x0080, 0x0081, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021,  /* 80 */
+		0x02c6, 0x2030, 0x0160, 0x2039, 0x0152, 0x008d, 0x008e, 0x008f,  /* 88 */
+		0x0090, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014,  /* 90 */
+		0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0x009d, 0x009e, 0x0178,  /* 98 */
+	};
+	static unsigned int latin5_unicode_map2[] = {
+		0x011e, 0x00d1, 0x00d2, 0x00d3, 0x00d4, 0x00d5, 0x00d6, 0x00d7,  /* D0 */
+		0x00d8, 0x00d9, 0x00da, 0x00db, 0x00dc, 0x0130, 0x015e, 0x00df,  /* D8 */
+		0x00e0, 0x00e1, 0x00e2, 0x00e3, 0x00e4, 0x00e5, 0x00e6, 0x00e7,  /* E0 direct */
+		0x00e8, 0x00e9, 0x00ea, 0x00eb, 0x00ec, 0x00ed, 0x00ee, 0x00ef,  /* E8 direct */
+		0x011f, 0x00f1, 0x00f2, 0x00f3, 0x00f4, 0x00f5, 0x00f6, 0x00f7,  /* F0 */
+		0x00f8, 0x00f9, 0x00fa, 0x00fb, 0x00fc, 0x0131, 0x015f, 0x00ff,  /* F8 */
+	};
+
+	for(i=0; i<=0x7F; i++)
+		unicode_map[i] = i;
+
+	for(i=0x80; i<=0x9F; i++)
+		unicode_map[i] = latin5_unicode_map1[i-0x80];
+
+	for(i=0xA0; i<=0xCF; i++)
+		unicode_map[i] = i;
+
+	for(i=0xD0; i<=0xFF; i++)
+		unicode_map[i] = latin5_unicode_map2[i-0xD0];
 }
 
 #if 0
 /* non-functional now, shown as example */
-static int GBK_plane;
 
 static void
-unicode_init_GBK(
+unicode_GBK(
 		 char *arg
 )
 {
-	int res;
+	static int GBK_plane;
+	int i;
 
 	if(sscanf(arg, "%x", &GBK_plane) < 1 || GBK_plane < 0x81 || GBK_plane > 0xFE) {
 		fprintf(stderr, "**** language Chinese GBK requires argument of plane, 81 to FE (hexadecimal)\n");
@@ -1512,35 +1038,49 @@ unicode_init_GBK(
 	uni_font_name_suffix = uni_suffix_buf;
 
 	GBK_plane <<= 8;
+	for(i=0; i<=0xFF; i++)
+		unicode_map[i] = GBK_plane | i;
 }
 
-/* non-functional now, shown as example */
-static int
-unicode_GBK(
-		 int unival,
-		 char *name,
-		 char *arg
-)
-{
-	static int map[1]={0};
-	int res;
-
-	if(arg==0) /* just probing - never answer */
-		return -1;
-
-	if(unival >= sizeof map)
-		return -1;
-
-	res = map[unival];
-	if((res & 0xFF00) == GBK_plane)
-		return res & 0xFF;
-	else
-		return -1;
-}
 #endif /* 0 */
 
+/* look up the 8-bit code by unicode */
+
 int
-unicode_to_win31(
+unicode_rev_lookup(
+		 int unival
+)
+{
+	int res;
+
+	if( ! IS_UNI_BUCKET(unival) )
+		return -1;
+
+	for (res = 0; res < 256; res++)
+		if (unicode_map[res] == unival)
+			return res;
+	return -1;
+}
+
+/* mark the buckets for quick lookup */
+
+static void
+unicode_prepare_buckets(
+	void
+)
+{
+	int i;
+
+	memset(uni_user_buckets, 0, sizeof uni_user_buckets);
+	for(i=0; i<256; i++) {
+		if(unicode_map[i] != (unsigned) -1)
+			MARK_UNI_BUCKET(unicode_map[i]);
+	}
+}
+
+#if 0 /* XXX */
+static int
+old_unicode_to_win31(
 		 int unival,
 		 char *name
 )
@@ -1579,6 +1119,7 @@ unicode_to_win31(
 
 	return -1;
 }
+#endif
 
 /*
  * Scale the values according to the scale_factor
@@ -1720,7 +1261,7 @@ convert_glyf(
 static void
 handle_gnames(void)
 {
-	int             i, n, found;
+	int             i, n, found, c, type;
 
 	/* get the names from the font file */
 	ps_fmt_3 = cursw->glnames(glyph_list);
@@ -1744,6 +1285,7 @@ handle_gnames(void)
 	}
 
 	if( !ps_fmt_3 ) {
+		/* check for duplicate names */
 		for (n = 0; n < numglyphs; n++) {
 			found = 0;
 			for (i = 0; i < n && !found; i++) {
@@ -1759,12 +1301,51 @@ handle_gnames(void)
 				}
 			}
 		}
+
 	}
 
-	/* ignore the return code for now */
-	cursw->glenc(glyph_list, encoding);
+	/* start the encoding stuff */
+	for (i = 0; i < 256; i++) {
+		encoding[i] = -1;
+	}
 
-	if (ps_fmt_3 == 1) {
+	/* do the 1st round of encoding by name */
+	if(!ps_fmt_3 && uni_lang_selected && uni_lang_selected->convbyname) {
+		for (n = 0; n < numglyphs; n++) {
+			c = uni_lang_selected->convbyname(glyph_list[n].name, 
+				uni_lang_arg, UNICONV_BYNAME_BEFORE);
+			if(c>=0 && c<256 && encoding[n] == -1)
+				encoding[n] = n;
+		}
+	}
+
+	/* now do the encoding by table */
+	if(uni_lang_selected) {
+		for(i=0; i < MAXUNITABLES && uni_lang_selected->init[i]; i++) {
+			for (n = 0; n < 256; n++)
+				unicode_map[n] = -1;
+			uni_lang_selected->init[i](uni_lang_arg);
+			unicode_prepare_buckets();
+			if( cursw->glenc(glyph_list, encoding, unicode_map) == 0 )
+				/* if we have an 8-bit encoding we don't need more tries */
+				break;
+		}
+	} else {
+		/* language is unknown, try the first table of each */
+		for(i=0; i < sizeof uni_lang/(sizeof uni_lang[0]); i++) {
+			if(uni_lang[i].init[0] == NULL)
+				continue;
+			for (n = 0; n < 256; n++)
+				unicode_map[n] = -1;
+			uni_lang[i].init[0](uni_lang_arg);
+			unicode_prepare_buckets();
+			if( cursw->glenc(glyph_list, encoding, unicode_map) == 0 )
+				/* if we have an 8-bit encoding we don't need more tries */
+				break;
+		}
+	}
+
+	if (ps_fmt_3) {
 		for (i = 0; i < 256; i++) {
 			if (encoding[i] != 0) {
 				glyph_list[encoding[i]].name = Fmt3Encoding[i];
@@ -1772,6 +1353,23 @@ handle_gnames(void)
 				glyph_list[encoding[i]].name = ".notdef";
 			}
 		}
+	}
+
+	/* do the 2nd round of encoding by name */
+	if(uni_lang_selected && uni_lang_selected->convbyname) {
+		for (n = 0; n < numglyphs; n++) {
+			c = uni_lang_selected->convbyname(glyph_list[n].name, 
+				uni_lang_arg, UNICONV_BYNAME_AFTER);
+			if(c>=0 && c<256 && encoding[n] == -1)
+				encoding[n] = n;
+		}
+	}
+	/* all the encoding things are done */
+
+	for (i = 0; i < 256; i++) {
+		if(encoding[i] == -1) /* defaults to .notdef */
+			encoding[i] = 0;
+		glyph_list[encoding[i]].char_no = i;
 	}
 
 	/* enforce two special cases defined in TTF manual */
@@ -2108,7 +1706,7 @@ main(
 			}
 			break;
 		case 'l':
-			if(uni_lang_converter!=0) {
+			if(uni_lang_selected!=0) {
 				fprintf(stderr, "**** only one language option may be used ****\n");
 				exit(1);
 			}
@@ -2123,16 +1721,14 @@ main(
 			}
 			for(i=0; i < sizeof uni_lang/(sizeof uni_lang[0]); i++)
 				if( !strcmp(uni_lang[i].name, optarg) ) {
-					uni_lang_converter=uni_lang[i].conv;
-					uni_sample=uni_lang[i].sample_upper;
-					if(uni_lang[i].init != 0)
-						uni_lang[i].init(uni_lang_arg);
+					uni_lang_selected = &uni_lang[i];
+					uni_sample = uni_lang[i].sample_upper;
 					break;
 				}
 
-			if(uni_lang_converter==0) {
+			if(uni_lang_selected==0) {
 				if (strcmp(optarg, "?"))
-				  fprintf(stderr, "**** unknown language '%s' ****\n", optarg);
+					fprintf(stderr, "**** unknown language '%s' ****\n", optarg);
 				fputs("       the following languages are supported now:\n", stderr);
 				for(i=0; i < sizeof uni_lang/(sizeof uni_lang[0]); i++)
 					fprintf(stderr,"         %s (%s)\n", 
@@ -2143,12 +1739,12 @@ main(
 			}
 			break;
 		case 'L':
-			if(uni_lang_converter!=0) {
+			if(uni_lang_selected!=0) {
 				fprintf(stderr, "**** only one language option may be used ****\n");
 				exit(1);
 			}
-			uni_lang_converter = unicode_user;
-			unicode_init_user(optarg);
+			uni_lang_selected = &uni_lang_user;
+			uni_lang_arg = optarg;
 			break;
 		case 'V':
 			printversion();
@@ -2173,10 +1769,10 @@ main(
 	}
 
 	/* try to guess the language by the locale used */
-	if(uni_lang_converter==0 && (lang=getenv("LANG"))!=0 ) {
+	if(uni_lang_selected==0 && (lang=getenv("LANG"))!=0 ) {
 		for(i=0; i < sizeof uni_lang/sizeof(struct uni_language); i++) {
 			if( !strncmp(uni_lang[i].name, lang, strlen(uni_lang[i].name)) ) {
-				uni_lang_converter=uni_lang[i].conv;
+				uni_lang_selected = &uni_lang[i];
 				goto got_a_language;
 			}
 		}
@@ -2185,13 +1781,15 @@ main(
 			for(c=0; c<MAXUNIALIAS; c++)
 				if( uni_lang[i].alias[c]!=0
 				&& !strncmp(uni_lang[i].alias[c], lang, strlen(uni_lang[i].alias[c])) ) {
-					uni_lang_converter=uni_lang[i].conv;
+					uni_lang_selected = &uni_lang[i];
 					goto got_a_language;
 				}
 		}
 	got_a_language:
-		if(uni_lang_converter!=0) 
+		if(uni_lang_selected!=0) {
 			WARNING_1 fprintf(stderr, "Using language '%s' for Unicode fonts\n", uni_lang[i].name);
+			uni_sample = uni_lang[i].sample_upper;
+		}
 	}
 
 	/* try to guess the front-end parser by the file name suffix */

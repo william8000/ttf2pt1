@@ -90,7 +90,7 @@ extern int      numglyphs;
 /* prototypes */
 int iscale( int val);
 double fscale( double val);
-int unicode_to_win31( int unival, char *name);
+int unicode_rev_lookup( int unival);
 
 /* global metrics for a font */
 
@@ -135,7 +135,7 @@ struct frontsw {
 	int   (*nglyphs)(void); /* get the number of glyphs */
 	int   (*glnames)(GLYPH *glyphs); /* get the names of glyphs */
 	void  (*glmetrics)(GLYPH *glyphs); /* get the metrics of glyphs */
-	int   (*glenc)(GLYPH *glyphs, int *enc); /* get the encoding */
+	int   (*glenc)(GLYPH *glyphs, int *enc, int *unimap); /* get the encoding */
 	void  (*fnmetrics)(struct font_metrics *fm); /* get the font metrics */
 	int   (*glpath)(int glyphno, GLYPH *glyphs); /* get the glyph path */
 	void  (*prkern)(GLYPH *glyphs, FILE *afm_file); /* print the kerning data */

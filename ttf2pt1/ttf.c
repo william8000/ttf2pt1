@@ -34,7 +34,7 @@ static void closefont( void);
 static int getnglyphs ( void);
 static int glnames( GLYPH *glyph_list);
 static void glmetrics( GLYPH *glyph_list);
-static int glenc( GLYPH *glyph_list, int *encoding);
+static int glenc( GLYPH *glyph_list, int *encoding, int *unimap);
 static void fnmetrics( struct font_metrics *fm);
 static int glpath( int glyphno, GLYPH *glyph_list);
 static void prkern( GLYPH *glyph_list, FILE *afm_file);
@@ -1145,7 +1145,8 @@ glmetrics(
 static int
 glenc(
 	GLYPH *glyph_list,
-	int *encoding
+	int *encoding,
+	int *unimap
 )
 {
 	int             num_tables = ntohs(cmap_table->numberOfEncodingTables);
@@ -1162,10 +1163,6 @@ glenc(
 
 	enc_type = 0;
 	found = 0;
-
-	for (i = 0; i < 256; i++) {
-		encoding[i] = 0;
-	}
 
 	for (i = 0; i < num_tables && !found; i++) {
 		table_entry = &(cmap_table->encodingTable[i]);
@@ -1245,21 +1242,23 @@ glenc(
 						set_ok = 1;
 					}
 					if (enc_type==1 || forceunicode) {
-						kk = unicode_to_win31(k, glyph_list[n].name);
+						kk = unicode_rev_lookup(k);
 						if(ISDBG(UNICODE))
 							fprintf(stderr, "Unicode %s - 0x%04x\n",glyph_list[n].name,k);
 						if (set_ok) {
 							glyph_list[n].orig_code = k;
 							/* glyph_list[n].char_no = kk; */
 						}
-						if ((kk & ~0xff) == 0)
+						if ((kk & ~0xff) == 0 && encoding[kk] == -1)
 							encoding[kk] = n;
 					} else {
 						if ((k & 0xff00) == 0xf000) {
-							encoding[k & 0x00ff] = n;
-							if (set_ok) {
-								/* glyph_list[n].char_no = k & 0x00ff; */
-								glyph_list[n].orig_code = k;
+							if( encoding[k & 0x00ff] == -1 ) {
+								encoding[k & 0x00ff] = n;
+								if (set_ok) {
+									/* glyph_list[n].char_no = k & 0x00ff; */
+									glyph_list[n].orig_code = k;
+								}
 							}
 						} else {
 							if (set_ok) {
@@ -1274,7 +1273,7 @@ glenc(
 							 * just use the code
 							 * as it is
 							 */
-							if ((k & ~0xff) == 0)
+							if ((k & ~0xff) == 0 && encoding[k] == -1 )
 								encoding[k] = n;
 						}
 					}
@@ -1306,8 +1305,10 @@ glenc(
 							j);
 					} else {
 						if (j < 256) {
-							glyph_list[n].char_no = j;
-							encoding[j] = n;
+							if(encoding[j] == -1) {
+								glyph_list[n].char_no = j;
+								encoding[j] = n;
+							}
 						}
 					}
 				}
@@ -1317,10 +1318,6 @@ glenc(
 	if (!found) {
 		fprintf(stderr, "**** No Recognised Encoding Table ****\n");
 		exit(1);
-	}
-
-	for (i = 0; i < 256; i++) {
-		glyph_list[encoding[i]].char_no = i;
 	}
 
 	return enc_type;
