@@ -718,6 +718,1623 @@ frag_subtract(
 	}
 }
 
+/************************ Vectorization Steps **********************/
+
+/* glyph analyzis data for one contour */
+
+struct bmpcontour {
+	GENTRY *cge; /* first gentry of a contour in the glyph */
+	GENTRY **age; /* array of gentries in a contour */
+	int clen; /* contour length, size of ths array */
+};
+
+/*
+ * Analyze one contour of a glyph g, save the resulting data
+ * in the entry cidx of array countours.
+ */
+
+static void
+analyze_contour(
+	GLYPH *g,
+	struct bmpcontour *contours,
+	int cidx
+)
+{
+	struct bmpcontour *cctr = &contours[cidx];
+	GENTRY *cge = cctr->cge;
+
+	GENTRY *ge, *pge;
+	int d, vert, count, stepmore, delaystop;
+	int vdir, hdir, fullvdir, fullhdir, len;
+	int dx, dy, lastdx, lastdy; 
+	int k1, k2, reversal, smooth, good;
+	int line[2 /*H,V*/], maxlen[2 /*H,V*/], minlen[2 /*H,V*/];
+	int i, j;
+	GEX_FRAG *f;
+
+	/* we know that all the contours start at the top-left corner,
+	 * so at most it might be before/after the last element of
+	 * the last/first fragment
+	 */
+
+	ge = cge->next;
+	pge = ge->bkwd;
+	if(ge->ix3 == pge->ix3) { /* a vertical line */
+		/* we want to start always from a horizontal line because
+		 * then we always start from top and that is quaranteed to be a 
+		 * fragment boundary, so move the start point of the contour
+		 */
+		pge->prev->next = pge->next;
+		pge->next->prev = pge->prev;
+		cge->next = pge;
+		pge->prev = cge;
+		pge->next = ge;
+		ge->prev = pge;
+		ge = pge; pge = ge->bkwd;
+		cge->ix3 = pge->ix3; cge->iy3 = pge->iy3;
+	}
+
+	/* fill the array of gentries */
+	cctr->clen = 1;
+	for(ge = cge->next->frwd; ge != cge->next; ge = ge->frwd)
+		cctr->clen++;
+	cctr->age = (GENTRY **)malloc(sizeof(*cctr->age) * cctr->clen);
+	ge = cge->next;
+	count = 0;
+	do {
+		cctr->age[count] = ge;
+		X_FRAG(ge)->aidx = count++;
+
+		/* and by the way find the extremums */
+		for(i=0; i<2; i++) {
+			if( isign(ge->frwd->ipoints[i][2] - ge->ipoints[i][2])
+			* isign(ge->bkwd->bkwd->ipoints[i][2] - ge->bkwd->ipoints[i][2]) == 1) {
+				X_FRAG(ge)->flags |= GEXFF_EXTR;
+				fprintf(stderr, "  %s extremum at %p\n", (i?"vert":"hor"), ge);
+			}
+			if(abs(ge->ipoints[i][2] - ge->bkwd->ipoints[i][2]) > 1)
+				X_FRAG(ge)->flags |= GEXFF_LONG;
+		}
+
+		ge = ge->frwd;
+	} while(ge != cge->next);
+
+	/* Find the serif fragments, looking as either of:
+	 *           -+              |
+	 *            |              |        
+	 *          +-+            +-+        
+	 *          |              |          
+	 *          +--...         +--...
+	 * with the thickness of serifs being 1 pixel. We make no
+	 * difference between serifs on vertical and horizontal stems.
+	 */
+
+	ge = cge->next;
+	do {
+		GENTRY *nge;
+		int pdx, pdy, ndx, ndy;
+
+		/* two gentries of length 1 mean a potential serif */
+		pge = ge->bkwd;
+		nge = ge->frwd;
+
+		dx = nge->ix3 - pge->ix3;
+		dy = nge->iy3 - pge->iy3;
+
+		if(abs(dx) != 1 || abs(dy) != 1) /* 2 small ones */
+			continue;
+
+		if( 
+			(!(X_FRAG(ge)->flags & GEXFF_EXTR) 
+				|| !(X_FRAG(ge->bkwd)->flags & GEXFF_EXTR))
+			&& (!(X_FRAG(ge->frwd)->flags & GEXFF_EXTR) 
+				|| !(X_FRAG(ge->frwd->frwd)->flags & GEXFF_EXTR))
+		)
+			continue; /* either side must be a couple of extremums */
+
+		pdx = pge->ix3 - pge->bkwd->ix3;
+		pdy = pge->iy3 - pge->bkwd->iy3;
+		ndx = nge->frwd->ix3 - nge->ix3;
+		ndy = nge->frwd->iy3 - nge->iy3;
+
+		if(pdx*dx + pdy*dy > 0 && ndx*dx + ndy*dy > 0) 
+			continue; /* definitely not a serif but a round corner */
+
+		if(abs(pdx) + abs(pdy) == 1 || abs(ndx) + abs(ndy) == 1)
+			continue;
+
+		/* we've found a serif including this and next gentry */
+		X_FRAG(ge)->len[GEXFI_SERIF] = 2;
+
+	} while( (ge = ge->frwd) != cge->next );
+
+
+	/* Find the convex and concave fragments, defined as:
+	 * convex (clockwise): dy/dx <= dy0/dx0, 
+	 *  or a reversal: dy/dx == - dy0/dx0 && abs(dxthis) == 1 && dy/dx > 0
+	 * concave (counter-clockwise): dy/dx >= dy0/dx0, 
+	 *  or a reversal: dy/dx == - dy0/dx0 && abs(dxthis) == 1 && dy/dx < 0
+	 *
+	 * Where dx and dy are measured between the end of this gentry
+	 * and the start of the previous one (dx0 and dy0 are the same
+	 * thing calculated for the previous gentry and its previous one),
+	 * dxthis is between the end and begginning of this gentry.
+	 *
+	 * A reversal is a situation when the curve changes its direction
+	 * along the x axis, so it passes through a momentary vertical
+	 * direction.
+	 */
+	for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
+		ge = cge->next;
+		pge = ge->bkwd; /* the beginning of the fragment */
+		count = 1;
+		lastdx = pge->ix3 - pge->bkwd->bkwd->ix3;
+		lastdy = pge->iy3 - pge->bkwd->bkwd->iy3;
+
+#define CHKCURVCONN(ge, msg)	do { \
+dx = (ge)->ix3 - (ge)->bkwd->bkwd->ix3; \
+dy = (ge)->iy3 - (ge)->bkwd->bkwd->iy3; \
+if(0 && msg) { \
+fprintf(stderr, "  %p: dx=%d dy=%d dx0=%d dy0=%d ", \
+	(ge), dx, dy, lastdx, lastdy); \
+} \
+k1 = X_FRAG(ge)->flags; \
+k2 = X_FRAG((ge)->bkwd)->flags; \
+if(0 && msg) { \
+fprintf(stderr, "fl=%c%c%c%c ", \
+	(k1 & GEXFF_EXTR) ? 'X' : '-', \
+	(k1 & GEXFF_LONG) ? 'L' : '-', \
+	(k2 & GEXFF_EXTR) ? 'X' : '-', \
+	(k2 & GEXFF_LONG) ? 'L' : '-' \
+); \
+} \
+if( (k1 & GEXFF_EXTR) && (k2 & GEXFF_LONG) \
+|| (k2 & GEXFF_EXTR) && (k1 & GEXFF_LONG) ) { \
+smooth = 0; \
+good = reversal = -1; /* for debugging */ \
+} else { \
+k1 = dy * lastdx; \
+k2 = lastdy * dx; \
+smooth = (abs(dx)==1 || abs(dy)==1); \
+good = (k1 - k2)*gxf_cvk[d] >= 0; \
+if(smooth && !good) { \
+	reversal = (k1 == -k2 && abs((ge)->ix3 - (ge)->bkwd->ix3)==1  \
+		&& dy*dx*gxf_cvk[d] < 0); \
+} else \
+	reversal = 0; \
+} \
+if(0 && msg) { \
+fprintf(stderr, "k1=%d k2=%d pge=%p count=%d %s good=%d rev=%d\n", \
+	k1, k2, pge, count, gxf_name[d], good, reversal); \
+} \
+} while(0)
+
+		do {
+			CHKCURVCONN(ge, 1);
+
+			if(smooth && (good || reversal) )
+				count++;
+			else {
+				/* can't continue */
+#if 0
+				if(count >= 4) { /* worth remembering */
+					fprintf(stderr, " %s frag %p-%p count=%d\n", gxf_name[d], pge, ge->bkwd, count);
+				}
+#endif
+				X_FRAG(pge)->len[d] = count;
+				if(smooth) {
+					pge = ge->bkwd;
+					count = 2;
+				} else {
+					pge = ge;
+					count = 1;
+				}
+			}
+			lastdx = dx; lastdy = dy;
+			ge = ge->frwd;
+		} while(ge != cge->next);
+
+		/* see if we can connect the last fragment to the first */
+		CHKCURVCONN(ge, 1);
+
+		if(smooth && (good || reversal) ) {
+			/* -1 to avoid ge->bkwd being counted twice */
+			if( X_FRAG(ge->bkwd)->len[d] >= 2 )
+				count += X_FRAG(ge->bkwd)->len[d] - 1;
+			else if(count == cctr->clen+1) {
+				/* we are joining a circular (closed) curve, check whether it
+				 * can be joined at any point or whether it has a discontinuity
+				 * at the point where we join it now
+				 */
+				lastdx = dx; lastdy = dy;
+				CHKCURVCONN(ge->frwd, 0);
+
+				if(smooth && (good || reversal) ) {
+					/* yes, the curve is truly a circular one and can be 
+					 * joined at any point
+					 */
+
+#if 0
+					fprintf(stderr, " found a circular joint point at %p\n", pge);
+#endif
+					/* make sure that in a circular fragment we start from an extremum */
+					while( ! (X_FRAG(pge)->flags & GEXFF_EXTR) )
+						pge = pge->frwd;
+					X_FRAG(pge)->flags |= GEXFF_CIRC;
+				}
+			}
+#if 0
+			fprintf(stderr, " %s joined %p to %p count=%d bk_count=%d\n", gxf_name[d], pge, ge->bkwd, 
+				count, X_FRAG(ge->bkwd)->len[d] );
+#endif
+			X_FRAG(ge->bkwd)->len[d] = 0;
+		} 
+		X_FRAG(pge)->len[d] = count;
+#if 0
+		if(count >= 4) { /* worth remembering */
+			fprintf(stderr, " %s last frag %p-%p count=%d\n", gxf_name[d], pge, ge->bkwd, count);
+		}
+#endif
+#undef CHKCURVCONN
+
+		/* do postprocessing */
+		ge = cge->next;
+		do {
+			f = X_FRAG(ge);
+			len = f->len[d];
+#if 0
+			fprintf(stderr, "   %p %s len=%d clen=%d\n", ge, gxf_name[d], len, cctr->clen);
+#endif
+			if(len < 3) /* get rid of the fragments that are too short */
+				f->len[d] = 0;
+			else if(len == 3) {
+				/*                                                    _
+				 * drop the |_| - shaped fragments, leave alone the _|  - shaped
+				 * (and even those only if not too short in pixels),
+				 * those left alone are further filtered later
+				 */
+				k1 = (ge->ix3 == ge->bkwd->ix3); /* axis of the start */
+				if(isign(ge->ipoints[k1][2] - ge->bkwd->ipoints[k1][2])
+					!= isign(ge->frwd->ipoints[k1][2] - ge->frwd->frwd->ipoints[k1][2])
+				&& abs(ge->frwd->frwd->ipoints[k1][2] - ge->bkwd->ipoints[k1][2]) > 2) {
+#if 0
+					fprintf(stderr, " %s frag %p count=%d good shape\n", 
+						gxf_name[d], ge, count);
+#endif
+				} else
+					f->len[d] = 0;
+			} else if(len == cctr->clen+1)
+				break;  /* a closed fragment, nothing else interesting */
+			else { /* only for open fragments */
+				GENTRY *gem, *gex, *gei, *ges;
+
+				ges = ge; /* the start entry */
+				gem = cctr->age[(f->aidx + f->len[d])%cctr->clen]; /* entry past the end of the fragment */
+
+				gei = ge->frwd;
+				if( (ge->ix3 == ge->bkwd->ix3) /* vert */
+				^ (isign(ge->bkwd->ix3 - gei->ix3)==isign(ge->bkwd->iy3 - gei->iy3))
+				^ !(d == GEXFI_CONVEX) /* counter-clockwise */ ) {
+
+#if 0
+					fprintf(stderr, " %p: %s potential spurious start\n", ge, gxf_name[d]);
+#endif
+					/* the beginning may be a spurious entry */
+
+					gex = 0; /* the extremum closest to the beginning - to be found */
+					for(gei = ge->frwd; gei != gem; gei = gei->frwd) {
+						if(X_FRAG(gei)->flags & GEXFF_EXTR) {
+							gex = gei;
+							break;
+						}
+					}
+					if(gex == 0)
+						gex = gem->bkwd; 
+
+					/* A special case: ignore the spurious ends on small curves that
+					 * either enclose an 1-pixel-wide extremum or are 1-pixel deep.
+					 * Any 5-or-less-pixel-long curve with extremum 2 steps away
+					 * qualifies for that.
+					 */
+
+					if(len <= 5 && gex == ge->frwd->frwd) {
+						good = 0;
+#if 0
+						fprintf(stderr, " E");
+#endif
+					} else {
+						good = 1; /* assume that ge is not spurious */
+
+						/* gei goes backwards, gex goes forwards from the extremum */
+						gei = gex;
+						/* i is the symmetry axis, j is the other axis (X=0 Y=1) */
+						i = (gex->ix3 != gex->bkwd->ix3);
+						j = !i;
+						for( ; gei!=ge && gex!=gem; gei=gei->bkwd, gex=gex->frwd) {
+							if( gei->bkwd->ipoints[i][2] != gex->ipoints[i][2]
+							|| gei->bkwd->ipoints[j][2] - gei->ipoints[j][2]
+								!= gex->bkwd->ipoints[j][2] - gex->ipoints[j][2] 
+							) {
+								good = 0; /* no symmetry - must be spurious */
+#if 0
+								fprintf(stderr, " M(%p,%p)(%d %d,%d)(%d %d,%d)",
+									gei, gex,
+									i, gei->bkwd->ipoints[i][2], gex->ipoints[i][2],
+									j, gei->bkwd->ipoints[j][2] - gei->ipoints[j][2],
+									gex->bkwd->ipoints[j][2] - gex->ipoints[j][2] );
+#endif
+								break;
+							}
+						}
+						if(gex == gem) { /* oops, the other side is too short */
+							good = 0;
+#if 0
+							fprintf(stderr, " X");
+#endif
+						}
+						if(good && gei == ge) {
+							if( isign(gei->bkwd->ipoints[j][2] - gei->ipoints[j][2])
+							!= isign(gex->bkwd->ipoints[j][2] - gex->ipoints[j][2]) ) {
+								good = 0; /* oops, goes into another direction */
+#if 0
+								fprintf(stderr, " D");
+#endif
+							}
+						}
+					}
+					if(!good) { /* it is spurious, drop it */
+#if 0
+						fprintf(stderr, " %p: %s spurious start\n", ge, gxf_name[d]);
+#endif
+						f->len[d] = 0;
+						ges = ge->frwd;
+						len--;
+						X_FRAG(ges)->len[d] = len;
+					}
+				}
+
+				gei = gem->bkwd->bkwd->bkwd;
+				if( (gem->ix3 != gem->bkwd->ix3) /* gem->bkwd is vert */
+				^ (isign(gem->bkwd->ix3 - gei->ix3)==isign(gem->bkwd->iy3 - gei->iy3))
+				^ (d == GEXFI_CONVEX) /* clockwise */ ) {
+					
+#if 0
+					fprintf(stderr, " %p: %s potential spurious end\n", gem->bkwd, gxf_name[d]);
+#endif
+					/* the end may be a spurious entry */
+
+					gex = 0; /* the extremum closest to the end - to be found */
+					for(gei = gem->bkwd->bkwd; gei != ges->bkwd; gei = gei->bkwd) {
+						if(X_FRAG(gei)->flags & GEXFF_EXTR) {
+							gex = gei;
+							break;
+						}
+					}
+					if(gex == 0)
+						gex = ges; 
+
+					good = 1; /* assume that gem->bkwd is not spurious */
+					/* gei goes backwards, gex goes forwards from the extremum */
+					gei = gex;
+					/* i is the symmetry axis, j is the other axis (X=0 Y=1) */
+					i = (gex->ix3 != gex->bkwd->ix3);
+					j = !i;
+					for( ; gei!=ges->bkwd && gex!=gem->bkwd; gei=gei->bkwd, gex=gex->frwd) {
+						if( gei->bkwd->ipoints[i][2] != gex->ipoints[i][2]
+						|| gei->bkwd->ipoints[j][2] - gei->ipoints[j][2]
+							!= gex->bkwd->ipoints[j][2] - gex->ipoints[j][2] 
+						) {
+							good = 0; /* no symmetry - must be spurious */
+#if 0
+							fprintf(stderr, " M(%p,%p)(%d %d,%d)(%d %d,%d)",
+								gei, gex,
+								i, gei->bkwd->ipoints[i][2], gex->ipoints[i][2],
+								j, gei->bkwd->ipoints[j][2] - gei->ipoints[j][2],
+								gex->bkwd->ipoints[j][2] - gex->ipoints[j][2] );
+#endif
+							break;
+						}
+					}
+					if(gei == ges->bkwd) { /* oops, the other side is too short */
+						good = 0;
+#if 0
+						fprintf(stderr, " X");
+#endif
+					}
+					if(good && gex == gem->bkwd) {
+						if( isign(gei->bkwd->ipoints[j][2] - gei->ipoints[j][2])
+						!= isign(gex->bkwd->ipoints[j][2] - gex->ipoints[j][2]) ) {
+							good = 0; /* oops, goes into another direction */
+#if 0
+							fprintf(stderr, " D");
+#endif
+						}
+					}
+					if(!good) { /* it is spurious, drop it */
+#if 0
+						fprintf(stderr, " %p: %s spurious end\n", gem->bkwd, gxf_name[d]);
+#endif
+						X_FRAG(ges)->len[d] = --len;
+					}
+				}
+				if(len < 4) {
+					X_FRAG(ges)->len[d] = 0;
+#if 0
+					fprintf(stderr, " %p: %s frag discarded, too small now\n", ge, gxf_name[d]);
+#endif
+				}
+				if(ges != ge) {
+					if(ges == cge->next)
+						break; /* went around the loop */
+					else {
+						ge = ges->frwd; /* don't look at this fragment twice */
+						continue;
+					}
+				}
+			}
+
+			ge = ge->frwd;
+		} while(ge != cge->next);
+	}
+
+	/* Find the straight line fragments.
+	 * Even though the lines are sloped, they are called
+	 * "vertical" or "horizontal" according to their longer
+	 * dimension. All the steps in the shother dimension must 
+	 * be 1 pixel long, all the steps in the longer dimension
+	 * must be within the difference of 1 pixel.
+	 */
+	for(d = GEXFI_LINE; d<= GEXFI_EXACTLINE; d++) {
+		ge = cge->next;
+		pge = ge->bkwd; /* the beginning of the fragment */
+		count = 1;
+		delaystop = 0;
+		do {
+			int h;
+
+			stepmore = 0;
+			hdir = isign(ge->ix3 - ge->bkwd->ix3);
+			vdir = isign(ge->iy3 - ge->bkwd->iy3);
+			vert = (hdir == 0);
+			if(count==1) {
+				/* at this point pge==ge->bkwd */
+				/* account for the previous gentry, which was !vert */
+				if(!vert) { /* prev was vertical */
+					maxlen[0] = minlen[0] = 0;
+					maxlen[1] = minlen[1] = abs(pge->iy3 - pge->bkwd->iy3);
+					line[0] = (maxlen[1] == 1);
+					line[1] = 1;
+					fullhdir = hdir;
+					fullvdir = isign(pge->iy3 - pge->bkwd->iy3);
+				} else {
+					maxlen[0] = minlen[0] = abs(pge->ix3 - pge->bkwd->ix3);
+					maxlen[1] = minlen[1] = 0;
+					line[0] = 1;
+					line[1] = (maxlen[0] == 1);
+					fullhdir = isign(pge->ix3 - pge->bkwd->ix3);
+					fullvdir = vdir;
+				}
+			}
+			h = line[0]; /* remember the prevalent direction */
+#if 0
+			fprintf(stderr, "  %p: v=%d(%d) h=%d(%d) vl(%d,%d,%d) hl=(%d,%d,%d) %s count=%d ",
+				ge, vdir, fullvdir, hdir, fullhdir, 
+				line[1], minlen[1], maxlen[1],
+				line[0], minlen[0], maxlen[0],
+				gxf_name[d], count);
+#endif
+			if(vert) {
+				if(vdir != fullvdir)
+					line[0] = line[1] = 0;
+				len = abs(ge->iy3 - ge->bkwd->iy3);
+			} else {
+				if(hdir != fullhdir)
+					line[0] = line[1] = 0;
+				len = abs(ge->ix3 - ge->bkwd->ix3);
+			}
+#if 0
+			fprintf(stderr, "len=%d\n", len);
+#endif
+			if(len != 1) /* this is not a continuation in the short dimension */
+				line[!vert] = 0;
+
+			/* can it be a continuation in the long dimension ? */
+			if( line[vert] ) {
+				if(maxlen[vert]==0)
+					maxlen[vert] = minlen[vert] = len;
+				else if(maxlen[vert]==minlen[vert]) {
+					if(d == GEXFI_EXACTLINE) {
+						if(len != maxlen[vert])
+							line[vert] = 0; /* it can't */
+					} else if(len < maxlen[vert]) {
+						if(len < minlen[vert]-1)
+							line[vert] = 0; /* it can't */
+						else
+							minlen[vert] = len;
+					} else {
+						if(len > maxlen[vert]+1)
+							line[vert] = 0; /* it can't */
+						else
+							maxlen[vert] = len;
+					}
+				} else if(len < minlen[vert] || len > maxlen[vert])
+					line[vert] = 0; /* it can't */
+			}
+
+			if(line[0] == 0 && line[1] == 0) {
+#if 0
+				if(count >= 3)
+					fprintf(stderr, " %s frag %p-%p count=%d\n", gxf_name[d], pge, ge->bkwd, count);
+#endif
+				X_FRAG(pge)->len[d] = count;
+				if(d == GEXFI_EXACTLINE && h) {
+					X_FRAG(pge)->flags |= GEXFF_HLINE;
+				}
+				if(count == 1)
+					pge = ge;
+				else {
+					stepmore = 1; /* may reconsider the 1st gentry */
+					pge = ge = ge->bkwd;
+					count = 1;
+				}
+			} else
+				count++;
+
+			ge = ge->frwd;
+			if(ge == cge->next && !stepmore)
+				delaystop = 1; /* consider the first gentry again */
+		} while(stepmore || ge != cge->next ^ delaystop);
+		/* see if there is an unfinished line left */
+		if(count != 1) {
+#if 0
+			if(count >= 3)
+				fprintf(stderr, " %s frag %p-%p count=%d\n", gxf_name[d], pge, ge->bkwd, count);
+#endif
+			X_FRAG(ge->bkwd->bkwd)->len[d] = 0;
+			X_FRAG(pge)->len[d] = count;
+		}
+	}
+
+	/* do postprocessing of the lines */
+#if 0
+	fprintf(stderr, "Line postprocessing\n");
+	gex_dump_contour(cge->next, cctr->clen);
+#endif
+
+	/* the non-exact line frags are related to exact line frags sort 
+	 * of like to individual gentries: two kinds of exact frags
+	 * must be interleaved, with one kind having the size of 3
+	 * and the other kind having the size varying within +-2.
+	 */
+
+	ge = cge->next;
+	do {
+		GEX_FRAG *pf, *lastf1, *lastf2;
+		int len1, len2, fraglen;
+
+		f = X_FRAG(ge);
+
+		fraglen = f->len[GEXFI_LINE];
+		if(fraglen >= 4) {
+
+			vert = 0; /* vert is a pseudo-directon */
+			line[0] = line[1] = 1;
+			maxlen[0] = minlen[0] = maxlen[1] = minlen[1] = 0;
+			lastf2 = lastf1 = f;
+			len2 = len1 = 0;
+			for(pge = ge, i = 1; i < fraglen; i++, pge=pge->frwd) {
+				pf = X_FRAG(pge);
+				len = pf->len[GEXFI_EXACTLINE];
+#if 0
+				fprintf(stderr, "      pge=%p i=%d of %d ge=%p exLen=%d\n", pge, i, 
+					f->len[GEXFI_LINE], ge, len);
+#endif
+				len1++; len2++;
+				if(len==0) {
+					continue;
+				}
+				vert = !vert; /* alternate the pseudo-direction */
+				if(len > 3)
+					line[!vert] = 0;
+				if(maxlen[vert] == 0)
+					maxlen[vert] = minlen[vert] = len;
+				else if(maxlen[vert]-2 >= len && minlen[vert]+2 <= len) {
+					if(len > maxlen[vert])
+						maxlen[vert] = len;
+					else if(len < minlen[vert])
+						minlen[vert] = len;
+				} else
+					line[vert] = 0;
+				if(line[0] == 0 && line[1] == 0) {
+#if 0
+					fprintf(stderr, "  Line breaks at %p %c(%d, %d) %c(%d, %d) len=%d fl=%d l2=%d l1=%d\n",
+						pge, (!vert)?'*':' ', minlen[0], maxlen[0], 
+						vert?'*':' ', minlen[1], maxlen[1], len, fraglen, len2, len1);
+#endif
+					if(lastf2 != lastf1) {
+						lastf2->len[GEXFI_LINE] = len2-len1;
+					}
+					lastf1->len[GEXFI_LINE] = len1+1;
+					pf->len[GEXFI_LINE] = fraglen+1 - i;
+#if 0
+					gex_dump_contour(pge, cctr->clen);
+#endif
+
+					/* continue with the line */
+					vert = 0; /* vert is a pseudo-directon */
+					line[0] = line[1] = 1;
+					maxlen[0] = minlen[0] = maxlen[1] = minlen[1] = 0;
+					lastf2 = lastf1 = f;
+					len2 = len1 = 0;
+				} else {
+					lastf1 = pf;
+					len1 = 0;
+				}
+			}
+		}
+
+		ge = ge->frwd;
+	} while(ge != cge->next);
+#if 0
+	fprintf(stderr, "Line postprocessing part 2\n");
+	gex_dump_contour(cge->next, cctr->clen);
+#endif
+
+	ge = cge->next;
+	do {
+		f = X_FRAG(ge);
+
+		if(f->len[GEXFI_LINE] >= 4) {
+			len = f->len[GEXFI_EXACTLINE];
+			/* if a non-exact line covers precisely two exact lines,
+			 * split it
+			 */
+			if(len > 0 && f->len[GEXFI_LINE] >= len+1) {
+				GEX_FRAG *pf;
+				pge = cctr->age[(f->aidx + len - 1)%cctr->clen]; /* last gentry of exact line */
+				pf = X_FRAG(pge);
+				if(f->len[GEXFI_LINE] + 1 == len + pf->len[GEXFI_EXACTLINE]) {
+					f->len[GEXFI_LINE] = len;
+					f->flags |= GEXFF_SPLIT;
+					pf->len[GEXFI_LINE] = pf->len[GEXFI_EXACTLINE];
+					pf->flags |= GEXFF_SPLIT;
+				}
+			}
+		}
+
+		ge = ge->frwd;
+	} while(ge != cge->next);
+#if 0
+	fprintf(stderr, "Line postprocessing part 2a\n");
+	gex_dump_contour(cge->next, cctr->clen);
+#endif
+	ge = cge->next;
+	do {
+		f = X_FRAG(ge);
+
+		/* too small lines are of no interest */
+		if( (f->flags & GEXFF_SPLIT)==0 && f->len[GEXFI_LINE] < 4)
+			f->len[GEXFI_LINE] = 0;
+
+		len = f->len[GEXFI_EXACTLINE];
+		/* too small exact lines are of no interest */
+		if(len < 3) /* exact lines may be shorter */
+			f->len[GEXFI_EXACTLINE] = 0;
+		/* get rid of inexact additions to the end of the exact lines */
+		else if(f->len[GEXFI_LINE] == len+1)
+			f->len[GEXFI_LINE] = len;
+		/* same at the beginning */
+		else {
+			int diff = X_FRAG(ge->bkwd)->len[GEXFI_LINE] - len;
+
+			if(diff == 1 || diff == 2) {
+				X_FRAG(ge->bkwd)->len[GEXFI_LINE] = 0;
+				f->len[GEXFI_LINE] = len;
+			}
+		}
+
+		ge = ge->frwd;
+	} while(ge != cge->next);
+#if 0
+	fprintf(stderr, "Line postprocessing is completed\n");
+	gex_dump_contour(cge->next, cctr->clen);
+#endif
+
+	gex_calc_lenback(cge->next, cctr->clen); /* prepare data */
+
+}
+
+/*
+ * the short (3-gentry) curve frags must have one of the ends
+ * coinciding with another curve frag of the same type
+ */
+
+static void
+discard_small_curves(
+	GLYPH *g,
+	struct bmpcontour *contours,
+	int cidx
+)
+{
+	struct bmpcontour *cctr = &contours[cidx];
+	GENTRY *cge = cctr->cge;
+	GENTRY **age = cctr->age;
+	int clen = cctr->clen;
+
+	GENTRY *ge, *pge;
+	int d, len;
+	GEX_FRAG *f;
+
+	for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
+		ge = cge->next;
+		do {
+			f = X_FRAG(ge);
+
+			if(f->len[d] == 3) {
+				pge = age[(f->aidx + 2)%clen]; /* last gentry of this frag */
+				if(f->lenback[d] == 0 && X_FRAG(pge)->len[d] == 0) {
+					fprintf(stderr, "    discarded small %s at %p-%p\n", gxf_name[d], ge, pge);
+					f->len[d] = 0;
+					X_FRAG(ge->frwd)->lenback[d] = 0;
+					X_FRAG(ge->frwd->frwd)->lenback[d] = 0;
+				}
+			}
+			ge = ge->frwd;
+		} while(ge != cge->next);
+	}
+}
+
+/* the serifs take priority over everything else:
+ * anything covered by serifs gets subtracted from the other fragments
+ */
+
+static void
+prefer_serifs(
+	GLYPH *g,
+	struct bmpcontour *contours,
+	int cidx
+)
+{
+	struct bmpcontour *cctr = &contours[cidx];
+	GENTRY *cge = cctr->cge;
+	GENTRY **age = cctr->age;
+	int clen = cctr->clen;
+
+	GENTRY *ge, *pge;
+	int d, len;
+	GEX_FRAG *f;
+
+	ge = cge->next;
+	do {
+		f = X_FRAG(ge);
+
+		len = f->len[GEXFI_SERIF];
+		if(len == 0)
+			continue;
+
+		if(len != 2) { /* this is used in the code below */
+			fprintf(stderr, "Internal error at %s line %d: serif frags len is %d\n",
+				__FILE__, __LINE__, len);
+			exit(1);
+		}
+
+		for(d = 0; d < GEXFI_SERIF; d++) {
+			/* serifs may not have common ends with the other fragments,
+			 * this is expressed as extending them by 1 gentry on each side
+			 */
+			frag_subtract(g, age, clen, ge->bkwd, len+2, d);
+		}
+	} while( (ge = ge->frwd) != cge->next);
+}
+
+/*
+ * longer exact lines take priority over curves; shorter lines
+ * and inexact lines are resolved with convex/concave conflicts
+ */
+
+static void
+prefer_long_lines(
+	GLYPH *g,
+	struct bmpcontour *contours,
+	int cidx
+)
+{
+	struct bmpcontour *cctr = &contours[cidx];
+	GENTRY *cge = cctr->cge;
+	GENTRY **age = cctr->age;
+	int clen = cctr->clen;
+
+	GENTRY *ge, *pge;
+	int d, len;
+	GEX_FRAG *f;
+
+	ge = cge->next;
+	do {
+		f = X_FRAG(ge);
+
+		len = f->len[GEXFI_EXACTLINE]; 
+
+		if(len < 6) { /* line is short */
+			ge = ge->frwd;
+			continue;
+		}
+
+		fprintf(stderr, "   line at %p len=%d\n", ge, f->len[GEXFI_EXACTLINE]);
+		for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
+			frag_subtract(g, age, clen, ge, len, d);
+		}
+
+		ge = ge->frwd;
+	} while(ge != cge->next);
+}
+
+/*
+ * The exact lines take priority over curves that coincide
+ * with them or extend by only one gentry on either side
+ * (but not both sides). By this time it applies only to the
+ * small exact lines.
+ *
+ * An interesting general case is when a curve matches more
+ * than one exact line going diamond-like.
+ */
+
+static void
+prefer_exact_lines(
+	GLYPH *g,
+	struct bmpcontour *contours,
+	int cidx
+)
+{
+	struct bmpcontour *cctr = &contours[cidx];
+	GENTRY *cge = cctr->cge;
+	GENTRY **age = cctr->age;
+	int clen = cctr->clen;
+
+	GENTRY *ge, *pge;
+	int d, len, i;
+	GEX_FRAG *f;
+
+	ge = cge->next;
+	do {
+		int done, len2;
+		int sharpness;
+		GEX_FRAG *pf;
+
+		f = X_FRAG(ge);
+
+		/* "sharpness" shows how a group of exact line frags is connected: if the gentries 
+		 * of some of them overlap, the curve matching requirement is loosened: it may
+		 * extend up to 1 gentry beyond each end of the group of exact line frags
+		 * (sharpness=2); otherwise it may extend to only one end (sharpness=1)
+		 */
+		sharpness = 1;
+
+		len = f->len[GEXFI_EXACTLINE];
+		if(len >= 4) {
+			while(len < clen) {
+				done = 0;
+				pf = X_FRAG(ge->bkwd);
+				for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
+					if(f->len[d] == len || f->len[d] == len+1) {
+
+						fprintf(stderr, "    removed %s frag at %p len=%d linelen=%d\n", 
+							gxf_name[d], ge, f->len[d], len);
+						pge = ge->frwd;
+						for(i = f->len[d]; i > 1; i--, pge = pge->frwd)
+							X_FRAG(pge)->lenback[d] = 0;
+						f->len[d] = 0;
+						gex_dump_contour(ge, clen);
+						done = 1;
+					} else if(pf->len[d] == len+1 || pf->len[d] == len+sharpness) {
+						fprintf(stderr, "    removed %s frag at %p len=%d next linelen=%d\n", 
+							gxf_name[d], ge->bkwd, pf->len[d], len);
+						pge = ge;
+						for(i = pf->len[d]; i > 1; i--, pge = pge->frwd)
+							X_FRAG(pge)->lenback[d] = 0;
+						pf->len[d] = 0;
+						gex_dump_contour(ge, clen);
+						done = 1;
+					}
+				}
+				if(done)
+					break;
+
+				/* is there any chance to match a sequence of exect lines ? */
+				if(f->len[GEXFI_CONVEX] < len && f->len[GEXFI_CONCAVE] < len
+				&& pf->len[GEXFI_CONVEX] < len && pf->len[GEXFI_CONCAVE] < len)
+					break;
+
+				done = 1;
+				/* check whether the line is connected to another exact line at an extremum */
+				pge = age[(f->aidx + len - 1)%clen]; /* last gentry of exact line */
+				len2 = X_FRAG(pge)->len[GEXFI_EXACTLINE];
+				if(len2 > 0) {
+					if( len2 >= 4 && (X_FRAG(pge)->flags & GEXFF_EXTR) ) {
+						len += len2 - 1;
+						sharpness = 2;
+						done = 0;
+					}
+				} else {
+					/* see if the extremum is between two exact lines */
+					pge = pge->frwd;
+					if(X_FRAG(pge)->flags & GEXFF_EXTR) {
+						pge = pge->frwd;
+						len2 = X_FRAG(pge)->len[GEXFI_EXACTLINE];
+						if(len2 >= 4) {
+							len += len2 + 1;
+							done = 0;
+						}
+					}
+				}
+				if(done)
+					break;
+			}
+		}
+
+		ge = ge->frwd;
+	} while(ge != cge->next);
+}
+
+/* 
+ * The lines may cover only whole curves (or otherwise empty space),
+ * so cut them where they overlap parts of the curves. If 2 or less
+ * gentries are left in the line, remove the line.
+ * If a line and a curve fully coincide, remove the line.  Otherwise 
+ * remove the curves that are completely covered by the lines.
+ */
+
+static void
+resolve_curves_lines(
+	GLYPH *g,
+	struct bmpcontour *contours,
+	int cidx
+)
+{
+	struct bmpcontour *cctr = &contours[cidx];
+	GENTRY *cge = cctr->cge;
+	GENTRY **age = cctr->age;
+	int clen = cctr->clen;
+
+	GENTRY *ge, *pge;
+	int d, len, i;
+	GEX_FRAG *f;
+	int k1, k2, good;
+
+	ge = cge->next;
+	do {
+		f = X_FRAG(ge);
+
+	reconsider_line:
+		len = f->len[GEXFI_LINE];
+
+		if(len == 0) {
+			ge = ge->frwd;
+			continue;
+		}
+
+		if(f->len[GEXFI_CONVEX] >= len 
+		|| f->len[GEXFI_CONCAVE] >= len) {
+	line_completely_covered:
+			fprintf(stderr, "    removed covered Line frag at %p len=%d\n", 
+				ge, len);
+			f->len[GEXFI_LINE] = 0;
+			for(pge = ge->frwd; len > 1; len--, pge = pge->frwd)
+				X_FRAG(pge)->lenback[GEXFI_LINE] = 0;
+			gex_dump_contour(ge, clen);
+			ge = ge->frwd;
+			continue;
+		}
+		
+		k1 = 0; /* how much to cut at the front */
+		for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
+			if(f->lenback[d]) {
+				pge = age[(f->aidx + clen - f->lenback[d])%clen];
+				i = X_FRAG(pge)->len[d] - f->lenback[d] - 1;
+				if(i > k1)
+					k1 = i;
+			}
+		}
+
+		k2 = 0; /* how much to cut at the end */
+		pge = age[(f->aidx + len)%clen]; /* gentry after the end */
+		for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
+			i = X_FRAG(pge)->lenback[d] - 1;
+			if(i > k2)
+				k2 = i;
+		}
+
+		if(k1+k2 > 0 && k1+k2 >= len-3) {
+			fprintf(stderr, "    k1=%d k2=%d\n", k1, k2);
+			goto line_completely_covered;
+		}
+
+
+		if(k2 != 0) { /* cut the end */
+			len -= k2;
+			f->len[GEXFI_LINE] = len;
+			/* pge still points after the end */
+			for(i = k2, pge = pge->bkwd; i > 0; i--, pge = pge->bkwd)
+				X_FRAG(pge)->lenback[GEXFI_LINE] = 0;
+		}
+		if(k1 != 0) { /* cut the beginning */
+			len -= k1;
+			f->len[GEXFI_LINE] = 0;
+			for(i = 1, pge = ge->frwd; i < k1; i++, pge = pge->frwd)
+				X_FRAG(pge)->lenback[GEXFI_LINE] = 0;
+			X_FRAG(pge)->len[GEXFI_LINE] = len;
+			for(i = 0; i < len; i++, pge = pge->frwd)
+				X_FRAG(pge)->lenback[GEXFI_LINE] = i;
+		}
+		if(k1 != 0 || k2 != 0) {
+			fprintf(stderr, "    cut Line frag at %p by (%d,%d) to len=%d\n", 
+				ge, k1, k2, len);
+			gex_dump_contour(ge, clen);
+
+			goto reconsider_line; /* the line may have to be cut again */
+		}
+		pge = age[(f->aidx + k1)%clen]; /* new beginning */
+		good = 1; /* flag: no need do do a debugging dump */
+		for(i=1; i<len; i++, pge = pge->frwd)
+			for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
+				if(X_FRAG(pge)->len[d]) {
+					fprintf(stderr, "    removed %s frag at %p len=%d covered by line\n", 
+						gxf_name[d], pge, X_FRAG(pge)->len[d], len);
+					good = 0;
+				}
+				X_FRAG(pge)->len[d] = 0;
+			}
+		pge = age[(f->aidx + k1 + 1)%clen]; /* next after new beginning */
+		for(i=1; i<len; i++, pge = pge->frwd)
+			for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++)
+				X_FRAG(pge)->lenback[d] = 0;
+		if(!good)
+			gex_dump_contour(ge, clen);
+
+		ge = ge->frwd;
+	} while(ge != cge->next);
+}
+
+/* Resolve conflicts between curves */
+
+static void
+resolve_curves(
+	GLYPH *g,
+	struct bmpcontour *contours,
+	int cidx
+)
+{
+	struct bmpcontour *cctr = &contours[cidx];
+	GENTRY *cge = cctr->cge;
+	GENTRY **age = cctr->age;
+	int clen = cctr->clen;
+
+	GENTRY *ge, *pge;
+	int d, dx, len, i, j, k1, k2;
+	GEX_FRAG *f;
+
+	for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
+		dx = (GEXFI_CONVEX + GEXFI_CONCAVE) - d; /* the other type */
+		ge = cge->next;
+		do {
+			GENTRY *sge;
+
+			f = X_FRAG(ge);
+			len = f->len[d];
+			if(len < 2) {
+				ge = ge->frwd;
+				continue;
+			}
+			sge = ge; /* the start of fragment */
+
+			i = f->len[dx];
+			if(i != 0) { /* two curved frags starting here */
+				/* should be i!=len because otherwise they would be
+				 * covered by an exact line
+				 */
+				if(i > len) {
+				curve_completely_covered:
+					/* remove the convex frag */
+					fprintf(stderr, "    removed %s frag at %p len=%d covered by %s\n", 
+						gxf_name[d], ge, len, gxf_name[dx]);
+					f->len[d] = 0;
+					for(pge = ge->frwd, j = 1; j < len; j++, pge = pge->frwd)
+						X_FRAG(pge)->lenback[d] = 0;
+					gex_dump_contour(ge, clen);
+
+					ge = ge->frwd; /* the frag is gone, nothing more to do */
+					continue;
+				} else {
+					/* remove the concave frag */
+					fprintf(stderr, "    removed %s frag at %p len=%d covered by %s\n", 
+						gxf_name[dx], ge, i, gxf_name[d]);
+					f->len[dx] = 0;
+					for(pge = ge->frwd, j = 1; j < i; j++, pge = pge->frwd)
+						X_FRAG(pge)->lenback[dx] = 0;
+					gex_dump_contour(ge, clen);
+				}
+			}
+
+
+			k1 = X_FRAG(ge->frwd)->lenback[dx];
+			if(k1 != 0) { /* conflict at the front */
+				GENTRY *gels, *gele, *gei;
+
+				pge = age[(f->aidx + clen - (k1-1))%clen]; /* first gentry of concave frag */
+				k2 = X_FRAG(pge)->len[dx]; /* its length */
+				
+				i = k2 - (k1-1); /* amount of overlap */
+				if(i > len)
+					i = len;
+				/* i >= 2 by definition */
+				if(i >= k2-1) { /* covers the other frag - maybe with 1 gentry showing */
+					fprintf(stderr, "    removed %s frag at %p len=%d covered by %s\n", 
+						gxf_name[dx], pge, k2, gxf_name[d]);
+					X_FRAG(pge)->len[dx] = 0;
+					for(pge = pge->frwd, j = 1; j < k2; j++, pge = pge->frwd)
+						X_FRAG(pge)->lenback[dx] = 0;
+					if(i >= len-1) { /* covers our frag too - maybe with 1 gentry showing */
+						/* our frag will be removed as well, prepare a line to replace it */
+						gels = ge;
+						gele = age[(f->aidx + i - 1)%clen];
+						fprintf(stderr, "    new Line frag at %p-%p len=%d\n", gels, gele, i);
+						X_FRAG(gels)->len[GEXFI_LINE] = i;
+						for(gei = gels->frwd, j = 1; j < i; gei = gei->frwd, j++)
+							X_FRAG(gei)->lenback[GEXFI_LINE] = j;
+					} else {
+						gex_dump_contour(ge, clen);
+						ge = ge->frwd;
+						continue;
+					}
+				}
+				if(i >= len-1) /* covers our frag - maybe with 1 gentry showing */
+					goto curve_completely_covered;
+
+				/* XXX need to do something better for the case when a curve frag
+				 * is actually nothing but an artifact of two other curves of
+				 * the opposite type touching each other, like on the back of "3"
+				 */
+
+				/* change the overlapping part to a line */
+				gels = ge;
+				gele = age[(f->aidx + i - 1)%clen];
+				/* give preference to local extremums */
+				if(X_FRAG(gels)->flags & GEXFF_EXTR) {
+					gels = gels->frwd;
+					i--;
+				}
+				if(X_FRAG(gele)->flags & GEXFF_EXTR) {
+					gele = gele->bkwd;
+					i--;
+				}
+				if(gels->bkwd == gele) { 
+					/* Oops the line became negative.  Probably should 
+					 * never happen but I can't think of any formal reasoning
+					 * leading to that, so check just in case. Restore
+					 * the previous state.
+					 */
+					gels = gele; gele = gels->frwd; i = 2;
+				}
+
+				j = X_FRAG(gels)->lenback[dx] + 1; /* new length */
+				if(j != k2) {
+					X_FRAG(pge)->len[dx] = j;
+					fprintf(stderr, "    cut %s frag at %p len=%d to %p len=%d end overlap with %s\n", 
+						gxf_name[dx], pge, k2, gels, j, gxf_name[d]);
+					for(gei = gels->frwd; j < k2; gei = gei->frwd, j++)
+						X_FRAG(gei)->lenback[dx] = 0;
+				}
+
+				if(gele != ge) {
+					sge = gele;
+					f->len[d] = 0;
+					fprintf(stderr, "    cut %s frag at %p len=%d ", gxf_name[d], ge, len);
+					len--;
+					for(gei = ge->frwd; gei != gele; gei = gei->frwd, len--)
+						X_FRAG(gei)->lenback[d] = 0;
+					X_FRAG(gele)->len[d] = len;
+					X_FRAG(gele)->lenback[d] = 0;
+					fprintf(stderr, "to %p len=%d start overlap with %s\n", 
+						sge, len, gxf_name[dx]);
+					for(gei = gei->frwd, j = 1; j < len; gei = gei->frwd, j++)
+						X_FRAG(gei)->lenback[d] = j;
+
+				}
+				if(i > 1) {
+					fprintf(stderr, "    new Line frag at %p-%p len=%d\n", gels, gele, i);
+					X_FRAG(gels)->len[GEXFI_LINE] = i;
+					for(gei = gels->frwd, j = 1; j < i; gei = gei->frwd, j++)
+						X_FRAG(gei)->lenback[GEXFI_LINE] = j;
+				}
+				gex_dump_contour(ge, clen);
+			}
+
+			ge = ge->frwd;
+		} while(ge != cge->next);
+	}
+}
+
+/* 
+ * Assert that there are no conflicts any more and
+ * for each gentry find the fragment types that start
+ * and continue here.
+ */
+
+static void
+assert_no_conflicts(
+	GLYPH *g,
+	struct bmpcontour *contours,
+	int cidx
+)
+{
+	struct bmpcontour *cctr = &contours[cidx];
+	GENTRY *cge = cctr->cge;
+	GENTRY **age = cctr->age;
+	int clen = cctr->clen;
+
+	GENTRY *ge, *pge;
+	int d, len, dx, dy;
+	GEX_FRAG *f;
+
+	ge = cge->next;
+	do {
+		f = X_FRAG(ge);
+		dx = GEXFI_NONE; /* type that starts here */
+		dy = GEXFI_NONE; /* type that goes through here */
+		/* GEXFI_EXACTLINE and GEXFI_SERIF are auxiliary and don't
+		 * generate any actual lines/curves in the result
+		 */
+		for(d = GEXFI_CONVEX; d<= GEXFI_LINE; d++) {
+			if(f->len[d]) {
+				if(dx >= 0) {
+					fprintf(stderr, "**** Internal error in vectorization\n");
+					fprintf(stderr, "CONFLICT in %s at %p between %s and %s\n",
+						g->name, ge, gxf_name[dx], gxf_name[d]);
+					dumppaths(g, cge->next, cge->next->bkwd);
+					gex_dump_contour(ge, clen);
+					exit(1);
+				}
+				dx = d;
+			}
+			if(f->lenback[d]) {
+				if(dy >= 0) {
+					fprintf(stderr, "**** Internal error in vectorization\n");
+					fprintf(stderr, "CONFLICT in %s at %p between %s and %s\n",
+						g->name, ge, gxf_name[dy], gxf_name[d]);
+					dumppaths(g, cge->next, cge->next->bkwd);
+					gex_dump_contour(ge, clen);
+					exit(1);
+				}
+				dy = d;
+			}
+		}
+		f->ixstart = dx;
+		f->ixcont = dy;
+		ge = ge->frwd;
+	} while(ge != cge->next);
+
+	/*
+	 * make sure that the contour does not start in the
+	 * middle of a fragment
+	 */
+	ge = cge->next; /* old start of the contour */
+	f = X_FRAG(ge);
+	if(f->ixstart == GEXFI_NONE && f->ixcont != GEXFI_NONE) {
+		/* oops, it's mid-fragment, move the start */
+		GENTRY *xge;
+
+		xge = ge->bkwd->next; /* entry following the contour */
+
+		/* find the first gentry of this frag */
+		pge = age[(f->aidx + clen - f->lenback[f->ixcont])%clen]; 
+
+		ge->prev = ge->bkwd; 
+		ge->bkwd->next = ge;
+
+		cge->next = pge;
+		pge->prev = cge;
+
+		pge->bkwd->next = xge;
+		if(xge) 
+			xge->prev = pge->bkwd;
+
+		cge->ix3 = pge->bkwd->ix3; cge->iy3 = pge->bkwd->iy3;
+	}
+}
+
+/*
+ * Do the vectorization itself based on the data collected
+ * during analysis (including all resolution of conflicts).
+ */
+
+static void
+vectorize_contour(
+	GLYPH *g,
+	struct bmpcontour *contours,
+	int cidx,
+	double fscale
+)
+{
+	struct bmpcontour *cctr = &contours[cidx];
+	GENTRY *cge = cctr->cge;
+	GENTRY **age = cctr->age;
+	int clen = cctr->clen;
+
+	GENTRY *ge, *pge;
+	int d, len, k1, k2, count, good, i, j;
+	GEX_FRAG *f;
+
+	/* vectorize each fragment separately 
+	 * make 2 passes: first handle the straight lines, then
+	 * the curves to allow the curver to be connected smoothly
+	 * to the straights
+	 */
+	ge = cge->next;
+	do { /* pass 1 */
+		f = X_FRAG(ge);
+		switch(f->ixstart) {
+		case GEXFI_LINE:
+			len = f->len[GEXFI_LINE];
+			pge = age[(f->aidx + len - 1)%clen]; /* last gentry */
+
+			if(ge->iy3 == ge->bkwd->iy3) { /* frag starts and ends horizontally */
+				k1 = 1/*Y*/ ; /* across the direction of start */
+				k2 = 0/*X*/ ; /* along the direction of start */
+			} else { /* frag starts and ends vertically */
+				k1 = 0/*X*/ ; /* across the direction of start */
+				k2 = 1/*Y*/ ; /* along the direction of start */
+			}
+
+			if(len % 2) {
+				/* odd number of entries in the frag */
+				double halfstep, halfend;
+
+				f->vect[0][k1] = fscale * ge->ipoints[k1][2];
+				f->vect[3][k1] = fscale * pge->ipoints[k1][2];
+
+				halfstep = (pge->ipoints[k2][2] - ge->bkwd->ipoints[k2][2]) 
+					* 0.5 / ((len+1)/2);
+				if(f->ixcont != GEXFI_NONE) {
+					halfend = (ge->ipoints[k2][2] - ge->bkwd->ipoints[k2][2]) * 0.5;
+					if(fabs(halfstep) < fabs(halfend)) /* must be at least half gentry away */
+						halfstep = halfend;
+				}
+				if(X_FRAG(pge)->ixstart != GEXFI_NONE) {
+					halfend = (pge->ipoints[k2][2] - pge->bkwd->ipoints[k2][2]) * 0.5;
+					if(fabs(halfstep) < fabs(halfend)) /* must be at least half gentry away */
+						halfstep = halfend;
+				}
+				f->vect[0][k2] = fscale * (ge->bkwd->ipoints[k2][2] + halfstep);
+				f->vect[3][k2] = fscale * (pge->ipoints[k2][2] - halfstep);
+			} else {
+				/* even number of entries */
+				double halfstep, halfend;
+
+				f->vect[0][k1] = fscale * ge->ipoints[k1][2];
+				halfstep = (pge->ipoints[k2][2] - ge->bkwd->ipoints[k2][2]) 
+					* 0.5 / (len/2);
+				if(f->ixcont != GEXFI_NONE) {
+					halfend = (ge->ipoints[k2][2] - ge->bkwd->ipoints[k2][2]) * 0.5;
+					if(fabs(halfstep) < fabs(halfend)) /* must be at least half gentry away */
+						halfstep = halfend;
+				}
+				f->vect[0][k2] = fscale * (ge->bkwd->ipoints[k2][2] + halfstep);
+
+				halfstep = (pge->ipoints[k1][2] - ge->bkwd->ipoints[k1][2]) 
+					* 0.5 / (len/2);
+				if(X_FRAG(pge)->ixstart != GEXFI_NONE) {
+					halfend = (pge->ipoints[k1][2] - pge->bkwd->ipoints[k1][2]) * 0.5;
+					if(fabs(halfstep) < fabs(halfend)) /* must be at least half gentry away */
+						halfstep = halfend;
+				}
+				f->vect[3][k1] = fscale * (pge->ipoints[k1][2] - halfstep);
+				f->vect[3][k2] = fscale * pge->ipoints[k2][2];
+			}
+			f->vectlen = len;
+			f->flags |= GEXFF_DRAWLINE;
+			break;
+		}
+	} while((ge = ge->frwd) != cge->next);
+
+	ge = cge->next;
+	do { /* pass 2 */
+		/* data for curves */
+		GENTRY *firstge, *lastge, *gef, *gel, *gei, *gex;
+		GENTRY *ordhd; /* head of the order list */
+		GENTRY **ordlast;
+		int nsub; /* number of subfrags */
+		GEX_FRAG *ff, *lf, *xf;
+
+		f = X_FRAG(ge);
+		switch(f->ixstart) {
+		case GEXFI_CONVEX:
+		case GEXFI_CONCAVE:
+			len = f->len[f->ixstart];
+			firstge = ge;
+			lastge = age[(f->aidx + len - 1)%clen]; /* last gentry */
+
+			nsub = 0;
+			gex = firstge;
+			xf = X_FRAG(gex);
+			xf->prevsub = 0;
+			xf->sublen = 1;
+			xf->flags &= ~GEXFF_DONE;
+			for(gei = firstge->frwd; gei != lastge; gei = gei->frwd) {
+				xf->sublen++;
+				if(X_FRAG(gei)->flags & GEXFF_EXTR) {
+						xf->nextsub = gei;
+						for(i=0; i<2; i++)
+							xf->bbox[i] = abs(gei->ipoints[i][2] - gex->bkwd->ipoints[i][2]);
+						nsub++;
+						xf = X_FRAG(gei);
+						xf->prevsub = gex;
+						xf->sublen = 1;
+						xf->flags &= ~GEXFF_DONE;
+						gex = gei;
+					}
+			}
+			xf->sublen++;
+			xf->nextsub = gei;
+			for(i=0; i<2; i++)
+				xf->bbox[i] = abs(gei->ipoints[i][2] - gex->bkwd->ipoints[i][2]);
+			nsub++;
+			ff = xf; /* remember the beginning of the last subfrag */
+			xf = X_FRAG(gei);
+			xf->prevsub = gex;
+			if(firstge != lastge) {
+				xf->nextsub = 0;
+				xf->sublen = 0;
+
+				/* correct the bounding box of the last and first subfrags for
+				 * intersections with other fragments 
+				 */
+				if(xf->ixstart != GEXFI_NONE) {
+					/* ff points to the beginning of the last subfrag */
+					for(i=0; i<2; i++)
+						ff->bbox[i] -= 0.5 * abs(lastge->ipoints[i][2] - lastge->bkwd->ipoints[i][2]);
+				}
+				ff = X_FRAG(firstge);
+				if(ff->ixcont != GEXFI_NONE) {
+					for(i=0; i<2; i++)
+						ff->bbox[i] -= 0.5 * abs(firstge->ipoints[i][2] - firstge->bkwd->ipoints[i][2]);
+				}
+			}
+
+			fprintf(stderr, " %s frag %p%s nsub=%d\n", gxf_name[f->ixstart],
+				ge, (f->flags&GEXFF_CIRC)?" circular":"", nsub);
+
+			/* find the symmetry between the subfragments */
+			for(gef = firstge, count=0; count < nsub; gef = ff->nextsub, count++) {
+				ff = X_FRAG(gef);
+				gex = ff->nextsub;
+				xf = X_FRAG(gex);
+				gel = xf->nextsub;
+				if(gel == 0) {
+					ff->flags &= ~GEXFF_SYMNEXT;
+					break; /* not a circular frag */
+				}
+				good = 1; /* assume that we have symmetry */
+				/* gei goes backwards, gex goes forwards from the extremum */
+				gei = gex;
+				/* i is the symmetry axis, j is the other axis (X=0 Y=1) */
+				ff->symaxis = i = (gex->ix3 != gex->bkwd->ix3);
+				j = !i;
+				for( ; gei!=gef && gex!=gel; gei=gei->bkwd, gex=gex->frwd) {
+					if( gei->bkwd->ipoints[i][2] != gex->ipoints[i][2]
+					|| gei->bkwd->ipoints[j][2] - gei->ipoints[j][2]
+						!= gex->bkwd->ipoints[j][2] - gex->ipoints[j][2] 
+					) {
+						good = 0; /* no symmetry */
+						break;
+					}
+				}
+				if(good) {
+					if( isign(gei->bkwd->ipoints[j][2] - gei->ipoints[j][2])
+					!= isign(gex->bkwd->ipoints[j][2] - gex->ipoints[j][2]) ) {
+						good = 0; /* oops, goes into another direction */
+					}
+				}
+				if(good)
+					ff->flags |= GEXFF_SYMNEXT;
+				else
+					ff->flags &= ~GEXFF_SYMNEXT;
+			}
+
+			for(gef = firstge, count=0; count < nsub; gef = ff->nextsub, count++) {
+				ff = X_FRAG(gef);
+				if((ff->flags & GEXFF_SYMNEXT)==0) {
+					ff->symxlen = 0;
+					continue;
+				}
+				gex = ff->prevsub;
+				if(gex == 0 || (X_FRAG(gex)->flags & GEXFF_SYMNEXT)==0) {
+					ff->symxlen = 0;
+					continue;
+				}
+				ff->symxlen = X_FRAG(gex)->sublen;
+				xf = X_FRAG(ff->nextsub);
+				if(xf->sublen < ff->symxlen)
+					ff->symxlen = xf->sublen;
+			}
+
+			/* find the symmetry inside the subfragments */
+			for(gef = firstge, count=0; count < nsub; gef = ff->nextsub, count++) {
+				ff = X_FRAG(gef);
+
+				if(ff->sublen % 2) {
+					/* we must have an even number of gentries for diagonal symmetry */
+					ff->symge = 0;
+					continue;
+				}
+
+				/* gei goes forwards from the front */
+				gei = gef->frwd;
+				/* gex goes backwards from the back */
+				gex = ff->nextsub->bkwd;
+
+				/* i is the direction of gei, j is the direction of gex */
+				i = (gei->iy3 != gei->bkwd->iy3);
+				j = !i;
+				for( ; gei->bkwd != gex; gei=gei->frwd, gex=gex->bkwd) {
+					if( abs(gei->bkwd->ipoints[i][2] - gei->ipoints[i][2])
+					!= abs(gex->bkwd->ipoints[j][2] - gex->ipoints[j][2]) )
+						break; /* no symmetry */
+					i = j;
+					j = !j;
+				}
+				if(gei->bkwd == gex)
+					ff->symge = gex;
+				else
+					ff->symge = 0; /* no symmetry */
+			}
+
+			/* find the order of calculation:
+			 * prefer to start from long fragments that have the longest
+			 * neighbours symmetric with them, with all being equal prefer
+			 * the fragments that have smaller physical size
+			 */
+			ordhd = 0;
+			for(gef = firstge, count=0; count < nsub; gef = ff->nextsub, count++) {
+				ff = X_FRAG(gef);
+
+				for(ordlast = &ordhd; *ordlast != 0; ordlast = &xf->ordersub) {
+					xf = X_FRAG(*ordlast);
+					if(ff->sublen > xf->sublen)
+						break;
+					if(ff->sublen < xf->sublen)
+						continue;
+					if(ff->symxlen > xf->symxlen)
+						break;
+					if(ff->symxlen < xf->symxlen)
+						continue;
+					if(ff->bbox[0] < xf->bbox[0] || ff->bbox[1] < xf->bbox[1])
+						break;
+				}
+
+				ff->ordersub = *ordlast;
+				*ordlast = gef;
+			}
+
+			/* vectorize the subfragments */
+			for(gef = ordhd; gef != 0; gef = ff->ordersub) {
+
+				/* debugging stuff */
+				ff = X_FRAG(gef);
+				fprintf(stderr, "   %p-%p bbox[%g,%g] sym=%p %s len=%d xlen=%d\n",
+					gef, ff->nextsub, ff->bbox[0], ff->bbox[1], ff->symge, 
+					(ff->flags & GEXFF_SYMNEXT) ? "symnext" : "",
+					ff->sublen, ff->symxlen);
+
+				dosubfrag(g, f->ixstart, firstge, gef, fscale);
+			}
+
+			break;
+		}
+	} while((ge = ge->frwd) != cge->next);
+}
+
+/********************^^^^ Vectorization Steps ^^^^******************/
+
+
 /*
  * Produce an outline from a bitmap.
  * scale - factor to scale the sizes
@@ -742,6 +2359,7 @@ bmp_outline(
 	int x, y;
 	char *ip, *op;
 	double fscale;
+	int ncontours; /* number of coutours in the glyph */
 
 	if(xsz==0 || ysz==0)
 		return;
@@ -877,6 +2495,7 @@ bmp_outline(
 
 	/* generate the vectored (stepping) outline */
 
+	ncontours = 0;
 	while(1) {
 		int found = 0;
 		int outer; /* flag: this is an outer contour */
@@ -1024,16 +2643,28 @@ bmp_outline(
 #endif
 		ig_rlineto(g, x+xoff, y+yoff); /* intermediate as int */
 		g_closepath(g);
+		ncontours++;
 	}
 
 
 	/* try to vectorize the curves and sloped lines in the bitmap */
-	if(vectorize) { 
+	if(vectorize && ncontours != 0) { 
+		struct bmpcontour *contours; /* dynamic array of contour data */
+		struct bmpcontour *cctr; /* current contour */
+		int cidx; /* index of cctr in the array */
+		
 		GENTRY *ge, *pge, *cge, *loopge;
 		int i;
 		int skip;
 
 		dumppaths(g, NULL, NULL);
+
+		/* allocate the contour array */
+		contours = calloc(ncontours, sizeof (struct bmpcontour));
+		if(contours == 0)  {
+			fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
+			exit(255);
+		}
 
 		/* allocate the extensions */
 		for(cge=g->entries; cge!=0; cge=cge->next) {
@@ -1044,1458 +2675,60 @@ bmp_outline(
 			}
 		}
 
+		cidx = 0;
 		for(cge=g->entries; cge!=0; cge=cge->next) {
 			if(cge->type != GE_MOVE)
 				continue;
 
 			/* we've found the beginning of a contour */
-			{
-				int d, vert, count, stepmore, delaystop;
-				int vdir, hdir, fullvdir, fullhdir, len;
-				int dx, dy, lastdx, lastdy; 
-				int k1, k2, reversal, smooth, good;
-				int line[2 /*H,V*/], maxlen[2 /*H,V*/], minlen[2 /*H,V*/];
-				GENTRY **age; /* array of gentries in a contour */
-				int clen; /* contour length, size of ths array */
-				int i, j;
-				GEX_FRAG *f;
-
-				/* we know that all the contours start at the top-left corner,
-				 * so at most it might be before/after the last element of
-				 * the last/first fragment
-				 */
-
-				ge = cge->next;
-				pge = ge->bkwd;
-				if(ge->ix3 == pge->ix3) { /* a vertical line */
-					/* we want to start always from a horizontal line because
-					 * then we always start from top and that is quaranteed to be a 
-					 * fragment boundary, so move the start point of the contour
-					 */
-					pge->prev->next = pge->next;
-					pge->next->prev = pge->prev;
-					cge->next = pge;
-					pge->prev = cge;
-					pge->next = ge;
-					ge->prev = pge;
-					ge = pge; pge = ge->bkwd;
-					cge->ix3 = pge->ix3; cge->iy3 = pge->iy3;
-				}
-
-				/* fill the array of gentries */
-				clen = 1;
-				for(ge = cge->next->frwd; ge != cge->next; ge = ge->frwd)
-					clen++;
-				age = (GENTRY **)malloc(sizeof(*age) * clen);
-				ge = cge->next;
-				count = 0;
-				do {
-					age[count] = ge;
-					X_FRAG(ge)->aidx = count++;
-
-					/* and by the way find the extremums */
-					for(i=0; i<2; i++) {
-						if( isign(ge->frwd->ipoints[i][2] - ge->ipoints[i][2])
-						* isign(ge->bkwd->bkwd->ipoints[i][2] - ge->bkwd->ipoints[i][2]) == 1) {
-							X_FRAG(ge)->flags |= GEXFF_EXTR;
-							fprintf(stderr, "  %s extremum at %p\n", (i?"vert":"hor"), ge);
-						}
-						if(abs(ge->ipoints[i][2] - ge->bkwd->ipoints[i][2]) > 1)
-							X_FRAG(ge)->flags |= GEXFF_LONG;
-					}
-
-					ge = ge->frwd;
-				} while(ge != cge->next);
-
-				/* Find the serif fragments, looking as either of:
-				 *           -+              |
-				 *            |              |        
-				 *          +-+            +-+        
-				 *          |              |          
-				 *          +--...         +--...
-				 * with the thickness of serifs being 1 pixel. We make no
-				 * difference between serifs on vertical and horizontal stems.
-				 */
-
-				ge = cge->next;
-				do {
-					GENTRY *nge;
-					int pdx, pdy, ndx, ndy;
-
-					/* two gentries of length 1 mean a potential serif */
-					pge = ge->bkwd;
-					nge = ge->frwd;
-
-					dx = nge->ix3 - pge->ix3;
-					dy = nge->iy3 - pge->iy3;
-
-					if(abs(dx) != 1 || abs(dy) != 1) /* 2 small ones */
-						continue;
-
-					if( 
-						(!(X_FRAG(ge)->flags & GEXFF_EXTR) 
-							|| !(X_FRAG(ge->bkwd)->flags & GEXFF_EXTR))
-						&& (!(X_FRAG(ge->frwd)->flags & GEXFF_EXTR) 
-							|| !(X_FRAG(ge->frwd->frwd)->flags & GEXFF_EXTR))
-					)
-						continue; /* either side must be a couple of extremums */
-
-					pdx = pge->ix3 - pge->bkwd->ix3;
-					pdy = pge->iy3 - pge->bkwd->iy3;
-					ndx = nge->frwd->ix3 - nge->ix3;
-					ndy = nge->frwd->iy3 - nge->iy3;
-
-					if(pdx*dx + pdy*dy > 0 && ndx*dx + ndy*dy > 0) 
-						continue; /* definitely not a serif but a round corner */
-
-					if(abs(pdx) + abs(pdy) == 1 || abs(ndx) + abs(ndy) == 1)
-						continue;
-
-					/* we've found a serif including this and next gentry */
-					X_FRAG(ge)->len[GEXFI_SERIF] = 2;
-
-				} while( (ge = ge->frwd) != cge->next );
-
-
-				/* Find the convex and concave fragments, defined as:
-				 * convex (clockwise): dy/dx <= dy0/dx0, 
-				 *  or a reversal: dy/dx == - dy0/dx0 && abs(dxthis) == 1 && dy/dx > 0
-				 * concave (counter-clockwise): dy/dx >= dy0/dx0, 
-				 *  or a reversal: dy/dx == - dy0/dx0 && abs(dxthis) == 1 && dy/dx < 0
-				 *
-				 * Where dx and dy are measured between the end of this gentry
-				 * and the start of the previous one (dx0 and dy0 are the same
-				 * thing calculated for the previous gentry and its previous one),
-				 * dxthis is between the end and begginning of this gentry.
-				 *
-				 * A reversal is a situation when the curve changes its direction
-				 * along the x axis, so it passes through a momentary vertical
-				 * direction.
-				 */
-				for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
-					ge = cge->next;
-					pge = ge->bkwd; /* the beginning of the fragment */
-					count = 1;
-					lastdx = pge->ix3 - pge->bkwd->bkwd->ix3;
-					lastdy = pge->iy3 - pge->bkwd->bkwd->iy3;
-
-#define CHKCURVCONN(ge, msg)	do { \
-		dx = (ge)->ix3 - (ge)->bkwd->bkwd->ix3; \
-		dy = (ge)->iy3 - (ge)->bkwd->bkwd->iy3; \
-		if(0 && msg) { \
-			fprintf(stderr, "  %p: dx=%d dy=%d dx0=%d dy0=%d ", \
-				(ge), dx, dy, lastdx, lastdy); \
-		} \
-		k1 = X_FRAG(ge)->flags; \
-		k2 = X_FRAG((ge)->bkwd)->flags; \
-		if(0 && msg) { \
-			fprintf(stderr, "fl=%c%c%c%c ", \
-				(k1 & GEXFF_EXTR) ? 'X' : '-', \
-				(k1 & GEXFF_LONG) ? 'L' : '-', \
-				(k2 & GEXFF_EXTR) ? 'X' : '-', \
-				(k2 & GEXFF_LONG) ? 'L' : '-' \
-			); \
-		} \
-		if( (k1 & GEXFF_EXTR) && (k2 & GEXFF_LONG) \
-		|| (k2 & GEXFF_EXTR) && (k1 & GEXFF_LONG) ) { \
-			smooth = 0; \
-			good = reversal = -1; /* for debugging */ \
-		} else { \
-			k1 = dy * lastdx; \
-			k2 = lastdy * dx; \
-			smooth = (abs(dx)==1 || abs(dy)==1); \
-			good = (k1 - k2)*gxf_cvk[d] >= 0; \
-			if(smooth && !good) { \
-				reversal = (k1 == -k2 && abs((ge)->ix3 - (ge)->bkwd->ix3)==1  \
-					&& dy*dx*gxf_cvk[d] < 0); \
-			} else \
-				reversal = 0; \
-		} \
-		if(0 && msg) { \
-			fprintf(stderr, "k1=%d k2=%d pge=%p count=%d %s good=%d rev=%d\n", \
-				k1, k2, pge, count, gxf_name[d], good, reversal); \
-		} \
-	} while(0)
-
-					do {
-						CHKCURVCONN(ge, 1);
-
-						if(smooth && (good || reversal) )
-							count++;
-						else {
-							/* can't continue */
-#if 0
-							if(count >= 4) { /* worth remembering */
-								fprintf(stderr, " %s frag %p-%p count=%d\n", gxf_name[d], pge, ge->bkwd, count);
-							}
-#endif
-							X_FRAG(pge)->len[d] = count;
-							if(smooth) {
-								pge = ge->bkwd;
-								count = 2;
-							} else {
-								pge = ge;
-								count = 1;
-							}
-						}
-						lastdx = dx; lastdy = dy;
-						ge = ge->frwd;
-					} while(ge != cge->next);
-
-					/* see if we can connect the last fragment to the first */
-					CHKCURVCONN(ge, 1);
-
-					if(smooth && (good || reversal) ) {
-						/* -1 to avoid ge->bkwd being counted twice */
-						if( X_FRAG(ge->bkwd)->len[d] >= 2 )
-							count += X_FRAG(ge->bkwd)->len[d] - 1;
-						else if(count == clen+1) {
-							/* we are joining a circular (closed) curve, check whether it
-							 * can be joined at any point or whether it has a discontinuity
-							 * at the point where we join it now
-							 */
-							lastdx = dx; lastdy = dy;
-							CHKCURVCONN(ge->frwd, 0);
-
-							if(smooth && (good || reversal) ) {
-								/* yes, the curve is truly a circular one and can be 
-								 * joined at any point
-								 */
-
-#if 0
-								fprintf(stderr, " found a circular joint point at %p\n", pge);
-#endif
-								/* make sure that in a circular fragment we start from an extremum */
-								while( ! (X_FRAG(pge)->flags & GEXFF_EXTR) )
-									pge = pge->frwd;
-								X_FRAG(pge)->flags |= GEXFF_CIRC;
-							}
-						}
-#if 0
-						fprintf(stderr, " %s joined %p to %p count=%d bk_count=%d\n", gxf_name[d], pge, ge->bkwd, 
-							count, X_FRAG(ge->bkwd)->len[d] );
-#endif
-						X_FRAG(ge->bkwd)->len[d] = 0;
-					} 
-					X_FRAG(pge)->len[d] = count;
-#if 0
-					if(count >= 4) { /* worth remembering */
-						fprintf(stderr, " %s last frag %p-%p count=%d\n", gxf_name[d], pge, ge->bkwd, count);
-					}
-#endif
-#undef CHKCURVCONN
-
-					/* do postprocessing */
-					ge = cge->next;
-					do {
-						f = X_FRAG(ge);
-						len = f->len[d];
-#if 0
-						fprintf(stderr, "   %p %s len=%d clen=%d\n", ge, gxf_name[d], len, clen);
-#endif
-						if(len < 3) /* get rid of the fragments that are too short */
-							f->len[d] = 0;
-						else if(len == 3) {
-							/*                                                    _
-							 * drop the |_| - shaped fragments, leave alone the _|  - shaped
-							 * (and even those only if not too short in pixels),
-							 * those left alone are further filtered later
-							 */
-							k1 = (ge->ix3 == ge->bkwd->ix3); /* axis of the start */
-							if(isign(ge->ipoints[k1][2] - ge->bkwd->ipoints[k1][2])
-								!= isign(ge->frwd->ipoints[k1][2] - ge->frwd->frwd->ipoints[k1][2])
-							&& abs(ge->frwd->frwd->ipoints[k1][2] - ge->bkwd->ipoints[k1][2]) > 2) {
-#if 0
-								fprintf(stderr, " %s frag %p count=%d good shape\n", 
-									gxf_name[d], ge, count);
-#endif
-							} else
-								f->len[d] = 0;
-						} else if(len == clen+1)
-							break;  /* a closed fragment, nothing else interesting */
-						else { /* only for open fragments */
-							GENTRY *gem, *gex, *gei, *ges;
-
-							ges = ge; /* the start entry */
-							gem = age[(f->aidx + f->len[d])%clen]; /* entry past the end of the fragment */
-
-							gei = ge->frwd;
-							if( (ge->ix3 == ge->bkwd->ix3) /* vert */
-							^ (isign(ge->bkwd->ix3 - gei->ix3)==isign(ge->bkwd->iy3 - gei->iy3))
-							^ !(d == GEXFI_CONVEX) /* counter-clockwise */ ) {
-
-#if 0
-								fprintf(stderr, " %p: %s potential spurious start\n", ge, gxf_name[d]);
-#endif
-								/* the beginning may be a spurious entry */
-
-								gex = 0; /* the extremum closest to the beginning - to be found */
-								for(gei = ge->frwd; gei != gem; gei = gei->frwd) {
-									if(X_FRAG(gei)->flags & GEXFF_EXTR) {
-										gex = gei;
-										break;
-									}
-								}
-								if(gex == 0)
-									gex = gem->bkwd; 
-
-								/* A special case: ignore the spurious ends on small curves that
-								 * either enclose an 1-pixel-wide extremum or are 1-pixel deep.
-								 * Any 5-or-less-pixel-long curve with extremum 2 steps away
-								 * qualifies for that.
-								 */
-
-								if(len <= 5 && gex == ge->frwd->frwd) {
-									good = 0;
-#if 0
-									fprintf(stderr, " E");
-#endif
-								} else {
-									good = 1; /* assume that ge is not spurious */
-
-									/* gei goes backwards, gex goes forwards from the extremum */
-									gei = gex;
-									/* i is the symmetry axis, j is the other axis (X=0 Y=1) */
-									i = (gex->ix3 != gex->bkwd->ix3);
-									j = !i;
-									for( ; gei!=ge && gex!=gem; gei=gei->bkwd, gex=gex->frwd) {
-										if( gei->bkwd->ipoints[i][2] != gex->ipoints[i][2]
-										|| gei->bkwd->ipoints[j][2] - gei->ipoints[j][2]
-											!= gex->bkwd->ipoints[j][2] - gex->ipoints[j][2] 
-										) {
-											good = 0; /* no symmetry - must be spurious */
-#if 0
-											fprintf(stderr, " M(%p,%p)(%d %d,%d)(%d %d,%d)",
-												gei, gex,
-												i, gei->bkwd->ipoints[i][2], gex->ipoints[i][2],
-												j, gei->bkwd->ipoints[j][2] - gei->ipoints[j][2],
-												gex->bkwd->ipoints[j][2] - gex->ipoints[j][2] );
-#endif
-											break;
-										}
-									}
-									if(gex == gem) { /* oops, the other side is too short */
-										good = 0;
-#if 0
-										fprintf(stderr, " X");
-#endif
-									}
-									if(good && gei == ge) {
-										if( isign(gei->bkwd->ipoints[j][2] - gei->ipoints[j][2])
-										!= isign(gex->bkwd->ipoints[j][2] - gex->ipoints[j][2]) ) {
-											good = 0; /* oops, goes into another direction */
-#if 0
-											fprintf(stderr, " D");
-#endif
-										}
-									}
-								}
-								if(!good) { /* it is spurious, drop it */
-#if 0
-									fprintf(stderr, " %p: %s spurious start\n", ge, gxf_name[d]);
-#endif
-									f->len[d] = 0;
-									ges = ge->frwd;
-									len--;
-									X_FRAG(ges)->len[d] = len;
-								}
-							}
-
-							gei = gem->bkwd->bkwd->bkwd;
-							if( (gem->ix3 != gem->bkwd->ix3) /* gem->bkwd is vert */
-							^ (isign(gem->bkwd->ix3 - gei->ix3)==isign(gem->bkwd->iy3 - gei->iy3))
-							^ (d == GEXFI_CONVEX) /* clockwise */ ) {
-								
-#if 0
-								fprintf(stderr, " %p: %s potential spurious end\n", gem->bkwd, gxf_name[d]);
-#endif
-								/* the end may be a spurious entry */
-
-								gex = 0; /* the extremum closest to the end - to be found */
-								for(gei = gem->bkwd->bkwd; gei != ges->bkwd; gei = gei->bkwd) {
-									if(X_FRAG(gei)->flags & GEXFF_EXTR) {
-										gex = gei;
-										break;
-									}
-								}
-								if(gex == 0)
-									gex = ges; 
-
-								good = 1; /* assume that gem->bkwd is not spurious */
-								/* gei goes backwards, gex goes forwards from the extremum */
-								gei = gex;
-								/* i is the symmetry axis, j is the other axis (X=0 Y=1) */
-								i = (gex->ix3 != gex->bkwd->ix3);
-								j = !i;
-								for( ; gei!=ges->bkwd && gex!=gem->bkwd; gei=gei->bkwd, gex=gex->frwd) {
-									if( gei->bkwd->ipoints[i][2] != gex->ipoints[i][2]
-									|| gei->bkwd->ipoints[j][2] - gei->ipoints[j][2]
-										!= gex->bkwd->ipoints[j][2] - gex->ipoints[j][2] 
-									) {
-										good = 0; /* no symmetry - must be spurious */
-#if 0
-										fprintf(stderr, " M(%p,%p)(%d %d,%d)(%d %d,%d)",
-											gei, gex,
-											i, gei->bkwd->ipoints[i][2], gex->ipoints[i][2],
-											j, gei->bkwd->ipoints[j][2] - gei->ipoints[j][2],
-											gex->bkwd->ipoints[j][2] - gex->ipoints[j][2] );
-#endif
-										break;
-									}
-								}
-								if(gei == ges->bkwd) { /* oops, the other side is too short */
-									good = 0;
-#if 0
-									fprintf(stderr, " X");
-#endif
-								}
-								if(good && gex == gem->bkwd) {
-									if( isign(gei->bkwd->ipoints[j][2] - gei->ipoints[j][2])
-									!= isign(gex->bkwd->ipoints[j][2] - gex->ipoints[j][2]) ) {
-										good = 0; /* oops, goes into another direction */
-#if 0
-										fprintf(stderr, " D");
-#endif
-									}
-								}
-								if(!good) { /* it is spurious, drop it */
-#if 0
-									fprintf(stderr, " %p: %s spurious end\n", gem->bkwd, gxf_name[d]);
-#endif
-									X_FRAG(ges)->len[d] = --len;
-								}
-							}
-							if(len < 4) {
-								X_FRAG(ges)->len[d] = 0;
-#if 0
-								fprintf(stderr, " %p: %s frag discarded, too small now\n", ge, gxf_name[d]);
-#endif
-							}
-							if(ges != ge) {
-								if(ges == cge->next)
-									break; /* went around the loop */
-								else {
-									ge = ges->frwd; /* don't look at this fragment twice */
-									continue;
-								}
-							}
-						}
-
-						ge = ge->frwd;
-					} while(ge != cge->next);
-				}
-
-				/* Find the straight line fragments.
-				 * Even though the lines are sloped, they are called
-				 * "vertical" or "horizontal" according to their longer
-				 * dimension. All the steps in the shother dimension must 
-				 * be 1 pixel long, all the steps in the longer dimension
-				 * must be within the difference of 1 pixel.
-				 */
-				for(d = GEXFI_LINE; d<= GEXFI_EXACTLINE; d++) {
-					ge = cge->next;
-					pge = ge->bkwd; /* the beginning of the fragment */
-					count = 1;
-					delaystop = 0;
-					do {
-						int h;
-
-						stepmore = 0;
-						hdir = isign(ge->ix3 - ge->bkwd->ix3);
-						vdir = isign(ge->iy3 - ge->bkwd->iy3);
-						vert = (hdir == 0);
-						if(count==1) {
-							/* at this point pge==ge->bkwd */
-							/* account for the previous gentry, which was !vert */
-							if(!vert) { /* prev was vertical */
-								maxlen[0] = minlen[0] = 0;
-								maxlen[1] = minlen[1] = abs(pge->iy3 - pge->bkwd->iy3);
-								line[0] = (maxlen[1] == 1);
-								line[1] = 1;
-								fullhdir = hdir;
-								fullvdir = isign(pge->iy3 - pge->bkwd->iy3);
-							} else {
-								maxlen[0] = minlen[0] = abs(pge->ix3 - pge->bkwd->ix3);
-								maxlen[1] = minlen[1] = 0;
-								line[0] = 1;
-								line[1] = (maxlen[0] == 1);
-								fullhdir = isign(pge->ix3 - pge->bkwd->ix3);
-								fullvdir = vdir;
-							}
-						}
-						h = line[0]; /* remember the prevalent direction */
-#if 0
-						fprintf(stderr, "  %p: v=%d(%d) h=%d(%d) vl(%d,%d,%d) hl=(%d,%d,%d) %s count=%d ",
-							ge, vdir, fullvdir, hdir, fullhdir, 
-							line[1], minlen[1], maxlen[1],
-							line[0], minlen[0], maxlen[0],
-							gxf_name[d], count);
-#endif
-						if(vert) {
-							if(vdir != fullvdir)
-								line[0] = line[1] = 0;
-							len = abs(ge->iy3 - ge->bkwd->iy3);
-						} else {
-							if(hdir != fullhdir)
-								line[0] = line[1] = 0;
-							len = abs(ge->ix3 - ge->bkwd->ix3);
-						}
-#if 0
-						fprintf(stderr, "len=%d\n", len);
-#endif
-						if(len != 1) /* this is not a continuation in the short dimension */
-							line[!vert] = 0;
-
-						/* can it be a continuation in the long dimension ? */
-						if( line[vert] ) {
-							if(maxlen[vert]==0)
-								maxlen[vert] = minlen[vert] = len;
-							else if(maxlen[vert]==minlen[vert]) {
-								if(d == GEXFI_EXACTLINE) {
-									if(len != maxlen[vert])
-										line[vert] = 0; /* it can't */
-								} else if(len < maxlen[vert]) {
-									if(len < minlen[vert]-1)
-										line[vert] = 0; /* it can't */
-									else
-										minlen[vert] = len;
-								} else {
-									if(len > maxlen[vert]+1)
-										line[vert] = 0; /* it can't */
-									else
-										maxlen[vert] = len;
-								}
-							} else if(len < minlen[vert] || len > maxlen[vert])
-								line[vert] = 0; /* it can't */
-						}
-
-						if(line[0] == 0 && line[1] == 0) {
-#if 0
-							if(count >= 3)
-								fprintf(stderr, " %s frag %p-%p count=%d\n", gxf_name[d], pge, ge->bkwd, count);
-#endif
-							X_FRAG(pge)->len[d] = count;
-							if(d == GEXFI_EXACTLINE && h) {
-								X_FRAG(pge)->flags |= GEXFF_HLINE;
-							}
-							if(count == 1)
-								pge = ge;
-							else {
-								stepmore = 1; /* may reconsider the 1st gentry */
-								pge = ge = ge->bkwd;
-								count = 1;
-							}
-						} else
-							count++;
-
-						ge = ge->frwd;
-						if(ge == cge->next && !stepmore)
-							delaystop = 1; /* consider the first gentry again */
-					} while(stepmore || ge != cge->next ^ delaystop);
-					/* see if there is an unfinished line left */
-					if(count != 1) {
-#if 0
-						if(count >= 3)
-							fprintf(stderr, " %s frag %p-%p count=%d\n", gxf_name[d], pge, ge->bkwd, count);
-#endif
-						X_FRAG(ge->bkwd->bkwd)->len[d] = 0;
-						X_FRAG(pge)->len[d] = count;
-					}
-				}
-
-				/* do postprocessing of the lines */
-#if 0
-				fprintf(stderr, "Line postprocessing\n");
-				gex_dump_contour(cge->next, clen);
-#endif
-
-				/* the non-exact line frags are related to exact line frags sort 
-				 * of like to individual gentries: two kinds of exact frags
-				 * must be interleaved, with one kind having the size of 3
-				 * and the other kind having the size varying within +-2.
-				 */
-
-				ge = cge->next;
-				do {
-					GEX_FRAG *pf, *lastf1, *lastf2;
-					int len1, len2, fraglen;
-
-					f = X_FRAG(ge);
-
-					fraglen = f->len[GEXFI_LINE];
-					if(fraglen >= 4) {
-
-						vert = 0; /* vert is a pseudo-directon */
-						line[0] = line[1] = 1;
-						maxlen[0] = minlen[0] = maxlen[1] = minlen[1] = 0;
-						lastf2 = lastf1 = f;
-						len2 = len1 = 0;
-						for(pge = ge, i = 1; i < fraglen; i++, pge=pge->frwd) {
-							pf = X_FRAG(pge);
-							len = pf->len[GEXFI_EXACTLINE];
-#if 0
-							fprintf(stderr, "      pge=%p i=%d of %d ge=%p exLen=%d\n", pge, i, 
-								f->len[GEXFI_LINE], ge, len);
-#endif
-							len1++; len2++;
-							if(len==0) {
-								continue;
-							}
-							vert = !vert; /* alternate the pseudo-direction */
-							if(len > 3)
-								line[!vert] = 0;
-							if(maxlen[vert] == 0)
-								maxlen[vert] = minlen[vert] = len;
-							else if(maxlen[vert]-2 >= len && minlen[vert]+2 <= len) {
-								if(len > maxlen[vert])
-									maxlen[vert] = len;
-								else if(len < minlen[vert])
-									minlen[vert] = len;
-							} else
-								line[vert] = 0;
-							if(line[0] == 0 && line[1] == 0) {
-#if 0
-								fprintf(stderr, "  Line breaks at %p %c(%d, %d) %c(%d, %d) len=%d fl=%d l2=%d l1=%d\n",
-									pge, (!vert)?'*':' ', minlen[0], maxlen[0], 
-									vert?'*':' ', minlen[1], maxlen[1], len, fraglen, len2, len1);
-#endif
-								if(lastf2 != lastf1) {
-									lastf2->len[GEXFI_LINE] = len2-len1;
-								}
-								lastf1->len[GEXFI_LINE] = len1+1;
-								pf->len[GEXFI_LINE] = fraglen+1 - i;
-#if 0
-								gex_dump_contour(pge, clen);
-#endif
-
-								/* continue with the line */
-								vert = 0; /* vert is a pseudo-directon */
-								line[0] = line[1] = 1;
-								maxlen[0] = minlen[0] = maxlen[1] = minlen[1] = 0;
-								lastf2 = lastf1 = f;
-								len2 = len1 = 0;
-							} else {
-								lastf1 = pf;
-								len1 = 0;
-							}
-						}
-					}
-
-					ge = ge->frwd;
-				} while(ge != cge->next);
-#if 0
-				fprintf(stderr, "Line postprocessing part 2\n");
-				gex_dump_contour(cge->next, clen);
-#endif
-
-				ge = cge->next;
-				do {
-					f = X_FRAG(ge);
-
-					if(f->len[GEXFI_LINE] >= 4) {
-						len = f->len[GEXFI_EXACTLINE];
-						/* if a non-exact line covers precisely two exact lines,
-						 * split it
-						 */
-						if(len > 0 && f->len[GEXFI_LINE] >= len+1) {
-							GEX_FRAG *pf;
-							pge = age[(f->aidx + len - 1)%clen]; /* last gentry of exact line */
-							pf = X_FRAG(pge);
-							if(f->len[GEXFI_LINE] + 1 == len + pf->len[GEXFI_EXACTLINE]) {
-								f->len[GEXFI_LINE] = len;
-								f->flags |= GEXFF_SPLIT;
-								pf->len[GEXFI_LINE] = pf->len[GEXFI_EXACTLINE];
-								pf->flags |= GEXFF_SPLIT;
-							}
-						}
-					}
-
-					ge = ge->frwd;
-				} while(ge != cge->next);
-#if 0
-				fprintf(stderr, "Line postprocessing part 2a\n");
-				gex_dump_contour(cge->next, clen);
-#endif
-				ge = cge->next;
-				do {
-					f = X_FRAG(ge);
-
-					/* too small lines are of no interest */
-					if( (f->flags & GEXFF_SPLIT)==0 && f->len[GEXFI_LINE] < 4)
-						f->len[GEXFI_LINE] = 0;
-
-					len = f->len[GEXFI_EXACTLINE];
-					/* too small exact lines are of no interest */
-					if(len < 3) /* exact lines may be shorter */
-						f->len[GEXFI_EXACTLINE] = 0;
-					/* get rid of inexact additions to the end of the exact lines */
-					else if(f->len[GEXFI_LINE] == len+1)
-						f->len[GEXFI_LINE] = len;
-					/* same at the beginning */
-					else {
-						int diff = X_FRAG(ge->bkwd)->len[GEXFI_LINE] - len;
-
-						if(diff == 1 || diff == 2) {
-							X_FRAG(ge->bkwd)->len[GEXFI_LINE] = 0;
-							f->len[GEXFI_LINE] = len;
-						}
-					}
-
-					ge = ge->frwd;
-				} while(ge != cge->next);
-#if 0
-				fprintf(stderr, "Line postprocessing is completed\n");
-				gex_dump_contour(cge->next, clen);
-#endif
-
-				gex_calc_lenback(cge->next, clen); /* prepare data */
-
-				/* resolve conflicts between lines and curves */
-
-				/*
-				 * the short (3-gentry) curve frags must have one of the ends
-				 * coinciding with another curve frag of the same type
-				 */
-
-				for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
-					ge = cge->next;
-					do {
-						f = X_FRAG(ge);
-
-						if(f->len[d] == 3) {
-							pge = age[(f->aidx + 2)%clen]; /* last gentry of this frag */
-							if(f->lenback[d] == 0 && X_FRAG(pge)->len[d] == 0) {
-								fprintf(stderr, "    discarded small %s at %p-%p\n", gxf_name[d], ge, pge);
-								f->len[d] = 0;
-								X_FRAG(ge->frwd)->lenback[d] = 0;
-								X_FRAG(ge->frwd->frwd)->lenback[d] = 0;
-							}
-						}
-						ge = ge->frwd;
-					} while(ge != cge->next);
-				}
-
-				/* the serifs take priority over everything else */
-				ge = cge->next;
-				do {
-					f = X_FRAG(ge);
-
-					len = f->len[GEXFI_SERIF];
-					if(len == 0)
-						continue;
-
-					if(len != 2) { /* this is used in the code below */
-						fprintf(stderr, "Internal error at %s line %d: serif frags len is %d\n",
-							__FILE__, __LINE__, len);
-						exit(1);
-					}
-
-					for(d = 0; d < GEXFI_SERIF; d++) {
-						/* serifs may not have common ends with the other fragments,
-						 * this is expressed as extending them by 1 gentry on each side
-						 */
-						frag_subtract(g, age, clen, ge->bkwd, len+2, d);
-					}
-				} while( (ge = ge->frwd) != cge->next);
-
-				/*
-				 * longer exact lines take priority over curves; shorter lines
-				 * and inexact lines are resolved with convex/concave conflicts
-				 */
-				ge = cge->next;
-				do {
-					f = X_FRAG(ge);
-
-					len = f->len[GEXFI_EXACTLINE]; 
-
-					if(len < 6) { /* line is short */
-						ge = ge->frwd;
-						continue;
-					}
-
-					fprintf(stderr, "   line at %p len=%d\n", ge, f->len[GEXFI_EXACTLINE]);
-					for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
-						frag_subtract(g, age, clen, ge, len, d);
-					}
-
-					ge = ge->frwd;
-				} while(ge != cge->next);
-
-				/*
-				 * The exact lines take priority over curves that coincide
-				 * with them or extend by only one gentry on either side
-				 * (but not both sides). By this time it applies only to the
-				 * small exact lines.
-				 *
-				 * An interesting general case is when a curve matches more
-				 * than one exact line going diamond-like.
-				 */
-
-				ge = cge->next;
-				do {
-					int done, len2;
-					int sharpness;
-					GEX_FRAG *pf;
-
-					f = X_FRAG(ge);
-
-					/* "sharpness" shows how a group of exact line frags is connected: if the gentries 
-					 * of some of them overlap, the curve matching requirement is loosened: it may
-					 * extend up to 1 gentry beyond each end of the group of exact line frags
-					 * (sharpness=2); otherwise it may extend to only one end (sharpness=1)
-					 */
-					sharpness = 1;
-
-					len = f->len[GEXFI_EXACTLINE];
-					if(len >= 4) {
-						while(len < clen) {
-							done = 0;
-							pf = X_FRAG(ge->bkwd);
-							for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
-								if(f->len[d] == len || f->len[d] == len+1) {
-
-									fprintf(stderr, "    removed %s frag at %p len=%d linelen=%d\n", 
-										gxf_name[d], ge, f->len[d], len);
-									pge = ge->frwd;
-									for(i = f->len[d]; i > 1; i--, pge = pge->frwd)
-										X_FRAG(pge)->lenback[d] = 0;
-									f->len[d] = 0;
-									gex_dump_contour(ge, clen);
-									done = 1;
-								} else if(pf->len[d] == len+1 || pf->len[d] == len+sharpness) {
-									fprintf(stderr, "    removed %s frag at %p len=%d next linelen=%d\n", 
-										gxf_name[d], ge->bkwd, pf->len[d], len);
-									pge = ge;
-									for(i = pf->len[d]; i > 1; i--, pge = pge->frwd)
-										X_FRAG(pge)->lenback[d] = 0;
-									pf->len[d] = 0;
-									gex_dump_contour(ge, clen);
-									done = 1;
-								}
-							}
-							if(done)
-								break;
-
-							/* is there any chance to match a sequence of exect lines ? */
-							if(f->len[GEXFI_CONVEX] < len && f->len[GEXFI_CONCAVE] < len
-							&& pf->len[GEXFI_CONVEX] < len && pf->len[GEXFI_CONCAVE] < len)
-								break;
-
-							done = 1;
-							/* check whether the line is connected to another exact line at an extremum */
-							pge = age[(f->aidx + len - 1)%clen]; /* last gentry of exact line */
-							len2 = X_FRAG(pge)->len[GEXFI_EXACTLINE];
-							if(len2 > 0) {
-								if( len2 >= 4 && (X_FRAG(pge)->flags & GEXFF_EXTR) ) {
-									len += len2 - 1;
-									sharpness = 2;
-									done = 0;
-								}
-							} else {
-								/* see if the extremum is between two exact lines */
-								pge = pge->frwd;
-								if(X_FRAG(pge)->flags & GEXFF_EXTR) {
-									pge = pge->frwd;
-									len2 = X_FRAG(pge)->len[GEXFI_EXACTLINE];
-									if(len2 >= 4) {
-										len += len2 + 1;
-										done = 0;
-									}
-								}
-							}
-							if(done)
-								break;
-						}
-					}
-
-					ge = ge->frwd;
-				} while(ge != cge->next);
-
-				/* 
-				 * The lines may cover only whole curves (or otherwise empty space),
-				 * so cut them where they overlap parts of the curves. If 2 or less
-				 * gentries are left in the line, remove the line.
-				 * If a line and a curve fully coincide, remove the line.  Otherwise 
-				 * remove the curves that are completely covered by the lines.
-				 */
-
-				ge = cge->next;
-				do {
-					f = X_FRAG(ge);
-
-				reconsider_line:
-					len = f->len[GEXFI_LINE];
-
-					if(len == 0) {
-						ge = ge->frwd;
-						continue;
-					}
-
-					if(f->len[GEXFI_CONVEX] >= len 
-					|| f->len[GEXFI_CONCAVE] >= len) {
-				line_completely_covered:
-						fprintf(stderr, "    removed covered Line frag at %p len=%d\n", 
-							ge, len);
-						f->len[GEXFI_LINE] = 0;
-						for(pge = ge->frwd; len > 1; len--, pge = pge->frwd)
-							X_FRAG(pge)->lenback[GEXFI_LINE] = 0;
-						gex_dump_contour(ge, clen);
-						ge = ge->frwd;
-						continue;
-					}
-					
-					k1 = 0; /* how much to cut at the front */
-					for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
-						if(f->lenback[d]) {
-							pge = age[(f->aidx + clen - f->lenback[d])%clen];
-							i = X_FRAG(pge)->len[d] - f->lenback[d] - 1;
-							if(i > k1)
-								k1 = i;
-						}
-					}
-
-					k2 = 0; /* how much to cut at the end */
-					pge = age[(f->aidx + len)%clen]; /* gentry after the end */
-					for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
-						i = X_FRAG(pge)->lenback[d] - 1;
-						if(i > k2)
-							k2 = i;
-					}
-
-					if(k1+k2 > 0 && k1+k2 >= len-3) {
-						fprintf(stderr, "    k1=%d k2=%d\n", k1, k2);
-						goto line_completely_covered;
-					}
-
-
-					if(k2 != 0) { /* cut the end */
-						len -= k2;
-						f->len[GEXFI_LINE] = len;
-						/* pge still points after the end */
-						for(i = k2, pge = pge->bkwd; i > 0; i--, pge = pge->bkwd)
-							X_FRAG(pge)->lenback[GEXFI_LINE] = 0;
-					}
-					if(k1 != 0) { /* cut the beginning */
-						len -= k1;
-						f->len[GEXFI_LINE] = 0;
-						for(i = 1, pge = ge->frwd; i < k1; i++, pge = pge->frwd)
-							X_FRAG(pge)->lenback[GEXFI_LINE] = 0;
-						X_FRAG(pge)->len[GEXFI_LINE] = len;
-						for(i = 0; i < len; i++, pge = pge->frwd)
-							X_FRAG(pge)->lenback[GEXFI_LINE] = i;
-					}
-					if(k1 != 0 || k2 != 0) {
-						fprintf(stderr, "    cut Line frag at %p by (%d,%d) to len=%d\n", 
-							ge, k1, k2, len);
-						gex_dump_contour(ge, clen);
-
-						goto reconsider_line; /* the line may have to be cut again */
-					}
-					pge = age[(f->aidx + k1)%clen]; /* new beginning */
-					good = 1; /* flag: no need do do a debugging dump */
-					for(i=1; i<len; i++, pge = pge->frwd)
-						for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
-							if(X_FRAG(pge)->len[d]) {
-								fprintf(stderr, "    removed %s frag at %p len=%d covered by line\n", 
-									gxf_name[d], pge, X_FRAG(pge)->len[d], len);
-								good = 0;
-							}
-							X_FRAG(pge)->len[d] = 0;
-						}
-					pge = age[(f->aidx + k1 + 1)%clen]; /* next after new beginning */
-					for(i=1; i<len; i++, pge = pge->frwd)
-						for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++)
-							X_FRAG(pge)->lenback[d] = 0;
-					if(!good)
-						gex_dump_contour(ge, clen);
-
-					ge = ge->frwd;
-				} while(ge != cge->next);
-
-				/* Resolve conflicts between curves */
-				for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
-					dx = (GEXFI_CONVEX + GEXFI_CONCAVE) - d; /* the other type */
-					ge = cge->next;
-					do {
-						GENTRY *sge;
-
-						f = X_FRAG(ge);
-						len = f->len[d];
-						if(len < 2) {
-							ge = ge->frwd;
-							continue;
-						}
-						sge = ge; /* the start of fragment */
-
-						i = f->len[dx];
-						if(i != 0) { /* two curved frags starting here */
-							/* should be i!=len because otherwise they would be
-							 * covered by an exact line
-							 */
-							if(i > len) {
-							curve_completely_covered:
-								/* remove the convex frag */
-								fprintf(stderr, "    removed %s frag at %p len=%d covered by %s\n", 
-									gxf_name[d], ge, len, gxf_name[dx]);
-								f->len[d] = 0;
-								for(pge = ge->frwd, j = 1; j < len; j++, pge = pge->frwd)
-									X_FRAG(pge)->lenback[d] = 0;
-								gex_dump_contour(ge, clen);
-
-								ge = ge->frwd; /* the frag is gone, nothing more to do */
-								continue;
-							} else {
-								/* remove the concave frag */
-								fprintf(stderr, "    removed %s frag at %p len=%d covered by %s\n", 
-									gxf_name[dx], ge, i, gxf_name[d]);
-								f->len[dx] = 0;
-								for(pge = ge->frwd, j = 1; j < i; j++, pge = pge->frwd)
-									X_FRAG(pge)->lenback[dx] = 0;
-								gex_dump_contour(ge, clen);
-							}
-						}
-
-
-						k1 = X_FRAG(ge->frwd)->lenback[dx];
-						if(k1 != 0) { /* conflict at the front */
-							GENTRY *gels, *gele, *gei;
-
-							pge = age[(f->aidx + clen - (k1-1))%clen]; /* first gentry of concave frag */
-							k2 = X_FRAG(pge)->len[dx]; /* its length */
-							
-							i = k2 - (k1-1); /* amount of overlap */
-							if(i > len)
-								i = len;
-							/* i >= 2 by definition */
-							if(i >= k2-1) { /* covers the other frag - maybe with 1 gentry showing */
-								fprintf(stderr, "    removed %s frag at %p len=%d covered by %s\n", 
-									gxf_name[dx], pge, k2, gxf_name[d]);
-								X_FRAG(pge)->len[dx] = 0;
-								for(pge = pge->frwd, j = 1; j < k2; j++, pge = pge->frwd)
-									X_FRAG(pge)->lenback[dx] = 0;
-								if(i >= len-1) { /* covers our frag too - maybe with 1 gentry showing */
-									/* our frag will be removed as well, prepare a line to replace it */
-									gels = ge;
-									gele = age[(f->aidx + i - 1)%clen];
-									fprintf(stderr, "    new Line frag at %p-%p len=%d\n", gels, gele, i);
-									X_FRAG(gels)->len[GEXFI_LINE] = i;
-									for(gei = gels->frwd, j = 1; j < i; gei = gei->frwd, j++)
-										X_FRAG(gei)->lenback[GEXFI_LINE] = j;
-								} else {
-									gex_dump_contour(ge, clen);
-									ge = ge->frwd;
-									continue;
-								}
-							}
-							if(i >= len-1) /* covers our frag - maybe with 1 gentry showing */
-								goto curve_completely_covered;
-
-							/* XXX need to do something better for the case when a curve frag
-							 * is actually nothing but an artifact of two other curves of
-							 * the opposite type touching each other, like on the back of "3"
-							 */
-
-							/* change the overlapping part to a line */
-							gels = ge;
-							gele = age[(f->aidx + i - 1)%clen];
-							/* give preference to local extremums */
-							if(X_FRAG(gels)->flags & GEXFF_EXTR) {
-								gels = gels->frwd;
-								i--;
-							}
-							if(X_FRAG(gele)->flags & GEXFF_EXTR) {
-								gele = gele->bkwd;
-								i--;
-							}
-							if(gels->bkwd == gele) { 
-								/* Oops the line became negative.  Probably should 
-								 * never happen but I can't think of any formal reasoning
-								 * leading to that, so check just in case. Restore
-								 * the previous state.
-								 */
-								gels = gele; gele = gels->frwd; i = 2;
-							}
-
-							j = X_FRAG(gels)->lenback[dx] + 1; /* new length */
-							if(j != k2) {
-								X_FRAG(pge)->len[dx] = j;
-								fprintf(stderr, "    cut %s frag at %p len=%d to %p len=%d end overlap with %s\n", 
-									gxf_name[dx], pge, k2, gels, j, gxf_name[d]);
-								for(gei = gels->frwd; j < k2; gei = gei->frwd, j++)
-									X_FRAG(gei)->lenback[dx] = 0;
-							}
-
-							if(gele != ge) {
-								sge = gele;
-								f->len[d] = 0;
-								fprintf(stderr, "    cut %s frag at %p len=%d ", gxf_name[d], ge, len);
-								len--;
-								for(gei = ge->frwd; gei != gele; gei = gei->frwd, len--)
-									X_FRAG(gei)->lenback[d] = 0;
-								X_FRAG(gele)->len[d] = len;
-								X_FRAG(gele)->lenback[d] = 0;
-								fprintf(stderr, "to %p len=%d start overlap with %s\n", 
-									sge, len, gxf_name[dx]);
-								for(gei = gei->frwd, j = 1; j < len; gei = gei->frwd, j++)
-									X_FRAG(gei)->lenback[d] = j;
-
-							}
-							if(i > 1) {
-								fprintf(stderr, "    new Line frag at %p-%p len=%d\n", gels, gele, i);
-								X_FRAG(gels)->len[GEXFI_LINE] = i;
-								for(gei = gels->frwd, j = 1; j < i; gei = gei->frwd, j++)
-									X_FRAG(gei)->lenback[GEXFI_LINE] = j;
-							}
-							gex_dump_contour(ge, clen);
-						}
-
-						ge = ge->frwd;
-					} while(ge != cge->next);
-				}
-
-				/* 
-				 * Assert that there are no conflicts any more and
-				 * for each gentry find the fragment types that start
-				 * and continue here.
-				 */
-				ge = cge->next;
-				do {
-					f = X_FRAG(ge);
-					dx = GEXFI_NONE; /* type that starts here */
-					dy = GEXFI_NONE; /* type that goes through here */
-					/* GEXFI_EXACTLINE and GEXFI_SERIF are auxiliary and don't
-					 * generate any actual lines/curves in the result
-					 */
-					for(d = GEXFI_CONVEX; d<= GEXFI_LINE; d++) {
-						if(f->len[d]) {
-							if(dx >= 0) {
-								fprintf(stderr, "**** Internal error in vectorization\n");
-								fprintf(stderr, "CONFLICT in %s at %p between %s and %s\n",
-									g->name, ge, gxf_name[dx], gxf_name[d]);
-								dumppaths(g, cge->next, cge->next->bkwd);
-								gex_dump_contour(ge, clen);
-								exit(1);
-							}
-							dx = d;
-						}
-						if(f->lenback[d]) {
-							if(dy >= 0) {
-								fprintf(stderr, "**** Internal error in vectorization\n");
-								fprintf(stderr, "CONFLICT in %s at %p between %s and %s\n",
-									g->name, ge, gxf_name[dy], gxf_name[d]);
-								dumppaths(g, cge->next, cge->next->bkwd);
-								gex_dump_contour(ge, clen);
-								exit(1);
-							}
-							dy = d;
-						}
-					}
-					f->ixstart = dx;
-					f->ixcont = dy;
-					ge = ge->frwd;
-				} while(ge != cge->next);
-
-				/*
-				 * make sure that the contour does not start in the
-				 * middle of a fragment
-				 */
-				ge = cge->next; /* old start of the contour */
-				f = X_FRAG(ge);
-				if(f->ixstart == GEXFI_NONE && f->ixcont != GEXFI_NONE) {
-					/* oops, it's mid-fragment, move the start */
-					GENTRY *xge;
-
-					xge = ge->bkwd->next; /* entry following the contour */
-
-					/* find the first gentry of this frag */
-					pge = age[(f->aidx + clen - f->lenback[f->ixcont])%clen]; 
-
-					ge->prev = ge->bkwd; 
-					ge->bkwd->next = ge;
-
-					cge->next = pge;
-					pge->prev = cge;
-
-					pge->bkwd->next = xge;
-					if(xge) 
-						xge->prev = pge->bkwd;
-
-					cge->ix3 = pge->bkwd->ix3; cge->iy3 = pge->bkwd->iy3;
-				}
-
-				/* vectorize each fragment separately 
-				 * make 2 passes: first handle the straight lines, then
-				 * the curves to allow the curver to be connected smoothly
-				 * to the straights
-				 */
-				ge = cge->next;
-				do { /* pass 1 */
-					f = X_FRAG(ge);
-					switch(f->ixstart) {
-					case GEXFI_LINE:
-						len = f->len[GEXFI_LINE];
-						pge = age[(f->aidx + len - 1)%clen]; /* last gentry */
-
-						if(ge->iy3 == ge->bkwd->iy3) { /* frag starts and ends horizontally */
-							k1 = 1/*Y*/ ; /* across the direction of start */
-							k2 = 0/*X*/ ; /* along the direction of start */
-						} else { /* frag starts and ends vertically */
-							k1 = 0/*X*/ ; /* across the direction of start */
-							k2 = 1/*Y*/ ; /* along the direction of start */
-						}
-
-						if(len % 2) {
-							/* odd number of entries in the frag */
-							double halfstep, halfend;
-
-							f->vect[0][k1] = fscale * ge->ipoints[k1][2];
-							f->vect[3][k1] = fscale * pge->ipoints[k1][2];
-
-							halfstep = (pge->ipoints[k2][2] - ge->bkwd->ipoints[k2][2]) 
-								* 0.5 / ((len+1)/2);
-							if(f->ixcont != GEXFI_NONE) {
-								halfend = (ge->ipoints[k2][2] - ge->bkwd->ipoints[k2][2]) * 0.5;
-								if(fabs(halfstep) < fabs(halfend)) /* must be at least half gentry away */
-									halfstep = halfend;
-							}
-							if(X_FRAG(pge)->ixstart != GEXFI_NONE) {
-								halfend = (pge->ipoints[k2][2] - pge->bkwd->ipoints[k2][2]) * 0.5;
-								if(fabs(halfstep) < fabs(halfend)) /* must be at least half gentry away */
-									halfstep = halfend;
-							}
-							f->vect[0][k2] = fscale * (ge->bkwd->ipoints[k2][2] + halfstep);
-							f->vect[3][k2] = fscale * (pge->ipoints[k2][2] - halfstep);
-						} else {
-							/* even number of entries */
-							double halfstep, halfend;
-
-							f->vect[0][k1] = fscale * ge->ipoints[k1][2];
-							halfstep = (pge->ipoints[k2][2] - ge->bkwd->ipoints[k2][2]) 
-								* 0.5 / (len/2);
-							if(f->ixcont != GEXFI_NONE) {
-								halfend = (ge->ipoints[k2][2] - ge->bkwd->ipoints[k2][2]) * 0.5;
-								if(fabs(halfstep) < fabs(halfend)) /* must be at least half gentry away */
-									halfstep = halfend;
-							}
-							f->vect[0][k2] = fscale * (ge->bkwd->ipoints[k2][2] + halfstep);
-
-							halfstep = (pge->ipoints[k1][2] - ge->bkwd->ipoints[k1][2]) 
-								* 0.5 / (len/2);
-							if(X_FRAG(pge)->ixstart != GEXFI_NONE) {
-								halfend = (pge->ipoints[k1][2] - pge->bkwd->ipoints[k1][2]) * 0.5;
-								if(fabs(halfstep) < fabs(halfend)) /* must be at least half gentry away */
-									halfstep = halfend;
-							}
-							f->vect[3][k1] = fscale * (pge->ipoints[k1][2] - halfstep);
-							f->vect[3][k2] = fscale * pge->ipoints[k2][2];
-						}
-						f->vectlen = len;
-						f->flags |= GEXFF_DRAWLINE;
-						break;
-					}
-				} while((ge = ge->frwd) != cge->next);
-
-				ge = cge->next;
-				do { /* pass 2 */
-					/* data for curves */
-					GENTRY *firstge, *lastge, *gef, *gel, *gei, *gex;
-					GENTRY *ordhd; /* head of the order list */
-					GENTRY **ordlast;
-					int nsub; /* number of subfrags */
-					GEX_FRAG *ff, *lf, *xf;
-
-					f = X_FRAG(ge);
-					switch(f->ixstart) {
-					case GEXFI_CONVEX:
-					case GEXFI_CONCAVE:
-						len = f->len[f->ixstart];
-						firstge = ge;
-						lastge = age[(f->aidx + len - 1)%clen]; /* last gentry */
-
-						nsub = 0;
-						gex = firstge;
-						xf = X_FRAG(gex);
-						xf->prevsub = 0;
-						xf->sublen = 1;
-						xf->flags &= ~GEXFF_DONE;
-						for(gei = firstge->frwd; gei != lastge; gei = gei->frwd) {
-							xf->sublen++;
-							if(X_FRAG(gei)->flags & GEXFF_EXTR) {
-									xf->nextsub = gei;
-									for(i=0; i<2; i++)
-										xf->bbox[i] = abs(gei->ipoints[i][2] - gex->bkwd->ipoints[i][2]);
-									nsub++;
-									xf = X_FRAG(gei);
-									xf->prevsub = gex;
-									xf->sublen = 1;
-									xf->flags &= ~GEXFF_DONE;
-									gex = gei;
-								}
-						}
-						xf->sublen++;
-						xf->nextsub = gei;
-						for(i=0; i<2; i++)
-							xf->bbox[i] = abs(gei->ipoints[i][2] - gex->bkwd->ipoints[i][2]);
-						nsub++;
-						ff = xf; /* remember the beginning of the last subfrag */
-						xf = X_FRAG(gei);
-						xf->prevsub = gex;
-						if(firstge != lastge) {
-							xf->nextsub = 0;
-							xf->sublen = 0;
-
-							/* correct the bounding box of the last and first subfrags for
-							 * intersections with other fragments 
-							 */
-							if(xf->ixstart != GEXFI_NONE) {
-								/* ff points to the beginning of the last subfrag */
-								for(i=0; i<2; i++)
-									ff->bbox[i] -= 0.5 * abs(lastge->ipoints[i][2] - lastge->bkwd->ipoints[i][2]);
-							}
-							ff = X_FRAG(firstge);
-							if(ff->ixcont != GEXFI_NONE) {
-								for(i=0; i<2; i++)
-									ff->bbox[i] -= 0.5 * abs(firstge->ipoints[i][2] - firstge->bkwd->ipoints[i][2]);
-							}
-						}
-
-						fprintf(stderr, " %s frag %p%s nsub=%d\n", gxf_name[f->ixstart],
-							ge, (f->flags&GEXFF_CIRC)?" circular":"", nsub);
-
-						/* find the symmetry between the subfragments */
-						for(gef = firstge, count=0; count < nsub; gef = ff->nextsub, count++) {
-							ff = X_FRAG(gef);
-							gex = ff->nextsub;
-							xf = X_FRAG(gex);
-							gel = xf->nextsub;
-							if(gel == 0) {
-								ff->flags &= ~GEXFF_SYMNEXT;
-								break; /* not a circular frag */
-							}
-							good = 1; /* assume that we have symmetry */
-							/* gei goes backwards, gex goes forwards from the extremum */
-							gei = gex;
-							/* i is the symmetry axis, j is the other axis (X=0 Y=1) */
-							ff->symaxis = i = (gex->ix3 != gex->bkwd->ix3);
-							j = !i;
-							for( ; gei!=gef && gex!=gel; gei=gei->bkwd, gex=gex->frwd) {
-								if( gei->bkwd->ipoints[i][2] != gex->ipoints[i][2]
-								|| gei->bkwd->ipoints[j][2] - gei->ipoints[j][2]
-									!= gex->bkwd->ipoints[j][2] - gex->ipoints[j][2] 
-								) {
-									good = 0; /* no symmetry */
-									break;
-								}
-							}
-							if(good) {
-								if( isign(gei->bkwd->ipoints[j][2] - gei->ipoints[j][2])
-								!= isign(gex->bkwd->ipoints[j][2] - gex->ipoints[j][2]) ) {
-									good = 0; /* oops, goes into another direction */
-								}
-							}
-							if(good)
-								ff->flags |= GEXFF_SYMNEXT;
-							else
-								ff->flags &= ~GEXFF_SYMNEXT;
-						}
-
-						for(gef = firstge, count=0; count < nsub; gef = ff->nextsub, count++) {
-							ff = X_FRAG(gef);
-							if((ff->flags & GEXFF_SYMNEXT)==0) {
-								ff->symxlen = 0;
-								continue;
-							}
-							gex = ff->prevsub;
-							if(gex == 0 || (X_FRAG(gex)->flags & GEXFF_SYMNEXT)==0) {
-								ff->symxlen = 0;
-								continue;
-							}
-							ff->symxlen = X_FRAG(gex)->sublen;
-							xf = X_FRAG(ff->nextsub);
-							if(xf->sublen < ff->symxlen)
-								ff->symxlen = xf->sublen;
-						}
-
-						/* find the symmetry inside the subfragments */
-						for(gef = firstge, count=0; count < nsub; gef = ff->nextsub, count++) {
-							ff = X_FRAG(gef);
-
-							if(ff->sublen % 2) {
-								/* we must have an even number of gentries for diagonal symmetry */
-								ff->symge = 0;
-								continue;
-							}
-
-							/* gei goes forwards from the front */
-							gei = gef->frwd;
-							/* gex goes backwards from the back */
-							gex = ff->nextsub->bkwd;
-
-							/* i is the direction of gei, j is the direction of gex */
-							i = (gei->iy3 != gei->bkwd->iy3);
-							j = !i;
-							for( ; gei->bkwd != gex; gei=gei->frwd, gex=gex->bkwd) {
-								if( abs(gei->bkwd->ipoints[i][2] - gei->ipoints[i][2])
-								!= abs(gex->bkwd->ipoints[j][2] - gex->ipoints[j][2]) )
-									break; /* no symmetry */
-								i = j;
-								j = !j;
-							}
-							if(gei->bkwd == gex)
-								ff->symge = gex;
-							else
-								ff->symge = 0; /* no symmetry */
-						}
-
-						/* find the order of calculation:
-						 * prefer to start from long fragments that have the longest
-						 * neighbours symmetric with them, with all being equal prefer
-						 * the fragments that have smaller physical size
-						 */
-						ordhd = 0;
-						for(gef = firstge, count=0; count < nsub; gef = ff->nextsub, count++) {
-							ff = X_FRAG(gef);
-
-							for(ordlast = &ordhd; *ordlast != 0; ordlast = &xf->ordersub) {
-								xf = X_FRAG(*ordlast);
-								if(ff->sublen > xf->sublen)
-									break;
-								if(ff->sublen < xf->sublen)
-									continue;
-								if(ff->symxlen > xf->symxlen)
-									break;
-								if(ff->symxlen < xf->symxlen)
-									continue;
-								if(ff->bbox[0] < xf->bbox[0] || ff->bbox[1] < xf->bbox[1])
-									break;
-							}
-
-							ff->ordersub = *ordlast;
-							*ordlast = gef;
-						}
-
-						/* vectorize the subfragments */
-						for(gef = ordhd; gef != 0; gef = ff->ordersub) {
-
-							/* debugging stuff */
-							ff = X_FRAG(gef);
-							fprintf(stderr, "   %p-%p bbox[%g,%g] sym=%p %s len=%d xlen=%d\n",
-								gef, ff->nextsub, ff->bbox[0], ff->bbox[1], ff->symge, 
-								(ff->flags & GEXFF_SYMNEXT) ? "symnext" : "",
-								ff->sublen, ff->symxlen);
-
-							dosubfrag(g, f->ixstart, firstge, gef, fscale);
-						}
-
-						break;
-					}
-				} while((ge = ge->frwd) != cge->next);
-
-				free(age);
-
-			}
+			contours[cidx].cge = cge;
+			analyze_contour(g, contours, cidx);
+			cidx++;
 
 		}
+		if(cidx != ncontours) {
+			fprintf(stderr, "Internal error: found %d contours, should be %d\n",
+				__FILE__, __LINE__, cidx, ncontours);
+			exit(1);
+		}
+
+		/* resolve conflicts between fragments */
+
+		for(cidx = 0; cidx < ncontours; cidx++) {
+			discard_small_curves(g, contours, cidx);
+		}
+		for(cidx = 0; cidx < ncontours; cidx++) {
+			prefer_serifs(g, contours, cidx);
+		}
+		for(cidx = 0; cidx < ncontours; cidx++) {
+			prefer_long_lines(g, contours, cidx);
+		}
+		for(cidx = 0; cidx < ncontours; cidx++) {
+			prefer_exact_lines(g, contours, cidx);
+		}
+		for(cidx = 0; cidx < ncontours; cidx++) {
+			resolve_curves_lines(g, contours, cidx);
+		}
+		for(cidx = 0; cidx < ncontours; cidx++) {
+			resolve_curves(g, contours, cidx);
+		}
+		for(cidx = 0; cidx < ncontours; cidx++) {
+			/*
+			 * Assert that there are no conflicts any more and
+			 * for each gentry find the fragment types that start
+			 * and continue here.
+			 */
+			assert_no_conflicts(g, contours, cidx);
+		}
+		for(cidx = 0; cidx < ncontours; cidx++) {
+			vectorize_contour(g, contours, cidx, fscale);
+		}
+
+		/* free the contours data, it's no longer used */
+		for(cidx = 0; cidx < ncontours; cidx++) {
+			free(contours[cidx].age);
+		}
+		free(contours);
 
 		/* all the fragments are found, extract the vectorization */
 		pge = g->entries;
