@@ -81,33 +81,15 @@ type 1 font.
 </th></tr><tr><td>
 <font face=helvetica>
 <TT>TTF2PT1</TT> is a modification of Andrew Weeks <TT>TTF2PFA</TT> True Type to Postscript
-Type 3 converter.  Which will convert <I>Most</I> True Type Fonts to and Adobe Type 1
-.pfa file.  The files produced are in human readable form, which further needs to be
-encrypted with the t1utilities, to work with most software requiring type 1 fonts.
-</font> </td></tr></table> </td></tr></table>
-<a name="bugs"></a>
-<table width=100% bgcolor="black"><tr><td><table width=100% bgcolor=white><tr bgcolor=#a08040><th>
-<font face=helvetica>Bugs</font>
-</th></tr><tr><td>
-When compiling under Red Hat 6.0 Linux<br>
-<pre>
-gcc -O2 -o t1asm -DSTANDALONE t1asm.c -lm
-t1asm.c:88: initializer element is not constant
-t1asm.c:89: initializer element is not constant
-make: *** [t1asm] Error 1
-</pre>
-Replace the following lines, 88 and 89 in t1asm.c:
-<pre>
-FILE *ifp = stdin;
-FILE *ofp = stdout;
-</pre>
-with
-<pre>
-FILE *ifp = _IO_stdin;
-FILE *ofp = _IO_stdout;
-</pre>
-
-
+Type 3 converter.  Which will convert <I>Most</I> True Type Fonts to an Adobe Type 1
+.pfa file.  And also the other font formats supported by the FreeType library to an
+Adobe Type 1 .pfa file. And the BDF fonts to an Adobe Type 1 .pfa file.
+Yet another use is as a hinting engine: feed it an unhinted or poorly hinted Adobe
+Type 1 font through the FreeType library and get it back with freshly generated hints.
+If you want .pfb files, don't despair: they can be produced too.
+The files produced by default are in human readable form, which further needs to be
+encoded with the t1utilities, to work with most software requiring type 1 fonts.
+But for the lazy people ttf2pt1 includes a built-in portion of t1utilities as well.
 </font> </td></tr></table> </td></tr></table>
 
 <A NAME="credits"></A>
@@ -141,8 +123,15 @@ in working on the following features?<br>
 <font face=helvetica>TODO</font>
 </th></tr><tr><td>
 <ul>
-<li> Write some Decent Documentation... Submit to an Archive.
-<li> Find some more time to do all the above...
+<li> Improve hinting.
+<li> Improve the auto-tracing of bitmaps.
+<li> Implement the family-level hints.
+<li> Add generation of CID-fonts.
+<li> Handle the composite glyphs with relative base points.
+<li> Preserve the relative width of stems during scaling to 1000x1000 matrix.
+<li> Add support for bitmap TTF fonts.
+<li> Implement better support of Asian encodings.
+<li> Implement automatic creation of ligatures.
 </ul>
 </font> </td></tr></table> </td></tr></table>
 
