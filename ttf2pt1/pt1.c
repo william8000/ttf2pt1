@@ -5158,7 +5158,7 @@ print_glyph_metrics(
 
 static int
 besthyst(
-	 short *hyst,		/* the hystogram */
+	 int *hyst,		/* the hystogram */
 	 int base,		/* the base point of the hystogram */
 	 int *best,		/* the array for indexes of best values */
 	 int nbest,		/* its allocated size */
@@ -5167,13 +5167,12 @@ besthyst(
 )
 {
 	unsigned char   hused[MAXHYST / 8 + 1];
-	int             i, max, j, w;
+	int             i, max, j, w, last = 0;
 	int             nf = 0;
 
 	width--;
 
-	for (i = 0; i <= MAXHYST / 8; i++)
-		hused[i] = 0;
+	memset(hused, 0 , sizeof hused);
 
 	max = 1;
 	for (i = 0; i < nbest && max != 0; i++) {
@@ -5182,16 +5181,21 @@ besthyst(
 		for (j = 1; j < MAXHYST - 1; j++) {
 			w = hyst[j];
 
-			if (w > max && (hused[j >> 3] & (1 << (j & 0x07))) == 0) {
+			if (w > max && (hused[j>>3] & (1 << (j & 0x07))) == 0) {
 				best[i] = j;
 				max = w;
 			}
 		}
 		if (max != 0) {
+			if (max < last/2) {
+				/* do not pick the too low values */
+				break;
+			}
 			for (j = best[i] - width; j <= best[i] + width; j++) {
 				if (j >= 0 && j < MAXHYST)
 					hused[j >> 3] |= (1 << (j & 0x07));
 			}
+			last = max;
 			best[i] -= base;
 			nf = i + 1;
 		}
@@ -5543,9 +5547,10 @@ docorrectwidth(void)
 void
 stemstatistics(void)
 {
-	short           hyst[MAXHYST];
+#define MINDIST	10 /* minimal distance between the widths */
+	int             hyst[MAXHYST+MINDIST*2];
 	int             best[12];
-	int             i, j, w;
+	int             i, j, k, w;
 	int             nchars;
 	int             ns;
 	STEM           *s;
@@ -5556,8 +5561,7 @@ stemstatistics(void)
 	nchars=0;
 
 	/* build the hystogram of horizontal stem widths */
-	for (i = 0; i < MAXHYST; i++)
-		hyst[i] = 0;
+	memset(hyst, 0, sizeof hyst);
 
 	for (i = 0, g = glyph_list; i < numglyphs; i++, g++) {
 		if (g->flags & GF_USED) {
@@ -5574,16 +5578,18 @@ stemstatistics(void)
 					 * handle some fuzz present in
 					 * converted fonts
 					 */
-					hyst[w] += 2;
-					hyst[w - 1]++;
-					hyst[w + 1]++;
+					hyst[w+MINDIST] += MINDIST-1;
+					for(k=1; k<MINDIST-1; k++) {
+						hyst[w+MINDIST + k] += MINDIST-1-k;
+						hyst[w+MINDIST - k] += MINDIST-1-k;
+					}
 				}
 			}
 		}
 	}
 
 	/* find 12 most frequent values */
-	ns = besthyst(hyst, 0, best, 12, 3, &stdhw);
+	ns = besthyst(hyst+MINDIST, 0, best, 12, MINDIST, &stdhw);
 
 	/* store data in stemsnaph */
 	for (i = 0; i < ns; i++)
@@ -5592,8 +5598,7 @@ stemstatistics(void)
 		stemsnaph[ns] = 0;
 
 	/* build the hystogram of vertical stem widths */
-	for (i = 0; i < MAXHYST; i++)
-		hyst[i] = 0;
+	memset(hyst, 0, sizeof hyst);
 
 	for (i = 0, g = glyph_list; i < numglyphs; i++, g++) {
 		if (g->flags & GF_USED) {
@@ -5607,16 +5612,18 @@ stemstatistics(void)
 					 * handle some fuzz present in
 					 * converted fonts
 					 */
-					hyst[w] += 2;
-					hyst[w - 1]++;
-					hyst[w + 1]++;
+					hyst[w+MINDIST] += MINDIST-1;
+					for(k=1; k<MINDIST-1; k++) {
+						hyst[w+MINDIST + k] += MINDIST-1-k;
+						hyst[w+MINDIST - k] += MINDIST-1-k;
+					}
 				}
 			}
 		}
 	}
 
 	/* find 12 most frequent values */
-	ns = besthyst(hyst, 0, best, 12, 3, &stdvw);
+	ns = besthyst(hyst+MINDIST, 0, best, 12, MINDIST, &stdvw);
 
 	/* store data in stemsnaph */
 	for (i = 0; i < ns; i++)
@@ -5624,6 +5631,7 @@ stemstatistics(void)
 	if (ns < 12)
 		stemsnapv[ns] = 0;
 
+#undef MINDIST
 }
 
 /*
