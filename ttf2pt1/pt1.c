@@ -5151,6 +5151,7 @@ fapproxcurve(
 #undef STEPEPS
 }
 
+#if 0
 /* find the area covered by the curve
  * (limited by the projections to the X axis)
  */
@@ -5181,6 +5182,7 @@ fcvarea(
 
 	return area;
 }
+#endif
 
 /* find the value of point on the curve at the given parameter t,
  * along the given axis (0 - X, 1 - Y).
@@ -5315,7 +5317,7 @@ fforceconcise(
 	double          dxb1, dyb1, dxe1, dye1;
 	double          dxb2, dyb2, dxe2, dye2;
 	double          maxsc1, maxsc2;
-	int             i, j, tryexact, ndots, sdot;
+	int             i, j, ndots, sdot;
 /* number of reference dots taken from each curve */
 #define NREFDOTS	3 /* odd is better than even */
 /* maximal number of dots to be used as reference */
@@ -5381,20 +5383,6 @@ fforceconcise(
 				break;
 			}
 
-			/* We prefer a faster algorithm of exactly re-joining
-			 * two curves that were parts of one into the original
-			 * curve (of course, only if they fit). However if the
-			 * first curve already represents some curved joined with a
-			 * more generic algoorithm, continue with it.
-			 */
-			if(ndots != 0)
-				tryexact = 0;
-			else
-				tryexact = 1;
-
-			if(maxsc1 < 1. || maxsc2 < 1. ) /* may create a zigzag */
-				tryexact = 0;
-
 			ge->dir = fgetcvdir(ge);
 			nge->dir = fgetcvdir(nge);
 
@@ -5402,160 +5390,87 @@ fforceconcise(
 				/* would create a zigzag */
 				break;
 
-			if(tryexact) {
-				firstlen = sqrt( dxe1*dxe1 + dye1*dye1 );
-				lastlen = sqrt( dxb2*dxb2 + dyb2*dyb2 );
-				sumlen = firstlen + lastlen;
 
-				/* check the scale limits */
-				if( sumlen/firstlen > maxsc1 || sumlen/lastlen > maxsc2 ) {
-					if(ISDBG(FCONCISE)) 
-						fprintf(stderr, "%s: %x, %x would be crossing in forceconcise\n", 
-						g->name, ge, nge);
-					tryexact = 0;
-				}
-			}
-
-			if(tryexact) {
-				/* OK, it seems like we can attempt to join these two curves */
-				tge.flags = ge->flags;
-				tge.prev = ge->prev;
-				tge.fx1 = ge->fx1;
-				tge.fy1 = ge->fy1;
-				tge.fx2 = nge->fx2;
-				tge.fy2 = nge->fy2;
-				tge.fx3 = nge->fx3;
-				tge.fy3 = nge->fy3;
-
-				dxb1 = tge.fx1 - tge.prev->fx3;
-				dyb1 = tge.fy1 - tge.prev->fy3;
-				dxe1 = tge.fx3 - tge.fx2;
-				dye1 = tge.fy3 - tge.fy2;
-
-				/* scale the first segment */
-				scale = sumlen / firstlen;
-				tge.fx1 = tge.prev->fx3 + scale * dxb1;
-				tge.fy1 = tge.prev->fy3 + scale * dyb1;
-
-				/* scale the last segment */
-				scale = sumlen / lastlen;
-				tge.fx2 = tge.fx3 - scale * dxe1;
-				tge.fy2 = tge.fy3 - scale * dye1;
-
-				/* now check if we got something sensible */
-
-				/* check if some important point is too far from original */
-				scale = firstlen / sumlen;
-				{
-					double pts[4] = { 0./*will be replaced*/, 0.5, 0.25, 0.75 };
-					int i, bad;
-
-					pts[0] = scale;
-					bad = 0;
-
-					for(i=0; i<sizeof(pts)/sizeof(pts[0]); i++)
-						if(fckjoinedcv(g, pts[i], &tge, ge, nge, scale)) {
-							bad = 1;
-							break;
-						}
-					if(bad)
-						tryexact = 0;
-				}
-			}
-
-			if(tryexact) {
-				/* OK, it still looks reasonable, let's apply it */
-				if(ISDBG(FCONCISE)) 
-					dumppaths(g, ge, nge);
-
-				for(i=0; i<3; i++) {
-					ge->fxn[i] = tge.fxn[i];
-					ge->fyn[i] = tge.fyn[i];
-				}
-
-				freethisge(nge);
-			} else {
-				/* try to guess a joined curve from scratch */
-				if(ndots == 0) {
-					/* the first curve was not sampled yet */
-					fsampledots(ge, &dots[0], NREFDOTS);
-					ndots += NREFDOTS;
-				} else if(MAXDOTS-ndots < NREFDOTS+1) {
-					/* reduce the number of dots for the 1st curve twice */
-					for(i=1, j=0; i<ndots; i+=2, j++)
-						dots[j] = dots[i];
-					ndots = j;
-				}
-				dots[ndots].p[0] = ge->fx3;
-				dots[ndots].p[1] = ge->fy3;
-				ndots++;
-				fsampledots(nge, &dots[ndots], NREFDOTS);
+			/* try to guess a joined curve from scratch */
+			if(ndots == 0) {
+				/* the first curve was not sampled yet */
+				fsampledots(ge, &dots[0], NREFDOTS);
 				ndots += NREFDOTS;
+			} else if(MAXDOTS-ndots < NREFDOTS+1) {
+				/* reduce the number of dots for the 1st curve twice */
+				for(i=1, j=0; i<ndots; i+=2, j++)
+					dots[j] = dots[i];
+				ndots = j;
+			}
+			dots[ndots].p[0] = ge->fx3;
+			dots[ndots].p[1] = ge->fy3;
+			ndots++;
+			fsampledots(nge, &dots[ndots], NREFDOTS);
+			ndots += NREFDOTS;
 
-				apcv[0][0] = ge->prev->fx3;
-				apcv[0][1] = ge->prev->fy3;
-				/* apcv[1] and apcv[2] were filled by fcrossrays() */
-				apcv[3][0] = nge->fx3;
-				apcv[3][1] = nge->fy3;
+			apcv[0][0] = ge->prev->fx3;
+			apcv[0][1] = ge->prev->fy3;
+			/* apcv[1] and apcv[2] were filled by fcrossrays() */
+			apcv[3][0] = nge->fx3;
+			apcv[3][1] = nge->fy3;
 
-				fapproxcurve(apcv, dots, ndots);
-				/* here *len are reused to contain the average square distances */
-				sumlen = fdotcurvdist2(apcv, dots, ndots); 
+			fapproxcurve(apcv, dots, ndots);
+			/* here *len are reused to contain the average square distances */
+			sumlen = fdotcurvdist2(apcv, dots, ndots); 
 #ifdef DEBUG_APPROXCV
-				fprintf(stderr, "avg dist is %g\n", sqrt(sumlen));
+			fprintf(stderr, "avg dist is %g\n", sqrt(sumlen));
 #endif
+			if(sumlen > CVEPS2) {
+				/* The guess was not so good. Possibly this happened
+				 * because one of the curves is small and badly screwed up
+				 * in its previous life by something like rounding errors
+				 * to have a bad ending tangent.
+				 */
+#ifdef DEBUG_APPROXCV
+				fprintf(stderr, "%s: s=%g", g->name, sumlen);
+#endif
+
+				/* see if adjusting the first part would help */
+				tge = *ge;
+				tge.fx1 = fcvval(ge, X, 0.5);
+				tge.fy1 = fcvval(ge, Y, 0.5);
+				/* get possible scale limits within which we won't cross quadrants */
+				if( fcrossrays(&tge, nge, &maxsc1, &maxsc2, &apcv[1]) ) {
+					fapproxcurve(apcv, dots, ndots);
+					sumlen = fdotcurvdist2(apcv, dots, ndots); 
+#ifdef DEBUG_APPROXCV
+					fprintf(stderr, " f=%g", sumlen);
+#endif
+				}
+
 				if(sumlen > CVEPS2) {
-					/* The guess was not so good. Possibly this happened
-					 * because one of the curves is small and badly screwed up
-					 * in its previous life by something like rounding errors
-					 * to have a bad ending tangent.
-					 */
-#ifdef DEBUG_APPROXCV
-					fprintf(stderr, "%s: s=%g", g->name, sumlen);
-#endif
-
-					/* see if adjusting the first part would help */
-					tge = *ge;
-					tge.fx1 = fcvval(ge, X, 0.5);
-					tge.fy1 = fcvval(ge, Y, 0.5);
+					/* apparently it did not help, try adjusting the last part */
+					tge = *nge;
+					tge.fx2 = fcvval(nge, X, 0.5);
+					tge.fy2 = fcvval(nge, Y, 0.5);
 					/* get possible scale limits within which we won't cross quadrants */
-					if( fcrossrays(&tge, nge, &maxsc1, &maxsc2, &apcv[1]) ) {
+					if( fcrossrays(ge, &tge, &maxsc1, &maxsc2, &apcv[1]) ) {
 						fapproxcurve(apcv, dots, ndots);
 						sumlen = fdotcurvdist2(apcv, dots, ndots); 
 #ifdef DEBUG_APPROXCV
-						fprintf(stderr, " f=%g", sumlen);
+						fprintf(stderr, " l=%g", sumlen);
 #endif
 					}
-
-					if(sumlen > CVEPS2) {
-						/* apparently it did not help, try adjusting the last part */
-						tge = *nge;
-						tge.fx2 = fcvval(nge, X, 0.5);
-						tge.fy2 = fcvval(nge, Y, 0.5);
-						/* get possible scale limits within which we won't cross quadrants */
-						if( fcrossrays(ge, &tge, &maxsc1, &maxsc2, &apcv[1]) ) {
-							fapproxcurve(apcv, dots, ndots);
-							sumlen = fdotcurvdist2(apcv, dots, ndots); 
-#ifdef DEBUG_APPROXCV
-							fprintf(stderr, " l=%g", sumlen);
-#endif
-						}
-					}
-#ifdef DEBUG_APPROXCV
-					fprintf(stderr, "\n", sumlen);
-#endif
 				}
-
-				if(sumlen <= CVEPS2) {
-					/* we've guessed a curve that is close enough */
-					for(i=0; i<3; i++) {
-						ge->fxn[i] = apcv[i+1][0];
-						ge->fyn[i] = apcv[i+1][1];
-					}
-					freethisge(nge);
-				} else
-					break;
+#ifdef DEBUG_APPROXCV
+				fprintf(stderr, "\n", sumlen);
+#endif
 			}
+
+			if(sumlen <= CVEPS2) {
+				/* we've guessed a curve that is close enough */
+				for(i=0; i<3; i++) {
+					ge->fxn[i] = apcv[i+1][0];
+					ge->fyn[i] = apcv[i+1][1];
+				}
+				freethisge(nge);
+			} else
+				break;
 		}
 	}
 
