@@ -176,6 +176,7 @@ handle_header(
 {
 	struct line *cl;
 	char *s, *p;
+	char bf[2000];
 	int c;
 
 #if 0
@@ -196,21 +197,19 @@ handle_header(
 		}
 		cl->flags |= IS_SEEN;
 		if(cl->fmt == 0) {
-			s = malloc(len - cl->namelen + 1);
-			if(s == 0) {
-				fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
-				exit(255);
-			}
-			*((char **)(cl->vp[0])) = s;
+			if(len - cl->namelen + 1 > sizeof bf)
+				len = sizeof bf; /* cut it down */
+
+			s = bf; /* a temporary buffer to extract the value */
 
 			/* skip until a quote */
-			for(p = str+cl->namelen; (c = *p)!=0; p++) {
+			for(p = str+cl->namelen; len!=0 && (c = *p)!=0; p++, len--) {
 				if(c == '"') {
 					p++;
 					break;
 				}
 			}
-			for(; (c = *p)!=0; p++) {
+			for(; len!=0 && (c = *p)!=0; p++, len--) {
 				if(c == '"') {
 					c = *++p;
 					if(c == '"')
@@ -221,6 +220,8 @@ handle_header(
 					*s++ = c;
 			}
 			*s = 0; /* end of line */
+
+			*((char **)(cl->vp[0])) = dupcnstring(bf, s-bf);
 		} else {
 			c = sscanf(str+cl->namelen, cl->fmt, cl->vp[0], cl->vp[1], cl->vp[2], cl->vp[3]);
 			if(c != cl->nvals) {

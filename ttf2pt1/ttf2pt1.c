@@ -1488,6 +1488,55 @@ handle_gnames(void)
  	
 }
 
+/* duplicate a string with counter to a 0-terminated string,
+ * and by the way filter out the characters that won't look good
+ * in the Postscript strings or comments; limit the length
+ * to a reasonable amount.
+ */
+
+char *
+dupcnstring(
+	unsigned char *s,
+	int len
+)
+{
+	char *res, *out;
+	int i, c;
+	static int warned=0;
+
+	if(len > 255) {
+		WARNING_1 fprintf(stderr, "Some font name strings are longer than 255 characters, cut down\n");
+		len = 255;
+	}
+
+	if(( res = malloc(len+1) )==NULL) {
+		fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
+		exit(255);
+	}
+
+	out = res;
+	for(i=0; i<len; i++) {
+		c = s[i];
+		if( c>=' ' && c!=127) {
+			/* translate the inconvenient chacracters */
+			if( c== '(' )
+				c = '[';
+			else if( c== ')' )
+				c = ']';
+			*out++ = c;
+		} else if( c=='\n' || c=='\r' ) {
+			WARNING_1 fprintf(stderr, "Some font name strings contain end of line or Unicode, cut down\n");
+			*out = 0;
+			return res;
+		} else if(!warned) {
+			warned=1;
+			WARNING_1 fprintf(stderr, "Some font name strings are in Unicode, may not show properly\n");
+		}
+	}
+	*out = 0;
+	return res;
+}
+
 static void
 usage(void)
 {

@@ -90,7 +90,6 @@ static short   *cmap_idDelta, *cmap_idRangeOffset;
 static TTF_CMAP_FMT0  *encoding0;
 static int             enc_type;
 
-static char     name_buffer[2000];
 static char    *name_fields[8];
 
 static int enc_found_ms, enc_found_mac;
@@ -200,7 +199,6 @@ handle_name(void)
 {
 	int             j, k, lang, len, platform;
 	char           *p, *string_area;
-	char           *nbp = name_buffer;
 	int             found3 = 0;
 
 	string_area = (char *) name_table + ntohs(name_table->offset);
@@ -222,23 +220,8 @@ handle_name(void)
 			if (lang == 0 || lang == 9) {
 				k = ntohs(name_record->nameID);
 				if (k < 8) {
-					name_fields[k] = nbp;
-
 					p = string_area + ntohs(name_record->stringOffset);
-					for (k = 0; k < len; k++) {
-						if (p[k] != '\0') {
-							if (p[k] == '(') {
-								*nbp = '[';
-							} else if (p[k] == ')') {
-								*nbp = ']';
-							} else {
-								*nbp = p[k];
-							}
-							nbp++;
-						}
-					}
-					*nbp = '\0';
-					nbp++;
+					name_fields[k] = dupcnstring(p, len);
 				}
 			}
 		}
@@ -261,23 +244,8 @@ handle_name(void)
 				if (lang == 0 || lang == 9) {
 					k = ntohs(name_record->nameID);
 					if (k < 8) {
-						name_fields[k] = nbp;
-
 						p = string_area + ntohs(name_record->stringOffset);
-						for (k = 0; k < len; k++) {
-							if (p[k] != '\0') {
-								if (p[k] == '(') {
-									*nbp = '[';
-								} else if (p[k] == ')') {
-									*nbp = ']';
-								} else {
-									*nbp = p[k];
-								}
-								nbp++;
-							}
-						}
-						*nbp = '\0';
-						nbp++;
+						name_fields[k] = dupcnstring(p, len);
 					}
 				}
 			}
