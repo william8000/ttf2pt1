@@ -53,7 +53,7 @@ newgentry(void)
 
 	if (ge == 0) {
 		fprintf(stderr, "***** Memory allocation error *****\n");
-		exit(1);
+		exit(255);
 	}
 	ge->next = ge->prev = ge->first = 0;
 	ge->stemid = -1;
@@ -248,7 +248,7 @@ g_rlineto(
 		nge->prev = oge;
 		g->lastentry = nge;
 	} else {
-		fprintf(stderr, "Glyph %s: LINE outside of path\n", g->name);
+		WARNING_1 fprintf(stderr, "Glyph %s: LINE outside of path\n", g->name);
 #if 0
 		g->entries = g->lastentry = nge;
 #else
@@ -303,7 +303,7 @@ g_rrcurveto(
 			nge->prev = oge;
 			g->lastentry = nge;
 		} else {
-			fprintf(stderr, "Glyph %s: CURVE outside of path\n", g->name);
+			WARNING_1 fprintf(stderr, "Glyph %s: CURVE outside of path\n", g->name);
 #if 0
 			g->entries = g->lastentry = nge;
 #else
@@ -326,12 +326,12 @@ g_closepath(
 	oge = g->lastentry;
 
 	if (g->path == 0) {
-		fprintf(stderr, "Warning: **** closepath on empty path in glyph \"%s\" ****\n",
+		WARNING_1 fprintf(stderr, "Warning: **** closepath on empty path in glyph \"%s\" ****\n",
 			g->name);
 		if (oge == 0) {
-			fprintf(stderr, "No previois entry\n");
+			WARNING_1 fprintf(stderr, "No previois entry\n");
 		} else {
-			fprintf(stderr, "Previous entry type: %c\n", oge->type);
+			WARNING_1 fprintf(stderr, "Previous entry type: %c\n", oge->type);
 			if (oge->type == GE_MOVE) {
 				g->lastentry = oge->prev;
 				if (oge->prev == 0)
@@ -768,14 +768,14 @@ closepaths(
 	for (ge = g->entries; ge != 0; ge = ge->next) {
 		if ((fge = ge->first) != 0) {
 			if (fge->prev == 0 || fge->prev->type != GE_MOVE) {
-				fprintf(stderr, "Glyph %s got strange beginning of path\n",
+				WARNING_1 fprintf(stderr, "Glyph %s got strange beginning of path\n",
 					g->name);
 			}
 			fge = fge->prev;
 			if (fge->x3 != ge->x3 || fge->y3 != ge->y3) {
 				/* we have to fix this open path */
 
-				fprintf(stderr, "Glyph %s got path open by dx=%d dy=%d\n",
+				WARNING_3 fprintf(stderr, "Glyph %s got path open by dx=%d dy=%d\n",
 				g->name, fge->x3 - ge->x3, fge->y3 - ge->y3);
 
 				if (abs(ge->x3 - fge->x3) <= 2 && abs(ge->y3 - fge->y3) <= 2) {
@@ -1511,7 +1511,7 @@ joinmainstems(
 						s[nnew-2].value, s[nnew-1].value);
 			} else {
 				if (nstack >= MAX_STACK) {
-					fprintf(stderr, "Warning: **** stem stack overflow ****\n");
+					WARNING_1 fprintf(stderr, "Warning: **** converter's stem stack overflow ****\n");
 					nstack = 0;
 				}
 				stack[nstack++] = s[i];
@@ -2619,7 +2619,7 @@ groupsubstems(
 		}
 
 		if( gssentry(ge, hs, hpairs, nhs, vs, vpairs, nvs, s, egp, &nextvsi, &nexthsi) ) {
-			fprintf(stderr, "*** glyph %s requires over %d hint subroutines, ignored them\n",
+			WARNING_2 fprintf(stderr, "*** glyph %s requires over %d hint subroutines, ignored them\n",
 				g->name, NSTEMGRP);
 			/* it's better to have no substituted hints at all than have only part */
 			for (ge = g->entries; ge != 0; ge = ge->next)
@@ -2634,7 +2634,7 @@ groupsubstems(
 		 */
 		if(ge->first && (nextvsi != -2 || nexthsi != -2) ) {
 			if( gssentry(ge->first, hs, hpairs, nhs, vs, vpairs, nvs, s, egp, &nextvsi, &nexthsi) ) {
-				fprintf(stderr, "*** glyph %s requires over %d hint subroutines, ignored them\n",
+				WARNING_2 fprintf(stderr, "*** glyph %s requires over %d hint subroutines, ignored them\n",
 					g->name, NSTEMGRP);
 				/* it's better to have no substituted hints at all than have only part */
 				for (ge = g->entries; ge != 0; ge = ge->next)
@@ -2679,13 +2679,13 @@ groupsubstems(
 
 	if(g->nsg>0) {
 		if( (g->nsbs=malloc(g->nsg * sizeof (egp[0]))) == 0 ) {
-			fprintf(stderr, "**** not enough memory for substituted stems ****\n");
-			exit(1);
+			fprintf(stderr, "**** not enough memory for substituted hints ****\n");
+			exit(255);
 		}
 		memmove(g->nsbs, egp, g->nsg * sizeof(short));
 		if( (g->sbstems=malloc(egp[g->nsg-1] * sizeof (s[0]))) == 0 ) {
-			fprintf(stderr, "**** not enough memory for substituted stems ****\n");
-			exit(1);
+			fprintf(stderr, "**** not enough memory for substituted hints ****\n");
+			exit(255);
 		}
 		memmove(g->sbstems, s, egp[g->nsg-1] * sizeof(s[0]));
 	}
@@ -3118,7 +3118,7 @@ buildstems(
 	if(g->nhs > 0) {
 		if ((sp = malloc(sizeof(STEM) * g->nhs)) == 0) {
 			fprintf(stderr, "**** not enough memory for hints ****\n");
-			exit(1);
+			exit(255);
 		}
 		g->hstems = sp;
 		memcpy(sp, hs, sizeof(STEM) * g->nhs);
@@ -3128,7 +3128,7 @@ buildstems(
 	if(g->nvs > 0) {
 		if ((sp = malloc(sizeof(STEM) * g->nvs)) == 0) {
 			fprintf(stderr, "**** not enough memory for hints ****\n");
-			exit(1);
+			exit(255);
 		}
 		g->vstems = sp;
 		memcpy(sp, vs, sizeof(STEM) * g->nvs);
@@ -3157,8 +3157,10 @@ buildstems(
 
 	/* be on the safe side, check for >= , not > */
 	if(totals >= max_stemdepth) {  /* oops, too deep */
-		fprintf(stderr, "Warning: glyph %s needs hint stack depth %d\n", g->name, totals);
-		fprintf(stderr, "  (limit %d): removed the substituted hints from it\n", max_stemdepth);
+		WARNING_2 {
+			fprintf(stderr, "Warning: glyph %s needs hint stack depth %d\n", g->name, totals);
+			fprintf(stderr, "  (limit %d): removed the substituted hints from it\n", max_stemdepth);
+		}
 		if(g->nsg > 0) {
 			for (ge = g->entries; ge != 0; ge = ge->next)
 				ge->stemid = -1;
@@ -3172,8 +3174,10 @@ buildstems(
 	totals = (g->nhs+g->nvs) / 2; /* we count whole stems, not halves */
 	if(totals >= max_stemdepth) { 
 		/* even worse, too much of non-substituted stems */
-		fprintf(stderr, "Warning: glyph %s has %d main hints\n", g->name, totals);
-		fprintf(stderr, "  (limit %d): removed the hints from it\n", max_stemdepth);
+		WARNING_2 {
+			fprintf(stderr, "Warning: glyph %s has %d main hints\n", g->name, totals);
+			fprintf(stderr, "  (limit %d): removed the hints from it\n", max_stemdepth);
+		}
 		if(g->vstems) {
 			free(g->vstems); g->vstems = 0; g->nvs = 0;
 		}
@@ -3931,7 +3935,7 @@ print_glyf(
 		fprintf(pfa_file, "0 %d hsbw\n", g->scaledwidth);
 	} else {
 		fprintf(pfa_file, "0 1000 hsbw\n");
-		fprintf(stderr, "glyph %s: width %d seems to be buggy, set to 1000\n",
+		WARNING_2 fprintf(stderr, "glyph %s: width %d seems to be buggy, set to 1000\n",
 			g->name, g->scaledwidth);
 	}
 
@@ -4028,7 +4032,7 @@ print_glyf(
 			closepath();
 			break;
 		default:
-			fprintf(stderr, "**** Glyph %s: unknown entry type '%c'\n",
+			WARNING_1 fprintf(stderr, "**** Glyph %s: unknown entry type '%c'\n",
 				g->name, ge->type);
 			break;
 		}
@@ -4397,7 +4401,7 @@ findblues(void)
 		}
 	}
 	ang = (double) (max - HYSTBASE) / 10.0;
-	fprintf(stderr, "Guessed italic angle: %f\n", ang);
+	WARNING_2 fprintf(stderr, "Guessed italic angle: %f\n", ang);
 	if (italic_angle == 0.0)
 		italic_angle = ang;
 
@@ -4519,7 +4523,7 @@ docorrectwidth(void)
 			maxwidth=xmax+minsp;
 			if( g->scaledwidth < maxwidth ) {
 				g->scaledwidth = maxwidth;
-				fprintf(stderr, "glyph %s: extended from %d to %d\n",
+				WARNING_3 fprintf(stderr, "glyph %s: extended from %d to %d\n",
 					g->name, g->oldwidth, g->scaledwidth );
 			}
 		}
@@ -4836,7 +4840,7 @@ fixcontours(
 		g->contours = malloc(sizeof(CONTOUR) * ncont);
 		if (g->contours == 0) {
 			fprintf(stderr, "***** Memory allocation error *****\n");
-			exit(1);
+			exit(255);
 		}
 		memcpy(g->contours, cont, sizeof(CONTOUR) * ncont);
 	}

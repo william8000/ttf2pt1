@@ -89,6 +89,7 @@ int      correctwidth=0;	/* try to correct the character width */
 int      correctvsize=0;	/* try to correct the vertical size of characters */
 int      wantuid = 0;	/* user wants UniqueID entry in the font */
 int      allglyphs = 0;	/* convert all glyphs, not only 256 of them */
+int      warnlevel = 9999;	/* the level of permitted warnings */
 /* options - maximal limits */
 int      max_stemdepth = 128;	/* maximal depth of stem stack in interpreter (128 - limit from X11) */
 
@@ -1813,21 +1814,23 @@ handle_cmap(void)
 		if (platform == 3 && format == 4) {
 			switch (encoding_id) {
 			case 0:
-				fputs("Found Symbol Encoding\n", stderr);
+				WARNING_1 fputs("Found Symbol Encoding\n", stderr);
 				break;
 			case 1:
-				fputs("Found Unicode Encoding\n", stderr);
+				WARNING_1 fputs("Found Unicode Encoding\n", stderr);
 				unicode = 1;
 				break;
 			default:
-				fprintf(stderr,
-				"****MS Encoding ID %d not supported****\n",
-					encoding_id);
-				fputs("Treating it like Symbol encoding\n", stderr);
+				WARNING_1 {
+					fprintf(stderr,
+					"****MS Encoding ID %d not supported****\n",
+						encoding_id);
+					fputs("Treating it like Symbol encoding\n", stderr);
+				}
 				break;
 			}
 			if (forceunicode) {
-				fputs("Forcing Unicode Encoding\n", stderr);
+				WARNING_1 fputs("Forcing Unicode Encoding\n", stderr);
 				unicode = 1;
 			}
 
@@ -1863,12 +1866,12 @@ handle_cmap(void)
 						}
  					}
  					if(n<0 || n>=numglyphs) {
- 						fprintf(stderr, "Font contains a broken glyph code mapping, ignored\n");
+ 						WARNING_1 fprintf(stderr, "Font contains a broken glyph code mapping, ignored\n");
  						continue;
 					}
 					if (glyph_list[n].unicode != -1) {
 						if (strcmp(glyph_list[n].name, ".notdef") != 0) {
-							fprintf(stderr,
+							WARNING_2 fprintf(stderr,
 								"Glyph %s has >= two encodings (A), %4.4x & %4.4x\n",
 							 glyph_list[n].name,
 								glyph_list[n].unicode,
@@ -1900,7 +1903,7 @@ handle_cmap(void)
 								/* glyph_list[n].char_no = k; */
 								glyph_list[n].unicode = k;
 							}
-							fprintf(stderr,
+							WARNING_2 fprintf(stderr,
 								"Glyph %s has non-symbol encoding %4.4x\n",
 							 glyph_list[n].name,
 								k & 0xffff);
@@ -1918,7 +1921,7 @@ handle_cmap(void)
 	}
 
 	if (!found) {
-		fputs("No Microsoft encoding, looking for MAC encoding\n", stderr);
+		WARNING_1 fputs("No Microsoft encoding, looking for MAC encoding\n", stderr);
 		for (i = 0; i < num_tables && !found; i++) {
 			table_entry = &(cmap_table->encodingTable[i]);
 			offset = ntohl(table_entry->offset);
@@ -1933,7 +1936,7 @@ handle_cmap(void)
 				for (j = 0; j < size; j++) {
 					n = encoding0->glyphIdArray[j];
 					if (glyph_list[n].char_no != -1) {
-						fprintf(stderr,
+						WARNING_2 fprintf(stderr,
 							"Glyph %s has >= two encodings (B), %4.4x & %4.4x\n",
 							glyph_list[n].name,
 						      glyph_list[n].char_no,
@@ -2006,16 +2009,16 @@ draw_glyf(
 	get_glyf_table(glyphno, &glyf_table, &len);
 
 	if (len <= 0) {
-		fprintf(stderr,
-			"**** Composite glyph %s refers to non-existent glyph %s ****\n",
+		WARNING_1 fprintf(stderr,
+			"**** Composite glyph %s refers to non-existent glyph %s, ignored\n",
 			glyph_list[parent].name,
 			glyph_list[glyphno].name);
 		return;
 	}
 	ncontours = ntohs(glyf_table->numberOfContours);
 	if (ncontours <= 0) {
-		fprintf(stderr,
-			"**** Composite glyph %s refers to composite glyph %s ****\n",
+		WARNING_1 fprintf(stderr,
+			"**** Composite glyph %s refers to composite glyph %s, ignored\n",
 			glyph_list[parent].name,
 			glyph_list[glyphno].name);
 		return;
@@ -2362,7 +2365,7 @@ alignwidths(void)
 
 	avg = sum / n;
 
-	fprintf(stderr, "widths: max=%d avg=%d min=%d\n", max, avg, min);
+	WARNING_3 fprintf(stderr, "widths: max=%d avg=%d min=%d\n", max, avg, min);
 
 	/* if less than 5% variation from average */
 	/* force fixed width */
@@ -2554,8 +2557,8 @@ convert_glyf(
 		}
 
 		if (ncurves > 100) {
-			fprintf(stderr,
-			"**Glyf %s is too long, may have to be removed**\n",
+			WARNING_2 fprintf(stderr,
+			"** Glyph %s is too long, may display incorrectly\n",
 				glyph_list[glyphno].name);
 		}
 	}
@@ -2608,7 +2611,7 @@ handle_post(void)
                 npost = ntohs(post_table->numGlyphs);
                 if (numglyphs != npost) {
                         /* This is an error in the font, but we can now cope */
-                        fprintf(stderr, "**** Postscript table size mismatch %d/%d ****\n",
+                        WARNING_1 fprintf(stderr, "**** Postscript table size mismatch %d/%d ****\n",
                                 npost, numglyphs);
                 }
                 n_ps_names = 0;
@@ -2632,7 +2635,7 @@ handle_post(void)
                            
                         if ((p = malloc(len+1)) == NULL) {
                             fprintf (stderr, "****malloc failed line %d\n", __LINE__);
-                            exit(-1);
+                            exit(255);
                         }
                         
                         ps_name_ptr[i] = p;
@@ -2644,7 +2647,7 @@ handle_post(void)
         
                 if (i != n_ps_names)
                 {
-                    fprintf (stderr, "** Postscript Name mismatch %d != %d **\n",
+                    WARNING_2 fprintf (stderr, "** Postscript Name mismatch %d != %d **\n",
                              i, n_ps_names);
                     n_ps_names = i;
                 }
@@ -2663,7 +2666,7 @@ handle_post(void)
                         } else {
                                 glyph_list[i].name = malloc(10);
                                 sprintf(glyph_list[i].name, "_%d", n);
-                                fprintf(stderr,
+                                WARNING_2 fprintf(stderr,
                                         "**** Glyph No. %d has no postscript name, becomes %s ****\n",
                                         i, glyph_list[i].name);
                         }
@@ -2674,16 +2677,16 @@ handle_post(void)
                         if ((glyph_list[i].name = malloc(10)) == NULL)
                         {
                             fprintf (stderr, "****malloc failed line %d\n", __LINE__);
-                            exit(-1);
+                            exit(255);
                         }
                         sprintf(glyph_list[i].name, "_%d", i);
-                        fprintf(stderr,
+                        WARNING_2 fprintf(stderr,
                                 "** Glyph No. %d has no postscript name, becomes %s **\n",
                                 i, glyph_list[i].name);
                     }
                 }
 	} else if (format == 0x00030000) {
-		fputs("No postscript table, using default\n", stderr);
+		WARNING_3 fputs("No postscript table, using default\n", stderr);
 		ps_fmt_3 = 1;
 	} else if (format == 0x00028000) {
 		ptr = (char *) &(post_table->numGlyphs);
@@ -2701,15 +2704,15 @@ handle_post(void)
 	for (n = 0; n < numglyphs; n++) {
 		int             c;
 		for (i = 0; (c = glyph_list[n].name[i]) != 0; i++) {
-			if (!(isalnum(c) || c == '.') 
+			if (!(isalnum(c) || c == '.' || c == '_' ) 
 			|| i==0 && isdigit(c)) { /* must not start with a digit */
-				fprintf(stderr, "Glyph %d %s (%s), ",
+				WARNING_3 fprintf(stderr, "Glyph %d %s (%s), ",
 					n, isdigit(c) ? "name starts with a digit" : 
 						"has bad characters in name",
 					glyph_list[n].name);
 				glyph_list[n].name = malloc(10);
 				sprintf(glyph_list[n].name, "_%d", n);
-				fprintf(stderr, "changing to %s\n", glyph_list[n].name);
+				WARNING_3 fprintf(stderr, "changing to %s\n", glyph_list[n].name);
 				break;
 			}
 		}
@@ -2723,7 +2726,7 @@ handle_post(void)
 				if (strcmp(glyph_list[i].name, glyph_list[n].name) == 0) {
 					glyph_list[n].name = malloc(10);
 					sprintf(glyph_list[n].name, "_%d", n);
-					fprintf(stderr,
+					WARNING_3 fprintf(stderr,
 						"Glyph %d has the same name as %d: (%s), changing to %s\n",
 						n, i,
 						glyph_list[i].name,
@@ -2810,6 +2813,7 @@ usage(void)
 	fputs("  -u id - use this UniqueID, -u A means autogeneration\n", stderr);
 	fputs("  -v size - scale the font to make uppercase letters >size/1000 high\n", stderr);
 	fputs("  -w - correct the glyph widths (use only for buggy fonts)\n", stderr);
+	fputs("  -W <number> - set the level of permitted warnings (0 - disable)\n", stderr);
 	fputs("  -F - force use of Unicode encoding even if other MS encoding detected\n", stderr); 
 	fputs("The last '-' means 'use STDOUT'.\n", stderr);
 }
@@ -2830,10 +2834,17 @@ main(
 	int             oc;
 	int             subid;
 
-	while(( oc=getopt(argc, argv, "FaoebAsthHfwv:l:d:u:L:m:") )!= -1) {
+	while(( oc=getopt(argc, argv, "FaoebAsthHfwv:l:d:u:L:m:W:") )!= -1) {
 		switch(oc) {
+		case 'W':
+			if(sscanf(optarg, "%d", &warnlevel) < 1 || warnlevel < 0) {
+				fprintf(stderr, "**** warning level must be a positive number\n");
+				exit(1);
+			}
+			break;
 		case 'F':
 			forceunicode = 1;
+			break;
 		case 'o':
 			optimize = 0;
 			break;
@@ -3013,7 +3024,7 @@ main(
 		}
 	got_a_language:
 		if(uni_lang_converter!=0) 
-			fprintf(stderr, "Using language '%s' for Unicode fonts\n", uni_lang[i].name);
+			WARNING_1 fprintf(stderr, "Using language '%s' for Unicode fonts\n", uni_lang[i].name);
 	}
 
 	if (stat(argv[1], &statbuf) == -1) {
@@ -3028,7 +3039,7 @@ main(
 		fprintf(stderr, "**** Cannot open %s ****\n", argv[1]);
 		exit(1);
 	} else {
-		fprintf(stderr, "Processing file %s\n", argv[1]);
+		WARNING_2 fprintf(stderr, "Processing file %s\n", argv[1]);
 	}
 
 	if (read(ttf_file, filebuffer, statbuf.st_size) != statbuf.st_size) {
@@ -3046,7 +3057,7 @@ main(
 	if (argv[2][0] == '-' && argv[2][1] == 0) {
 		pfa_file = stdout;
 		if ((afm_file = fopen("/dev/null", "w+")) == NULL) {
-			fprintf(stderr, "**** Cannot create /dev/null ****\n");
+			fprintf(stderr, "**** Cannot open /dev/null ****\n");
 			exit(1);
 		}
 		if(wantafm) { /* print .afm instead of .pfa */
@@ -3061,7 +3072,7 @@ main(
 			fprintf(stderr, "**** Cannot create %s ****\n", filename);
 			exit(1);
 		} else {
-			fprintf(stderr, "Creating file %s\n", filename);
+			WARNING_2 fprintf(stderr, "Creating file %s\n", filename);
 		}
 
 		sprintf(filename, "%s.afm", argv[2]) ;
@@ -3133,7 +3144,7 @@ main(
 		} else if (memcmp(dir_entry->tag, "EBDT", 4) == 0 ||
 			   memcmp(dir_entry->tag, "EBLC", 4) == 0 ||
 			   memcmp(dir_entry->tag, "EBSC", 4) == 0) {
-			fprintf(stderr, "Font contains bitmaps\n");
+			WARNING_1 fprintf(stderr, "Font contains bitmaps\n");
 		}
 		dir_entry++;
 	}
@@ -3143,7 +3154,7 @@ main(
 	handle_head();
 
 	numglyphs = ntohs(maxp_table->numGlyphs);
-	fprintf(stderr, "numglyphs = %d\n", numglyphs);
+	WARNING_3 fprintf(stderr, "numglyphs = %d\n", numglyphs);
 
 	glyph_list = (GLYPH *) calloc(numglyphs,  sizeof(GLYPH));
 
@@ -3311,7 +3322,7 @@ main(
 	fprintf(pfa_file, "%%%%EndComments\n");
 	fprintf(pfa_file, "12 dict begin\n/FontInfo 9 dict dup begin\n");
 
-	fprintf(stderr, "FontName %s%s\n", name_fields[6], uni_font_name_suffix);
+	WARNING_3 fprintf(stderr, "FontName %s%s\n", name_fields[6], uni_font_name_suffix);
 
 
 	fprintf(pfa_file, "/version (%s) readonly def\n", name_fields[5]);
@@ -3541,12 +3552,12 @@ main(
         handle_kern();
         fprintf(afm_file, "EndKernData\n");
     } else {
-        fputs("No Kerning data\n", stderr);
+        WARNING_1 fputs("No Kerning data\n", stderr);
     }
     fprintf(afm_file, "EndFontMetrics\n");
     fclose(afm_file);
 
-	fprintf(stderr, "Finished - font files created\n");
+	WARNING_1 fprintf(stderr, "Finished - font files created\n");
 
 	fclose(pfa_file);
 	while (wait(&ws) > 0) {

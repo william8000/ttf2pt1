@@ -20,12 +20,20 @@ extern int      correctwidth;	/* try to correct the character width */
 extern int      correctvsize;	/* try to correct the vertical size of characters */
 extern int      wantuid;	/* user wants UniqueID entry in the font */
 extern int      allglyphs;	/* convert all glyphs, not only 256 of them */
+extern int      warnlevel;	/* the level of permitted warnings */
 /* options - maximal limits */
 extern int      max_stemdepth;	/* maximal depth of stem stack in interpreter */
 
 /* other globals */
 extern FILE    *pfa_file, *afm_file;
 extern int      ttf_file, numglyphs, long_offsets, ncurves;
+
+/* warnings */
+
+#define WARNING_1	if(warnlevel >= 1)
+#define WARNING_2	if(warnlevel >= 2)
+#define WARNING_3	if(warnlevel >= 3)
+#define WARNING_4	if(warnlevel >= 4)
 
 /* debugging */
 
