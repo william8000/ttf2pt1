@@ -306,7 +306,7 @@ $XDSTENC"
 				echo "******* aliases: $aliases" >>$LOG
 
 				$T1FDIR -d fonts.ttf fonts.alias $FOUNDRY $enc $aliases -f ./$name.$enc.$SUFFIX
-				echo "$psname$enc	($name.$enc.$SUFFIX)	;" >>Fontmap.ttf
+				echo "/$psname$enc	($name.$enc.$SUFFIX)	;" >>Fontmap.ttf
 			} done
 		} else {
 			enc="$SRCENC"
@@ -326,7 +326,7 @@ $XDSTENC"
 			}
 
 			$T1FDIR -d fonts.ttf fonts.alias $FOUNDRY $enc -f ./$name.$enc.$SUFFIX
-			echo "$psname$enc	($name.$enc.$SUFFIX)	;" >>Fontmap.ttf
+			echo "/$psname$enc	($name.$enc.$SUFFIX)	;" >>Fontmap.ttf
 		} fi
 
 		[ YES = "$REMOVET1A" ] && {
