@@ -34,7 +34,7 @@ int      bbox[4];	/* the FontBBox array */
 double   italic_angle;
 
 GLYPH   *glyph_list;
-short    encoding[256];	/* inverse of glyph[].char_no */
+int    encoding[256];	/* inverse of glyph[].char_no */
 
 int
 sign(
@@ -142,6 +142,7 @@ closepath(void)
 void
 assertpath(
 	   GENTRY * from,
+	   char *file,
 	   int line,
 	   char *name
 )
@@ -153,7 +154,7 @@ assertpath(
 	pe = from->prev;
 	for (ge = from; ge != 0; pe = ge, ge = ge->next) {
 		if (pe != ge->prev) {
-			fprintf(stderr, "**** assertpath: called from line %d (%s) ****\n", line, name);
+			fprintf(stderr, "**** assertpath: called from %s line %d (%s) ****\n", file, line, name);
 			fprintf(stderr, "unidirectional chain 0x%x -next-> 0x%x -prev-> 0x%x \n",
 				pe, ge, ge->prev);
 			exit(1);
@@ -161,19 +162,19 @@ assertpath(
 		if (ge->type == GE_MOVE)
 			first = ge->next;
 		if (ge->first && ge->first != first) {
-			fprintf(stderr, "**** assertpath: called from line %d (%s) ****\n", line, name);
+			fprintf(stderr, "**** assertpath: called from %s line %d (%s) ****\n", file, line, name);
 			fprintf(stderr, "broken loop 0x%x -...-> 0x%x -first-> 0x%x \n",
 				first, ge, ge->first);
 			exit(1);
 		}
 		if (ge->type == GE_PATH) {
 			if (ge->prev == 0) {
-				fprintf(stderr, "**** assertpath: called from line %d (%s) ****\n", line, name);
+				fprintf(stderr, "**** assertpath: called from %s line %d (%s) ****\n", file, line, name);
 				fprintf(stderr, "empty path at 0x%x \n", ge);
 				exit(1);
 			}
 			if (ge->prev->first == 0) {
-				fprintf(stderr, "**** assertpath: called from line %d (%s) ****\n", line, name);
+				fprintf(stderr, "**** assertpath: called from %s line %d (%s) ****\n", file, line, name);
 				fprintf(stderr, "path without backlink at 0x%x \n", pe);
 				exit(1);
 			}
@@ -3921,7 +3922,7 @@ forceconcise(
 }
 
 void
-print_glyf(
+print_glyph(
 	   int glyphno
 )
 {
@@ -4048,7 +4049,7 @@ print_glyf(
 
 /* print the subroutines for this glyph, returns the number of them */
 int
-print_glyf_subs(
+print_glyph_subs(
 	   int glyphno,
 	   int startid /* start numbering subroutines from this id */
 )
@@ -4077,7 +4078,7 @@ print_glyf_subs(
 }
 
 void
-print_glyf_metrics(
+print_glyph_metrics(
 	   int code,
 	   int glyphno
 )

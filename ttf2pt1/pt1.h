@@ -74,11 +74,12 @@ typedef struct contour {
 
 typedef struct glyph {
 	int             char_no;/* Encoding of glyph */
-	int             unicode;/* Unicode value of glyph */
+	int             orig_code;/* code of glyph in the font's original encoding */
 	char           *name;	/* Postscript name of glyph */
 	int             xMin, yMin, xMax, yMax;	/* values from TTF dictionary */
-	int             lsb;
-	short int       width;
+	int             lsb; /* left sidebearing */
+	int             ttf_pathlen; /* total length of TTF paths */
+	short           width;
 	short           flags;
 #define GF_USED	0x0001		/* whether is this glyph used in T1 font */
 
@@ -118,14 +119,14 @@ extern int      bbox[4];	/* the FontBBox array */
 extern double   italic_angle;
 
 extern GLYPH   *glyph_list;
-extern short    encoding[256];	/* inverse of glyph[].char_no */
+extern int    encoding[256];	/* inverse of glyph[].char_no */
 
 /* prototypes of functions */
 int sign( int x);
 void rmoveto( int dx, int dy);
 void rlineto( int dx, int dy);
 void rrcurveto( int dx1, int dy1, int dx2, int dy2, int dx3, int dy3);
-void assertpath( GENTRY * from, int line, char *name);
+void assertpath( GENTRY * from, char *file, int line, char *name);
 void g_closepath( GLYPH * g);
 void fixcvends( GENTRY * ge);
 void flattencurves( GLYPH * g);
@@ -150,7 +151,7 @@ void splitzigzags( GLYPH * g);
 void forceconcise( GLYPH * g);
 void reversepathsfromto( GENTRY * from, GENTRY * to);
 void reversepaths( GLYPH * g);
-void print_glyf( int glyphno);
-int print_glyf_subs( int glyphno, int startid);
-void print_glyf_metrics( int code, int glyphno);
+void print_glyph( int glyphno);
+int print_glyph_subs( int glyphno, int startid);
+void print_glyph_metrics( int code, int glyphno);
 

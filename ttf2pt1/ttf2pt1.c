@@ -72,11 +72,21 @@
 #	include "windows.h"
 #endif
 
-#include "ttf.h"
 #include "pt1.h"
 #include "global.h"
 
 /* globals */
+
+/* table of front-ends */
+
+extern struct frontsw ttf_sw;
+
+struct frontsw *frontswtab[] = {
+	&ttf_sw,
+	NULL /* end of table */
+};
+
+struct frontsw *cursw; /* the active front end */
 
 /* options */
 int      optimize = 1;	/* enables space optimization */
@@ -95,50 +105,25 @@ int      correctvsize=0;	/* try to correct the vertical size of characters */
 int      wantuid = 0;	/* user wants UniqueID entry in the font */
 int      allglyphs = 0;	/* convert all glyphs, not only 256 of them */
 int      warnlevel = 3;	/* the level of permitted warnings */
+int      forceunicode = 0; /* consider any fonr as Unicode for mapping purposes */
 /* options - maximal limits */
 int      max_stemdepth = 128;	/* maximal depth of stem stack in interpreter (128 - limit from X11) */
 
-int	 forceunicode = 0;
 
 int      debug = DEBUG;	/* debugging flag */
 
-FILE    *pfa_file, *afm_file, *ttf_file;
+FILE    *pfa_file, *afm_file;
 int      numglyphs, long_offsets, ncurves;
+struct font_metrics fontm;
 
 /* non-globals */
 static char    *strUID = 0;	/* user-supplied UniqueID */
 static unsigned long numUID;	/* auto-generated UniqueID */
 
-static TTF_DIRECTORY *directory;
-static TTF_DIR_ENTRY *dir_entry;
-static char    *filebuffer;
-static TTF_NAME *name_table = NULL;
-static TTF_NAME_REC *name_record;
-static TTF_HEAD *head_table = NULL;
-static TTF_HHEA *hhea_table = NULL;
-static TTF_KERN *kern_table = NULL;
-static TTF_CMAP *cmap_table = NULL;
-static LONGHORMETRIC *hmtx_table = NULL;
-static TTF_GLYF *glyf_table;
-static BYTE    *glyf_start = NULL;
-static TTF_MAXP *maxp_table = NULL;
-static TTF_POST_HEAD *post_table = NULL;
-static USHORT  *short_loca_table = NULL;
-static ULONG   *long_loca_table = NULL;
-
-static short    cmap_n_segs;
-static USHORT  *cmap_seg_start, *cmap_seg_end;
-static short   *cmap_idDelta, *cmap_idRangeOffset;
-static int      ps_fmt_3 = 0, unicode = 0;
+static int      ps_fmt_3 = 0;
 static double   scale_factor;
 
 static char	*glyph_rename[256];
-
-
-static char    *Unknown_glyph = "UNKN";
-
-static char     name_buffer[2000];
-static char    *name_fields[8];
 
 /* the names assigned if the original font
  * does not specify any
@@ -346,74 +331,6 @@ static char    *adobe_StandardEncoding[256] = {
 	".notdef", "dotlessi", ".notdef", ".notdef",
 	"lslash", "oslash", "oe", "germandbls",
 	".notdef", ".notdef", ".notdef", ".notdef"
-};
-
-static char    *mac_glyph_names[258] = {
-	".notdef", ".null", "CR",
-	"space", "exclam", "quotedbl", "numbersign",
-	"dollar", "percent", "ampersand", "quotesingle",
-	"parenleft", "parenright", "asterisk", "plus",
-	"comma", "hyphen", "period", "slash",
-	"zero", "one", "two", "three",
-	"four", "five", "six", "seven",
-	"eight", "nine", "colon", "semicolon",
-	"less", "equal", "greater", "question",
-	"at", "A", "B", "C",
-	"D", "E", "F", "G",
-	"H", "I", "J", "K",
-	"L", "M", "N", "O",
-	"P", "Q", "R", "S",
-	"T", "U", "V", "W",
-	"X", "Y", "Z", "bracketleft",
-	"backslash", "bracketright", "asciicircum", "underscore",
-	"grave", "a", "b", "c",
-	"d", "e", "f", "g",
-	"h", "i", "j", "k",
-	"l", "m", "n", "o",
-	"p", "q", "r", "s",
-	"t", "u", "v", "w",
-	"x", "y", "z", "braceleft",
-	"bar", "braceright", "asciitilde", "Adieresis",
-	"Aring", "Ccedilla", "Eacute", "Ntilde",
-	"Odieresis", "Udieresis", "aacute", "agrave",
-	"acircumflex", "adieresis", "atilde", "aring",
-	"ccedilla", "eacute", "egrave", "ecircumflex",
-	"edieresis", "iacute", "igrave", "icircumflex",
-	"idieresis", "ntilde", "oacute", "ograve",
-	"ocircumflex", "odieresis", "otilde", "uacute",
-	"ugrave", "ucircumflex", "udieresis", "dagger",
-	"degree", "cent", "sterling", "section",
-	"bullet", "paragraph", "germandbls", "registered",
-	"copyright", "trademark", "acute", "dieresis",
-	"notequal", "AE", "Oslash", "infinity",
-	"plusminus", "lessequal", "greaterequal", "yen",
-	"mu", "partialdiff", "summation", "product",
-	"pi", "integral", "ordfeminine", "ordmasculine",
-	"Omega", "ae", "oslash", "questiondown",
-	"exclamdown", "logicalnot", "radical", "florin",
-	"approxequal", "increment", "guillemotleft", "guillemotright",
-	"ellipsis", "nbspace", "Agrave", "Atilde",
-	"Otilde", "OE", "oe", "endash",
-	"emdash", "quotedblleft", "quotedblright", "quoteleft",
-	"quoteright", "divide", "lozenge", "ydieresis",
-	"Ydieresis", "fraction", "currency", "guilsinglleft",
-	"guilsinglright", "fi", "fl", "daggerdbl",
-	"periodcentered", "quotesinglbase", "quotedblbase", "perthousand",
-	"Acircumflex", "Ecircumflex", "Aacute", "Edieresis",
-	"Egrave", "Iacute", "Icircumflex", "Idieresis",
-	"Igrave", "Oacute", "Ocircumflex", "applelogo",
-	"Ograve", "Uacute", "Ucircumflex", "Ugrave",
-	"dotlessi", "circumflex", "tilde", "macron",
-	"breve", "dotaccent", "ring", "cedilla",
-	"hungarumlaut", "ogonek", "caron", "Lslash",
-	"lslash", "Scaron", "scaron", "Zcaron",
-	"zcaron", "brokenbar", "Eth", "eth",
-	"Yacute", "yacute", "Thorn", "thorn",
-	"minus", "multiply", "onesuperior", "twosuperior",
-	"threesuperior", "onehalf", "onequarter", "threequarters",
-	"franc", "Gbreve", "gbreve", "Idot",
-	"Scedilla", "scedilla", "Cacute", "cacute",
-	"Ccaron", "ccaron", "dmacron"
 };
 
 /*
@@ -1603,7 +1520,7 @@ unicode_GBK(
 }
 #endif /* 0 */
 
-static int
+int
 unicode_to_win31(
 		 int unival,
 		 char *name
@@ -1644,31 +1561,6 @@ unicode_to_win31(
 	return -1;
 }
 
-/* get the TTF description table address and length for this index */
-
-void
-get_glyf_table(
-	int glyphno,
-	TTF_GLYF **tab,
-	int *len
-)
-{
-	if(tab!=NULL) {
-		if (long_offsets) {
-			*tab = (TTF_GLYF *) (glyf_start + ntohl(long_loca_table[glyphno]));
-		} else {
-			*tab = (TTF_GLYF *) (glyf_start + (ntohs(short_loca_table[glyphno]) << 1));
-		}
-	}
-	if(len!=NULL) {
-		if (long_offsets) {
-			*len = ntohl(long_loca_table[glyphno + 1]) - ntohl(long_loca_table[glyphno]);
-		} else {
-			*len = (ntohs(short_loca_table[glyphno + 1]) - ntohs(short_loca_table[glyphno])) << 1;
-		}
-	}
-}
-
 /*
  * Scale the values according to the scale_factor
  */
@@ -1682,677 +1574,11 @@ scale(
 		      : scale_factor * val - 0.5);
 }
 
-static void
-handle_name(void)
-{
-	int             j, k, lang, len, platform;
-	char           *p, *ptr, *string_area;
-	char           *nbp = name_buffer;
-	int             found3 = 0;
-
-	string_area = (char *) name_table + ntohs(name_table->offset);
-	name_record = &(name_table->nameRecords);
-
-	for (j = 0; j < 8; j++) {
-		name_fields[j] = ""; 
-	}
-
-	for (j = 0; j < ntohs(name_table->numberOfNameRecords); j++) {
-
-		platform = ntohs(name_record->platformID);
-
-		if (platform == 3) {
-
-			found3 = 1;
-			lang = ntohs(name_record->languageID) & 0xff;
-			len = ntohs(name_record->stringLength);
-			if (lang == 0 || lang == 9) {
-				k = ntohs(name_record->nameID);
-				if (k < 8) {
-					name_fields[k] = nbp;
-
-					p = string_area + ntohs(name_record->stringOffset);
-					for (k = 0; k < len; k++) {
-						if (p[k] != '\0') {
-							if (p[k] == '(') {
-								*nbp = '[';
-							} else if (p[k] == ')') {
-								*nbp = ']';
-							} else {
-								*nbp = p[k];
-							}
-							nbp++;
-						}
-					}
-					*nbp = '\0';
-					nbp++;
-				}
-			}
-		}
-		name_record++;
-	}
-
-	string_area = (char *) name_table + ntohs(name_table->offset);
-	name_record = &(name_table->nameRecords);
-
-	if (!found3) {
-		for (j = 0; j < ntohs(name_table->numberOfNameRecords); j++) {
-
-			platform = ntohs(name_record->platformID);
-
-			if (platform == 1) {
-
-				found3 = 1;
-				lang = ntohs(name_record->languageID) & 0xff;
-				len = ntohs(name_record->stringLength);
-				if (lang == 0 || lang == 9) {
-					k = ntohs(name_record->nameID);
-					if (k < 8) {
-						name_fields[k] = nbp;
-
-						p = string_area + ntohs(name_record->stringOffset);
-						for (k = 0; k < len; k++) {
-							if (p[k] != '\0') {
-								if (p[k] == '(') {
-									*nbp = '[';
-								} else if (p[k] == ')') {
-									*nbp = ']';
-								} else {
-									*nbp = p[k];
-								}
-								nbp++;
-							}
-						}
-						*nbp = '\0';
-						nbp++;
-					}
-				}
-			}
-			name_record++;
-		}
-	}
-	if (!found3) {
-		fprintf(stderr, "**** Cannot decode font name fields ****\n");
-		exit(1);
-	}
-	if (name_fields[4][0] == 0) { /* Full Name empty, use Family Name */
-		name_fields[4] = name_fields[1];
-	}
-	if (name_fields[6][0] == 0) { /* Font Name empty, use Full Name */
-		name_fields[6] = name_fields[4];
-		if (name_fields[6][0] == 0) { /* oops, empty again */
-			WARNING_1 fprintf(stderr, "Font name is unknown, setting to \"Unknown\"\n");
-			name_fields[6] = "Unknown";
-		}
-	}
-	p = name_fields[6];
-	/* must not start with a digit */
-	if(isdigit(*p))
-		*p+= 'A'-'0'; /* change to a letter */
-	while (*p != '\0') {
-		if (!isalnum(*p) || *p=='_') {
-			*p = '-';
-		}
-		p++;
-	}
-}
-
-static void
-handle_cmap(void)
-{
-	int             num_tables = ntohs(cmap_table->numberOfEncodingTables);
-	BYTE           *ptr;
-	int             i, j, k, kk, size, format, offset, seg_c2, found,
-	                set_ok;
-	int             platform, encoding_id;
-	TTF_CMAP_ENTRY *table_entry;
-	TTF_CMAP_FMT0  *encoding0;
-	TTF_CMAP_FMT4  *encoding4;
-	USHORT          start, end, ro;
-	short           delta, n;
-
-	found = 0;
-
-	for (i = 0; i < 256; i++) {
-		encoding[i] = 0;
-	}
-
-	for (i = 0; i < num_tables && !found; i++) {
-		table_entry = &(cmap_table->encodingTable[i]);
-		offset = ntohl(table_entry->offset);
-		encoding4 = (TTF_CMAP_FMT4 *) ((BYTE *) cmap_table + offset);
-		format = ntohs(encoding4->format);
-		platform = ntohs(table_entry->platformID);
-		encoding_id = ntohs(table_entry->encodingID);
-
-		if (platform == 3 && format == 4) {
-			switch (encoding_id) {
-			case 0:
-				WARNING_1 fputs("Found Symbol Encoding\n", stderr);
-				break;
-			case 1:
-				WARNING_1 fputs("Found Unicode Encoding\n", stderr);
-				unicode = 1;
-				break;
-			default:
-				WARNING_1 {
-					fprintf(stderr,
-					"****MS Encoding ID %d not supported****\n",
-						encoding_id);
-					fputs("Treating it like Symbol encoding\n", stderr);
-				}
-				break;
-			}
-			if (forceunicode) {
-				WARNING_1 fputs("Forcing Unicode Encoding\n", stderr);
-				unicode = 1;
-			}
-
-			found = 1;
-			seg_c2 = ntohs(encoding4->segCountX2);
-			cmap_n_segs = seg_c2 >> 1;
-			ptr = (BYTE *) encoding4 + 14;
-			cmap_seg_end = (USHORT *) ptr;
-			cmap_seg_start = (USHORT *) (ptr + seg_c2 + 2);
-			cmap_idDelta = (short *) (ptr + (seg_c2 * 2) + 2);
-			cmap_idRangeOffset = (short *) (ptr + (seg_c2 * 3) + 2);
-
-			for (j = 0; j < cmap_n_segs - 1; j++) {
-				start = ntohs(cmap_seg_start[j]);
-				end = ntohs(cmap_seg_end[j]);
-				delta = ntohs(cmap_idDelta[j]);
-				ro = ntohs(cmap_idRangeOffset[j]);
-
-				for (k = start; k <= end; k++) {
-					if (ro == 0) {
-						n = k + delta;
-					} else {
-						n = ntohs(*((ro >> 1) + (k - start) +
-						 &(cmap_idRangeOffset[j])));
-						if (delta != 0)
-						{
-						 	/*  Not exactly sure how to deal with this circumstance,
-						 		I suspect it never occurs */
-						 	n += delta;
-							fprintf (stderr,
-								 "rangeoffset and delta both non-zero - %d/%d",
-								 ro, delta);
-						}
- 					}
- 					if(n<0 || n>=numglyphs) {
- 						WARNING_1 fprintf(stderr, "Font contains a broken glyph code mapping, ignored\n");
- 						continue;
-					}
-					if (glyph_list[n].unicode != -1) {
-						if (strcmp(glyph_list[n].name, ".notdef") != 0) {
-							WARNING_2 fprintf(stderr,
-								"Glyph %s has >= two encodings (A), %4.4x & %4.4x\n",
-							 glyph_list[n].name,
-								glyph_list[n].unicode,
-								k);
-						}
-						set_ok = 0;
-					} else {
-						set_ok = 1;
-					}
-					if (unicode) {
-						kk = unicode_to_win31(k, glyph_list[n].name);
-						if(ISDBG(UNICODE))
-							fprintf(stderr, "Unicode %s - 0x%04x\n",glyph_list[n].name,k);
-						if (set_ok) {
-							glyph_list[n].unicode = k;
-							/* glyph_list[n].char_no = kk; */
-						}
-						if ((kk & ~0xff) == 0)
-							encoding[kk] = n;
-					} else {
-						if ((k & 0xff00) == 0xf000) {
-							encoding[k & 0x00ff] = n;
-							if (set_ok) {
-								/* glyph_list[n].char_no = k & 0x00ff; */
-								glyph_list[n].unicode = k;
-							}
-						} else {
-							if (set_ok) {
-								/* glyph_list[n].char_no = k; */
-								glyph_list[n].unicode = k;
-							}
-							WARNING_2 fprintf(stderr,
-								"Glyph %s has non-symbol encoding %4.4x\n",
-							 glyph_list[n].name,
-								k & 0xffff);
-							/*
-							 * just use the code
-							 * as it is
-							 */
-							if ((k & ~0xff) == 0)
-								encoding[k] = n;
-						}
-					}
-				}
-			}
-		}
-	}
-
-	if (!found) {
-		WARNING_1 fputs("No Microsoft encoding, looking for MAC encoding\n", stderr);
-		for (i = 0; i < num_tables && !found; i++) {
-			table_entry = &(cmap_table->encodingTable[i]);
-			offset = ntohl(table_entry->offset);
-			encoding0 = (TTF_CMAP_FMT0 *) ((BYTE *) cmap_table + offset);
-			format = ntohs(encoding0->format);
-			platform = ntohs(table_entry->platformID);
-			encoding_id = ntohs(table_entry->encodingID);
-
-			if (format == 0) {
-				found = 1;
-				size = ntohs(encoding0->length) - 6;
-				for (j = 0; j < size; j++) {
-					n = encoding0->glyphIdArray[j];
-					if (glyph_list[n].char_no != -1) {
-						WARNING_2 fprintf(stderr,
-							"Glyph %s has >= two encodings (B), %4.4x & %4.4x\n",
-							glyph_list[n].name,
-						      glyph_list[n].char_no,
-							j);
-					} else {
-						if (j < 256) {
-							glyph_list[n].char_no = j;
-							encoding[j] = n;
-						}
-					}
-				}
-			}
-		}
-	}
-	if (!found) {
-		fprintf(stderr, "**** No Recognised Encoding Table ****\n");
-		exit(1);
-	}
-
-	for (i = 0; i < 256; i++) {
-		glyph_list[encoding[i]].char_no = i;
-	}
-
-}
-
-static void
-handle_head(void)
-{
-	long_offsets = ntohs(head_table->indexToLocFormat);
-	if (long_offsets != 0 && long_offsets != 1) {
-		fprintf(stderr, "**** indexToLocFormat wrong ****\n");
-		exit(1);
-	}
-}
-
-static void
-draw_glyf(
-	  int glyphno,
-	  int parent,
-	  short *xoff,
-	  short *yoff,
-	  double *matrix
-)
-{
-	int             i, j, k, k1, len, first, cs, ce;
-	/* We assume that hsbw always sets to(0, 0) */
-	int             xlast = 0, ylast = 0;
-	int             dx1, dy1, dx2, dy2, dx3, dy3;
-	int             finished, nguide, contour_start, contour_end;
-	short           ncontours, n_inst, last_point;
-	USHORT         *contour_end_pt;
-	BYTE           *ptr;
-#define GLYFSZ	2000
-	short           xcoord[GLYFSZ], ycoord[GLYFSZ], xrel[GLYFSZ], yrel[GLYFSZ];
-	BYTE            flags[GLYFSZ];
-	short           txoff, tyoff;
-	GLYPH          *g;
-	double          tx, ty;
-	int             needreverse = 0;	/* transformation may require
-						 * that */
-	GENTRY         *lge;
-
-	g = &glyph_list[parent];
-	lge = g->lastentry;
-
-	/*
-	 * fprintf (stderr,"draw glyf: Matrx offset %d %d\n",xoff,yoff);
-	 */
-
-	get_glyf_table(glyphno, &glyf_table, &len);
-
-	if (len <= 0) {
-		WARNING_1 fprintf(stderr,
-			"**** Composite glyph %s refers to non-existent glyph %s, ignored\n",
-			glyph_list[parent].name,
-			glyph_list[glyphno].name);
-		return;
-	}
-	ncontours = ntohs(glyf_table->numberOfContours);
-	if (ncontours <= 0) {
-		WARNING_1 fprintf(stderr,
-			"**** Composite glyph %s refers to composite glyph %s, ignored\n",
-			glyph_list[parent].name,
-			glyph_list[glyphno].name);
-		return;
-	}
-	contour_end_pt = (USHORT *) ((char *) glyf_table + sizeof(TTF_GLYF));
-
-	last_point = ntohs(contour_end_pt[ncontours - 1]);
-	n_inst = ntohs(contour_end_pt[ncontours]);
-
-	ptr = ((BYTE *) contour_end_pt) + (ncontours << 1) + n_inst + 2;
-	j = k = 0;
-	while (k <= last_point) {
-		flags[k] = ptr[j];
-
-		if (ptr[j] & REPEAT) {
-			for (k1 = 0; k1 < ptr[j + 1]; k1++) {
-				k++;
-				flags[k] = ptr[j];
-			}
-			j++;
-		}
-		j++;
-		k++;
-	}
-
-	for (k = 0; k <= last_point; k++) {
-		if (flags[k] & XSHORT) {
-			if (flags[k] & XSAME) {
-				xrel[k] = ptr[j];
-			} else {
-				xrel[k] = -ptr[j];
-			}
-			j++;
-		} else if (flags[k] & XSAME) {
-			xrel[k] = 0;
-		} else {
-			xrel[k] = ptr[j] * 256 + ptr[j + 1];
-			j += 2;
-		}
-		if (k == 0) {
-			xcoord[k] = xrel[k];
-		} else {
-			xcoord[k] = xrel[k] + xcoord[k - 1];
-		}
-
-	}
-
-	for (k = 0; k <= last_point; k++) {
-		if (flags[k] & YSHORT) {
-			if (flags[k] & YSAME) {
-				yrel[k] = ptr[j];
-			} else {
-				yrel[k] = -ptr[j];
-			}
-			j++;
-		} else if (flags[k] & YSAME) {
-			yrel[k] = 0;
-		} else {
-			yrel[k] = ptr[j] * 256 + ptr[j + 1];
-			j += 2;
-		}
-		if (k == 0) {
-			ycoord[k] = yrel[k];
-		} else {
-			ycoord[k] = yrel[k] + ycoord[k - 1];
-		}
-	}
-
-	txoff = *xoff;
-	tyoff = *yoff;
-	if (transform) {
-		if (matrix) {
-			for (i = 0; i < GLYFSZ; i++) {
-				tx = xcoord[i];
-				ty = ycoord[i];
-				xcoord[i] = scale((int) (matrix[0] * tx + matrix[2] * ty + txoff));
-				ycoord[i] = scale((int) (matrix[1] * tx + matrix[3] * ty + tyoff));
-			}
-		} else {
-			for (i = 0; i < GLYFSZ; i++) {
-				xcoord[i] = scale(xcoord[i] + txoff);
-				ycoord[i] = scale(ycoord[i] + tyoff);
-			}
-		}
-	} else {
-		if (matrix) {
-			for (i = 0; i < GLYFSZ; i++) {
-				tx = xcoord[i];
-				ty = ycoord[i];
-				xcoord[i] = (matrix[0] * tx + matrix[2] * ty) + txoff;
-				ycoord[i] = (matrix[1] * tx + matrix[3] * ty) + tyoff;
-			}
-		} else {
-			for (i = 0; i < GLYFSZ; i++) {
-				xcoord[i] += txoff;
-				ycoord[i] += tyoff;
-			}
-		}
-	}
-
-	i = j = 0;
-	first = 1;
-
-	while (i <= ntohs(contour_end_pt[ncontours - 1])) {
-		contour_end = ntohs(contour_end_pt[j]);
-
-		if (first) {
-			g_rmoveto(g, xcoord[i], ycoord[i]);
-			xlast = xcoord[i];
-			ylast = ycoord[i];
-			ncurves++;
-			contour_start = i;
-			first = 0;
-		} else if (flags[i] & ONOROFF) {
-			g_rlineto(g, xcoord[i], ycoord[i]);
-			xlast = xcoord[i];
-			ylast = ycoord[i];
-			ncurves++;
-		} else {
-			cs = i - 1;
-			finished = nguide = 0;
-			while (!finished) {
-				if (i == contour_end + 1) {
-					ce = contour_start;
-					finished = 1;
-				} else if (flags[i] & ONOROFF) {
-					ce = i;
-					finished = 1;
-				} else {
-					i++;
-					nguide++;
-				}
-			}
-
-			switch (nguide) {
-			case 0:
-				g_rlineto(g, xcoord[ce], ycoord[ce]);
-				xlast = xcoord[ce];
-				ylast = ycoord[ce];
-				ncurves++;
-				break;
-
-			case 1:
-				g_rrcurveto(g,
-				      (xcoord[cs] + 2 * xcoord[cs + 1]) / 3,
-				      (ycoord[cs] + 2 * ycoord[cs + 1]) / 3,
-				      (2 * xcoord[cs + 1] + xcoord[ce]) / 3,
-				      (2 * ycoord[cs + 1] + ycoord[ce]) / 3,
-					    xcoord[ce],
-					    ycoord[ce]
-					);
-				xlast = xcoord[ce];
-				ylast = ycoord[ce];
-
-				ncurves++;
-				break;
-
-			case 2:
-				g_rrcurveto(g,
-				     (-xcoord[cs] + 4 * xcoord[cs + 1]) / 3,
-				     (-ycoord[cs] + 4 * ycoord[cs + 1]) / 3,
-				      (4 * xcoord[cs + 2] - xcoord[ce]) / 3,
-				      (4 * ycoord[cs + 2] - ycoord[ce]) / 3,
-					    xcoord[ce],
-					    ycoord[ce]
-					);
-				xlast = xcoord[ce];
-				ylast = ycoord[ce];
-				ncurves++;
-				break;
-
-			case 3:
-				g_rrcurveto(g,
-				      (xcoord[cs] + 2 * xcoord[cs + 1]) / 3,
-				      (ycoord[cs] + 2 * ycoord[cs + 1]) / 3,
-				  (5 * xcoord[cs + 1] + xcoord[cs + 2]) / 6,
-				  (5 * ycoord[cs + 1] + ycoord[cs + 2]) / 6,
-				      (xcoord[cs + 1] + xcoord[cs + 2]) / 2,
-				       (ycoord[cs + 1] + ycoord[cs + 2]) / 2
-					);
-
-				g_rrcurveto(g,
-				  (xcoord[cs + 1] + 5 * xcoord[cs + 2]) / 6,
-				  (ycoord[cs + 1] + 5 * ycoord[cs + 2]) / 6,
-				  (5 * xcoord[cs + 2] + xcoord[cs + 3]) / 6,
-				  (5 * ycoord[cs + 2] + ycoord[cs + 3]) / 6,
-				      (xcoord[cs + 3] + xcoord[cs + 2]) / 2,
-				       (ycoord[cs + 3] + ycoord[cs + 2]) / 2
-					);
-
-				g_rrcurveto(g,
-				  (xcoord[cs + 2] + 5 * xcoord[cs + 3]) / 6,
-				  (ycoord[cs + 2] + 5 * ycoord[cs + 3]) / 6,
-				      (2 * xcoord[cs + 3] + xcoord[ce]) / 3,
-				      (2 * ycoord[cs + 3] + ycoord[ce]) / 3,
-					    xcoord[ce],
-					    ycoord[ce]
-					);
-				ylast = ycoord[ce];
-				xlast = xcoord[ce];
-
-				ncurves += 3;
-				break;
-
-			default:
-				k1 = cs + nguide;
-				g_rrcurveto(g,
-				      (xcoord[cs] + 2 * xcoord[cs + 1]) / 3,
-				      (ycoord[cs] + 2 * ycoord[cs + 1]) / 3,
-				  (5 * xcoord[cs + 1] + xcoord[cs + 2]) / 6,
-				  (5 * ycoord[cs + 1] + ycoord[cs + 2]) / 6,
-				      (xcoord[cs + 1] + xcoord[cs + 2]) / 2,
-				       (ycoord[cs + 1] + ycoord[cs + 2]) / 2
-					);
-
-				for (k = cs + 2; k <= k1 - 1; k++) {
-					g_rrcurveto(g,
-					(xcoord[k - 1] + 5 * xcoord[k]) / 6,
-					(ycoord[k - 1] + 5 * ycoord[k]) / 6,
-					(5 * xcoord[k] + xcoord[k + 1]) / 6,
-					(5 * ycoord[k] + ycoord[k + 1]) / 6,
-					    (xcoord[k] + xcoord[k + 1]) / 2,
-					     (ycoord[k] + ycoord[k + 1]) / 2
-						);
-
-				}
-
-				g_rrcurveto(g,
-				      (xcoord[k1 - 1] + 5 * xcoord[k1]) / 6,
-				      (ycoord[k1 - 1] + 5 * ycoord[k1]) / 6,
-					  (2 * xcoord[k1] + xcoord[ce]) / 3,
-					  (2 * ycoord[k1] + ycoord[ce]) / 3,
-					    xcoord[ce],
-					    ycoord[ce]
-					);
-				xlast = xcoord[ce];
-				ylast = ycoord[ce];
-
-				ncurves += nguide;
-				break;
-			}
-		}
-		if (i >= contour_end) {
-			g_closepath(g);
-			first = 1;
-			i = contour_end + 1;
-			j++;
-		} else {
-			i++;
-		}
-	}
-	*xoff = xlast;
-	*yoff = ylast;
-
-	if (matrix) {
-		/* guess whether do we need to reverse the results */
-
-		int             x[3], y[3];
-		int             max = 0, from, to;
-
-		/* transform a triangle going in proper direction */
-		/*
-		 * the origin of triangle is in (0,0) so we know it in
-		 * advance
-		 */
-
-		x[0] = y[0] = 0;
-		x[1] = matrix[0] * 0 + matrix[2] * 300;
-		y[1] = matrix[1] * 0 + matrix[3] * 300;
-		x[2] = matrix[0] * 300 + matrix[2] * 0;
-		y[2] = matrix[1] * 300 + matrix[3] * 0;
-
-		/* then find the topmost point */
-		for (i = 0; i < 4; i++)
-			if (y[i] > y[max])
-				max = i;
-		from = (max + 3 - 1) % 3;
-		to = (max + 1) % 3;
-
-		needreverse = 0;
-
-		/* special cases for horizontal lines */
-		if (y[max] == y[from]) {
-			if (x[max] < y[from])
-				needreverse = 1;
-		} else if (y[to] == y[from]) {
-			if (x[to] < x[max])
-				needreverse = 1;
-		} else {	/* generic case */
-			if ((x[to] - x[max]) * (y[max] - y[from])
-			    > (x[max] - x[from]) * (y[to] - y[max]))
-				needreverse = 1;
-		}
-
-		if (needreverse) {
-			if (lge) {
-				assertpath(lge->next, __LINE__, g->name);
-				reversepathsfromto(lge->next, NULL);
-			} else {
-				assertpath(g->entries, __LINE__, g->name);
-				reversepaths(g);
-			}
-		}
-	}
-}
-
-double
-f2dot14(
-	short x
-)
-{
-	short           y = ntohs(x);
-	return (y >> 14) + ((y & 0x3fff) / 16384.0);
-}
-
 /*
  * Try to force fixed width of characters
  */
 
-void
+static void
 alignwidths(void)
 {
 	int             i;
@@ -2388,331 +1614,84 @@ alignwidths(void)
 			if (glyph_list[i].flags & GF_USED)
 				glyph_list[i].width = avg;
 		}
-		post_table->isFixedPitch = htonl(1);
+		fontm.is_fixed_pitch = 1;
 	}
 }
 
 static void
 convert_glyf(
-	     int glyphno
+	int	glyphno
 )
 {
-	int             len, c;
-	short           ncontours;
-	USHORT          flagbyte, glyphindex, xscale, yscale, scale01,
-	                scale10;
-	SHORT           arg1, arg2, xoff, yoff;
-	BYTE           *ptr;
-	char           *bptr;
-	SHORT          *sptr;
-	double          matrix[6];
 	GLYPH          *g;
 
-	ncurves = 0;
+	g = &glyph_list[glyphno];
 
-	get_glyf_table(glyphno, &glyf_table, &len);
-
-	c = glyph_list[glyphno].char_no;
 
 	if (transform) {
-		glyph_list[glyphno].scaledwidth = scale(glyph_list[glyphno].width);
+		g->scaledwidth = scale(g->width);
 	} else {
-		glyph_list[glyphno].scaledwidth = glyph_list[glyphno].width;
+		g->scaledwidth = g->width;
 	}
 
-	glyph_list[glyphno].entries = 0;
-	glyph_list[glyphno].lastentry = 0;
-	glyph_list[glyphno].path = 0;
-	if (len != 0) {
-		ncontours = ntohs(glyf_table->numberOfContours);
+	g->entries = 0;
+	g->lastentry = 0;
+	g->path = 0;
+	if (g->ttf_pathlen != 0) {
+		ncurves = cursw->glpath(glyphno, glyph_list);
 
-		if (ncontours <= 0) {
-			ptr = ((BYTE *) glyf_table + sizeof(TTF_GLYF));
-			sptr = (SHORT *) ptr;
-			xoff = 0;
-			yoff = 0;
-			do {
-				flagbyte = ntohs(*sptr);
-				sptr++;
-				glyphindex = ntohs(*sptr);
-				sptr++;
+		assertpath(g->entries, __FILE__, __LINE__, g->name);
 
-				if (flagbyte & ARG_1_AND_2_ARE_WORDS) {
-					arg1 = ntohs(*sptr);
-					sptr++;
-					arg2 = ntohs(*sptr);
-					sptr++;
-				} else {
-					bptr = (char *) sptr;
-					arg1 = (signed char) bptr[0];
-					arg2 = (signed char) bptr[1];
-					sptr++;
-				}
-				matrix[1] = matrix[2] = 0.0;
-
-				if (flagbyte & WE_HAVE_A_SCALE) {
-					matrix[0] = matrix[3] = f2dot14(*sptr);
-					sptr++;
-				} else if (flagbyte & WE_HAVE_AN_X_AND_Y_SCALE) {
-					matrix[0] = f2dot14(*sptr);
-					sptr++;
-					matrix[3] = f2dot14(*sptr);
-					sptr++;
-				} else if (flagbyte & WE_HAVE_A_TWO_BY_TWO) {
-					matrix[0] = f2dot14(*sptr);
-					sptr++;
-					matrix[1] = f2dot14(*sptr);
-					sptr++;
-					matrix[2] = f2dot14(*sptr);
-					sptr++;
-					matrix[3] = f2dot14(*sptr);
-					sptr++;
-				} else {
-					matrix[0] = matrix[3] = 1.0;
-				}
-
-				/*
-				 * See *
-				 * http://fonts.apple.com/TTRefMan/RM06/Chap6g
-				 * lyf.html * matrix[0,1,2,3,4,5]=a,b,c,d,m,n
-				 */
-
-				if (fabs(matrix[0]) > fabs(matrix[1]))
-					matrix[4] = fabs(matrix[0]);
-				else
-					matrix[4] = fabs(matrix[1]);
-				if (fabs(fabs(matrix[0]) - fabs(matrix[2])) <= 33. / 65536.)
-					matrix[4] *= 2.0;
-
-				if (fabs(matrix[2]) > fabs(matrix[3]))
-					matrix[5] = fabs(matrix[2]);
-				else
-					matrix[5] = fabs(matrix[3]);
-				if (fabs(fabs(matrix[2]) - fabs(matrix[3])) <= 33. / 65536.)
-					matrix[5] *= 2.0;
-
-				/*
-				 * fprintf (stderr,"Matrix Opp %hd
-				 * %hd\n",arg1,arg2);
-				 */
-#if 0
-				fprintf(stderr, "Matrix: %f %f %f %f %f %f\n",
-				 matrix[0], matrix[1], matrix[2], matrix[3],
-					matrix[4], matrix[5]);
-				fprintf(stderr, "Offset: %d %d (%s)\n",
-					arg1, arg2,
-					((flagbyte & ARGS_ARE_XY_VALUES) ? "XY" : "index"));
-#endif
-
-				if (flagbyte & ARGS_ARE_XY_VALUES) {
-					arg1 = arg1 * matrix[4];
-					arg2 = arg2 * matrix[5];
-				} else {
-					/*
-					 * must extract values from a glyph *
-					 * but it seems to be too much pain *
-					 * and it's not clear now that it
-					 * would be really * used in any
-					 * interesting font
-					 */
-				}
-
-				draw_glyf(glyphindex, glyphno, &arg1, &arg2, matrix);
-
-				/*
-				 * we use absolute values now so we don't
-				 * really need that
-				 */
-				xoff = arg1;
-				yoff = arg2;
-
-			} while (flagbyte & MORE_COMPONENTS);
-		} else {
-			arg1 = 0;
-			arg2 = 0;
-			matrix[0] = matrix[3] = matrix[4] = matrix[5] = 1.0;
-			matrix[1] = matrix[2] = 0.0;
-			draw_glyf(glyphno, glyphno, &arg1, &arg2, NULL);
-		}
-
-		assertpath(glyph_list[glyphno].entries, __LINE__, glyph_list[glyphno].name);
-
-		closepaths(&glyph_list[glyphno]);
-		assertpath(glyph_list[glyphno].entries, __LINE__, glyph_list[glyphno].name);
+		closepaths(g);
+		assertpath(g->entries, __FILE__, __LINE__, g->name);
 
 #if 0
-		fixcontours(&glyph_list[glyphno]);
-#endif
-
-#if 0
-		testfixcvdir(&glyph_list[glyphno]);
+		fixcontours(g);
+		testfixcvdir(g);
 #endif
 
 		if (smooth) {
-			smoothjoints(&glyph_list[glyphno]);
-			assertpath(glyph_list[glyphno].entries, __LINE__, glyph_list[glyphno].name);
+			smoothjoints(g);
+			assertpath(g->entries, __FILE__, __LINE__, g->name);
 
-			straighten(&glyph_list[glyphno], 1);
-			assertpath(glyph_list[glyphno].entries, __LINE__, glyph_list[glyphno].name);
+			straighten(g, 1);
+			assertpath(g->entries, __FILE__, __LINE__, g->name);
 
-			splitzigzags(&glyph_list[glyphno]);
-			assertpath(glyph_list[glyphno].entries, __LINE__, glyph_list[glyphno].name);
+			splitzigzags(g);
+			assertpath(g->entries, __FILE__, __LINE__, g->name);
 
-			forceconcise(&glyph_list[glyphno]);
-			assertpath(glyph_list[glyphno].entries, __LINE__, glyph_list[glyphno].name);
+			forceconcise(g);
+			assertpath(g->entries, __FILE__, __LINE__, g->name);
 
-			straighten(&glyph_list[glyphno], 0);
-			assertpath(glyph_list[glyphno].entries, __LINE__, glyph_list[glyphno].name);
+			straighten(g, 0);
+			assertpath(g->entries, __FILE__, __LINE__, g->name);
 
-			smoothjoints(&glyph_list[glyphno]);
-			assertpath(glyph_list[glyphno].entries, __LINE__, glyph_list[glyphno].name);
+			smoothjoints(g);
+			assertpath(g->entries, __FILE__, __LINE__, g->name);
 
-			flattencurves(&glyph_list[glyphno]);
+			flattencurves(g);
 		}
 
 		if (ncurves > 100) {
 			WARNING_2 fprintf(stderr,
 			"** Glyph %s is too long, may display incorrectly\n",
-				glyph_list[glyphno].name);
+				g->name);
 		}
 	}
 }
 
 static void
-handle_hmtx(void)
-{
-	int             i;
-	int             n_hmetrics = ntohs(hhea_table->numberOfHMetrics);
-	GLYPH          *g;
-	LONGHORMETRIC  *hmtx_entry = hmtx_table;
-	FWORD          *lsblist;
-
-	for (i = 0; i < n_hmetrics; i++) {
-		g = &(glyph_list[i]);
-		g->width = ntohs(hmtx_entry->advanceWidth);
-		g->lsb = ntohs(hmtx_entry->lsb);
-		hmtx_entry++;
-	}
-
-	lsblist = (FWORD *) hmtx_entry;
-	hmtx_entry--;
-
-	for (i = n_hmetrics; i < numglyphs; i++) {
-		g = &(glyph_list[i]);
-		g->width = ntohs(hmtx_entry->advanceWidth);
-		g->lsb = ntohs(lsblist[i - n_hmetrics]);
-	}
-}
-
-static void
-handle_post(void)
+handle_gnames(void)
 {
 	int             i, len, n, found, npost;
 	unsigned int    format;
-	USHORT         *name_index;
+	unsigned short *name_index;
 	char           *ptr, *p;
 	char          **ps_name_ptr = (char **) malloc(numglyphs * sizeof(char *));
-/* 	int            *ps_name_len = (int *) malloc(numglyphs * sizeof(int));   No longer used */
 	int             n_ps_names;
 
-	format = ntohl(post_table->formatType);
-
-	if (format == 0x00010000) {
-		for (i = 0; i < 258 && i < numglyphs; i++) {
-			glyph_list[i].name = mac_glyph_names[i];
-		}
-	} else if (format == 0x00020000) {
-                npost = ntohs(post_table->numGlyphs);
-                if (numglyphs != npost) {
-                        /* This is an error in the font, but we can now cope */
-                        WARNING_1 fprintf(stderr, "**** Postscript table size mismatch %d/%d ****\n",
-                                npost, numglyphs);
-                }
-                n_ps_names = 0;
-                name_index = &(post_table->glyphNameIndex);
-
-                /* This checks the integrity of the post table */       
-                for (i=0; i<npost; i++) {
-                    n = ntohs(name_index[i]);
-                    if (n > n_ps_names + 257) {
-                        n_ps_names = n - 257;
-                    }
-                }
-
-                ptr = (char *) post_table + 34 + (numglyphs << 1);
-                i = 0;
-                while (*ptr > 0 && i < n_ps_names) {
-                        len = *ptr;
-                        /* previously the program wrote nulls into the table. If the table
-                           was corrupt, this could put zeroes anywhere, leading to obscure bugs,
-                           so now I malloc space for the names. Yes it is much less efficient */
-                           
-                        if ((p = malloc(len+1)) == NULL) {
-                            fprintf (stderr, "****malloc failed line %d\n", __LINE__);
-                            exit(255);
-                        }
-                        
-                        ps_name_ptr[i] = p;
-                        strncpy(p, ptr+1, len);
-                        p[len] = '\0';
-                        i ++;
-                        ptr += len + 1;
-                }
-        
-                if (i != n_ps_names)
-                {
-                    WARNING_2 fprintf (stderr, "** Postscript Name mismatch %d != %d **\n",
-                             i, n_ps_names);
-                    n_ps_names = i;
-                }
-
-                /*
-                 * for (i=0; i<n_ps_names; i++) { fprintf(stderr, "i=%d,
-                 * len=%d, name=%s\n", i, ps_name_len[i], ps_name_ptr[i]); }
-                 */
-
-                for (i = 0; i < npost; i++) {
-                        n = ntohs(name_index[i]);
-                        if (n < 258) {
-                                glyph_list[i].name = mac_glyph_names[n];
-                        } else if (n < 258 + n_ps_names) {
-                                glyph_list[i].name = ps_name_ptr[n - 258];
-                        } else {
-                                glyph_list[i].name = malloc(10);
-                                sprintf(glyph_list[i].name, "_%d", n);
-                                WARNING_2 fprintf(stderr,
-                                        "**** Glyph No. %d has no postscript name, becomes %s ****\n",
-                                        i, glyph_list[i].name);
-                        }
-                }
-                /* Now fake postscript names for all those beyond the end of the table */
-                if (npost < numglyphs) {
-                    for (i=npost; i<numglyphs; i++) {
-                        if ((glyph_list[i].name = malloc(10)) == NULL)
-                        {
-                            fprintf (stderr, "****malloc failed line %d\n", __LINE__);
-                            exit(255);
-                        }
-                        sprintf(glyph_list[i].name, "_%d", i);
-                        WARNING_2 fprintf(stderr,
-                                "** Glyph No. %d has no postscript name, becomes %s **\n",
-                                i, glyph_list[i].name);
-                    }
-                }
-	} else if (format == 0x00030000) {
-		WARNING_3 fputs("No postscript table, using default\n", stderr);
-		ps_fmt_3 = 1;
-	} else if (format == 0x00028000) {
-		ptr = (char *) &(post_table->numGlyphs);
-		for (i = 0; i < numglyphs; i++) {
-			glyph_list[i].name = mac_glyph_names[i + ptr[i]];
-		}
-	} else {
-		fprintf(stderr,
-			"**** Postscript table in wrong format %x ****\n",
-			format);
-		exit(1);
-	}
+	/* get the names from the font file */
+	ps_fmt_3 = cursw->glnames(glyph_list);
 
 	/* check for names with wrong characters */
 	for (n = 0; n < numglyphs; n++) {
@@ -2732,8 +1711,7 @@ handle_post(void)
 		}
 	}
 
-
-	if (!ps_fmt_3) {
+	if( !ps_fmt_3 ) {
 		for (n = 0; n < numglyphs; n++) {
 			found = 0;
 			for (i = 0; i < n && !found; i++) {
@@ -2750,52 +1728,32 @@ handle_post(void)
 			}
 		}
 	}
-}
 
-static void
-handle_kern(void)
-{
-	TTF_KERN_SUB   *subtable;
-	TTF_KERN_ENTRY *kern_entry;
-	int             i, j;
-	GLYPH          *gl, *gr;
-	int             ntables = ntohs(kern_table->nTables);
-	int             npairs,npairs_used;
-	char           *ptr = (char *) kern_table + 4;
+	/* ignore the return code for now */
+	cursw->glenc(glyph_list, encoding);
 
-	for (i = 0; i < ntables; i++) {
-		subtable = (TTF_KERN_SUB *) ptr;
-		if ((ntohs(subtable->coverage) & 0xff00) == 0) {
-			npairs = (short) ntohs(subtable->nPairs);
-			kern_entry = (TTF_KERN_ENTRY *) (ptr + sizeof(TTF_KERN_SUB));
-
-			npairs_used = 0;
-			for (j = 0; j < npairs; j++) {
-			  if (glyph_list[ntohs(kern_entry->left)].flags & GF_USED &&
-			      glyph_list[ntohs(kern_entry->right)].flags & GF_USED)
-			    npairs_used ++;
-			  kern_entry++;
+	if (ps_fmt_3 == 1) {
+		for (i = 0; i < 256; i++) {
+			if (encoding[i] != 0) {
+				glyph_list[encoding[i]].name = Fmt3Encoding[i];
+			} else {
+				glyph_list[encoding[i]].name = ".notdef";
 			}
-
-			fprintf(afm_file, "StartKernPairs %hd\n", npairs_used);
-			kern_entry = (TTF_KERN_ENTRY *) (ptr + sizeof(TTF_KERN_SUB));
-			for (j = 0; j < npairs; j++) {
-			  gl=&glyph_list[ntohs(kern_entry->left)];
-			  gr=&glyph_list[ntohs(kern_entry->right)];
-			  if (gl->flags & GF_USED && gr->flags & GF_USED)
-			    fprintf(afm_file, "KPX %s %s %d\n",
-				    gl->name, gr->name,
-					( transform ?
-						scale((short) ntohs(kern_entry->value))
-						: (short) ntohs(kern_entry->value)
-					) - (gl->scaledwidth - gl->oldwidth)
-					);
-			  kern_entry++;
-			}
-			fprintf(afm_file, "EndKernPairs\n");
 		}
-		ptr += subtable->length;
 	}
+
+	/* enforce two special cases defined in TTF manual */
+	if(numglyphs > 0)
+		glyph_list[0].name = ".null";
+	if(numglyphs > 1)
+		glyph_list[1].name = ".notdef";
+
+ 	for (i = 0; i < 256; i++) {
+ 		if ((encoding[i] != 0) && glyph_rename[i]) {
+ 		    glyph_list[encoding[i]].name = glyph_rename[i];
+ 		}
+ 	}
+ 	
 }
 
 static void
@@ -2839,7 +1797,6 @@ main(
 {
 	int             i;
 	time_t          now;
-	struct stat     statbuf;
 	char            filename[256];
 	int             c,nchars,nmetrics;
 	int             ws;
@@ -2847,6 +1804,9 @@ main(
 	char           *lang;
 	int             oc;
 	int             subid;
+
+	/* XXX temporary */
+	cursw = frontswtab[0];
 
 	while(( oc=getopt(argc, argv, "FaoebAsthHfwv:l:d:u:L:m:W:") )!= -1) {
 		switch(oc) {
@@ -3041,35 +2001,8 @@ main(
 			WARNING_1 fprintf(stderr, "Using language '%s' for Unicode fonts\n", uni_lang[i].name);
 	}
 
-	if (stat(argv[1], &statbuf) == -1) {
-		fprintf(stderr, "**** Cannot access %s ****\n", argv[1]);
-		exit(1);
-	}
-	if ((filebuffer = malloc(statbuf.st_size)) == NULL) {
-		fprintf(stderr, "**** Cannot malloc space for file ****\n");
-		exit(1);
-	}
-	if ((ttf_file = fopen(argv[1], "rb")) == NULL) {
-		fprintf(stderr, "**** Cannot open %s ****\n", argv[1]);
-		exit(1);
-	} else {
-		WARNING_2 fprintf(stderr, "Processing file %s\n", argv[1]);
-	}
-
-	if (fread(filebuffer, 1, statbuf.st_size, ttf_file) != statbuf.st_size) {
-		fprintf(stderr, "**** Could not read whole file ****\n");
-		exit(1);
-	}
-	fclose(ttf_file);
-
-	directory = (TTF_DIRECTORY *) filebuffer;
-
-	if (ntohl(directory->sfntVersion) != 0x00010000) {
-		fprintf(stderr,
-			"****Unknown File Version number [%x], or not a TrueType file****\n",
-			directory->sfntVersion);
-		exit(1);
-	}
+	/* open the input file */
+	cursw->open(argv[1]);
 
 	if (argv[2][0] == '-' && argv[2][1] == 0) {
 		pfa_file = stdout;
@@ -3148,100 +2081,34 @@ main(
 	}
 #endif /* WINDOWS */
 
-	dir_entry = &(directory->list);
+	numglyphs = cursw->nglyphs();
 
-	for (i = 0; i < ntohs(directory->numTables); i++) {
-
-		if (memcmp(dir_entry->tag, "name", 4) == 0) {
-			name_table = (TTF_NAME *) (filebuffer + ntohl(dir_entry->offset));
-		} else if (memcmp(dir_entry->tag, "head", 4) == 0) {
-			head_table = (TTF_HEAD *) (filebuffer + ntohl(dir_entry->offset));
-		} else if (memcmp(dir_entry->tag, "hhea", 4) == 0) {
-			hhea_table = (TTF_HHEA *) (filebuffer + ntohl(dir_entry->offset));
-		} else if (memcmp(dir_entry->tag, "post", 4) == 0) {
-			post_table = (TTF_POST_HEAD *) (filebuffer + ntohl(dir_entry->offset));
-		} else if (memcmp(dir_entry->tag, "glyf", 4) == 0) {
-			glyf_start = (BYTE *) (filebuffer + ntohl(dir_entry->offset));
-		} else if (memcmp(dir_entry->tag, "cmap", 4) == 0) {
-			cmap_table = (TTF_CMAP *) (filebuffer + ntohl(dir_entry->offset));
-		} else if (memcmp(dir_entry->tag, "kern", 4) == 0) {
-			kern_table = (TTF_KERN *) (filebuffer + ntohl(dir_entry->offset));
-		} else if (memcmp(dir_entry->tag, "maxp", 4) == 0) {
-			maxp_table = (TTF_MAXP *) (filebuffer + ntohl(dir_entry->offset));
-		} else if (memcmp(dir_entry->tag, "hmtx", 4) == 0) {
-			hmtx_table = (LONGHORMETRIC *) (filebuffer + ntohl(dir_entry->offset));
-		} else if (memcmp(dir_entry->tag, "loca", 4) == 0) {
-			long_loca_table = (ULONG *) (filebuffer + ntohl(dir_entry->offset));
-			short_loca_table = (USHORT *) long_loca_table;
-		} else if (memcmp(dir_entry->tag, "EBDT", 4) == 0 ||
-			   memcmp(dir_entry->tag, "EBLC", 4) == 0 ||
-			   memcmp(dir_entry->tag, "EBSC", 4) == 0) {
-			WARNING_1 fprintf(stderr, "Font contains bitmaps\n");
-		}
-		dir_entry++;
-	}
-
-	handle_name();
-
-	handle_head();
-
-	numglyphs = ntohs(maxp_table->numGlyphs);
 	WARNING_3 fprintf(stderr, "numglyphs = %d\n", numglyphs);
 
 	glyph_list = (GLYPH *) calloc(numglyphs,  sizeof(GLYPH));
 
 	for (i = 0; i < numglyphs; i++) {
-		char buff[128];
-		
-		sprintf(buff, "UNKN_%d", i);
-		
 		glyph_list[i].char_no = -1;
-		glyph_list[i].unicode = -1;
-		glyph_list[i].name = strdup(buff);
-		glyph_list[i].flags = 0;
+		glyph_list[i].orig_code = -1;
+		glyph_list[i].name = "UNKNOWN";
 	}
 
-	handle_post();
+	handle_gnames();
 
-	handle_hmtx();
-
-	handle_cmap();
-
-	if (ps_fmt_3) {
-		for (i = 0; i < 256; i++) {
-			if (encoding[i] != 0) {
-				glyph_list[encoding[i]].name = Fmt3Encoding[i];
-			} else {
-				glyph_list[encoding[i]].name = ".notdef";
-			}
-		}
-	}
+	cursw->glmetrics(glyph_list);
+	cursw->fnmetrics(&fontm);
  
-	/* enforce two special cases defined in TTF manual */
-	if(numglyphs > 0)
-		glyph_list[0].name = ".null";
-	if(numglyphs > 1)
-		glyph_list[1].name = ".notdef";
+	scale_factor = 1000.0 / (double) fontm.units_per_em;
 
- 	for (i = 0; i < 256; i++) {
- 		if ((encoding[i] != 0) && glyph_rename[i]) {
- 		    glyph_list[encoding[i]].name = glyph_rename[i];
- 		}
- 	}
- 	
-	scale_factor = 1000.0 / (double) ntohs(head_table->unitsPerEm);
 	if(correctvsize && uni_sample!=0) { /* only for known languages */
 		/* try to adjust the scale factor to make a typical
 		 * uppercase character of hight at least (correctvsize), this
 		 * may improve the appearance of the font but also
 		 * make it weird, use with caution
 		 */
-
 		int ysz;
 
-		get_glyf_table(encoding[uni_sample], &glyf_table, NULL);
-
-		ysz = scale((short)ntohs(glyf_table->yMax));
+		ysz = scale(glyph_list[encoding[uni_sample]].yMax);
 		if( ysz<correctvsize ) {
 			scale_factor *= (double)correctvsize / ysz;
 		}
@@ -3274,8 +2141,7 @@ main(
 		}
 	}
 
-	italic_angle = (short) (ntohs(post_table->italicAngle.upper)) +
-		((short) ntohs(post_table->italicAngle.lower) / 65536.0);
+	italic_angle = fontm.italic_angle;
 
 	if (italic_angle > 45.0 || italic_angle < -45.0)
 		italic_angle = 0.0;	/* consider buggy */
@@ -3286,26 +2152,22 @@ main(
 			if (glyph_list[i].flags & GF_USED) {
 				DBG_TO_GLYPH(&glyph_list[i]);
 				buildstems(&glyph_list[i]);
-				assertpath(glyph_list[i].entries, __LINE__, glyph_list[i].name);
+				assertpath(glyph_list[i].entries, __FILE__, __LINE__, glyph_list[i].name);
 				DBG_FROM_GLYPH(&glyph_list[i]);
 			}
 		}
 		stemstatistics();
 	} else {
 		if (transform) {
-			bbox[0] = scale((short) ntohs(head_table->xMin));
-			bbox[1] = scale((short) ntohs(head_table->yMin));
-			bbox[2] = scale((short) ntohs(head_table->xMax));
-			bbox[3] = scale((short) ntohs(head_table->yMax));
+			for(i=0; i<4; i++)
+				bbox[i] = scale(fontm.bbox[i]);
 		} else {
-			bbox[0] = (short) ntohs(head_table->xMin);
-			bbox[1] = (short) ntohs(head_table->yMin);
-			bbox[2] = (short) ntohs(head_table->xMax);
-			bbox[3] = (short) ntohs(head_table->yMax);
+			for(i=0; i<4; i++)
+				bbox[i] = fontm.bbox[i];
 		}
 	}
 	/* don't touch the width of fixed width fonts */
-	if( ntohl(post_table->isFixedPitch) )
+	if( fontm.is_fixed_pitch )
 		correctwidth=0;
 	docorrectwidth(); /* checks correctwidth inside */
 	if (reverse)
@@ -3313,7 +2175,7 @@ main(
 			if (glyph_list[i].flags & GF_USED) {
 				DBG_TO_GLYPH(&glyph_list[i]);
 				reversepaths(&glyph_list[i]);
-				assertpath(glyph_list[i].entries, __LINE__, glyph_list[i].name);
+				assertpath(glyph_list[i].entries, __FILE__, __LINE__, glyph_list[i].name);
 				DBG_FROM_GLYPH(&glyph_list[i]);
 			}
 		}
@@ -3331,53 +2193,34 @@ main(
 #endif
 
 	if(trybold) {
-		char *str;
-		static int fieldstocheck[]= {2,4,0};
-
-		forcebold=0;
-
-		for(i=0; !forcebold && i<sizeof fieldstocheck /sizeof(int); i++) {
-			str=name_fields[fieldstocheck[i]];
-			for(i=0; str[i]!=0; i++) {
-				if( (str[i]=='B'
-					|| str[i]=='b' 
-						&& ( i==0 || !isalpha(str[i-1]) )
-					)
-				&& !strncmp("old",&str[i+1],3)
-				&& !islower(str[i+4])
-				) {
-					forcebold=1;
-					break;
-				}
-			}
-		}
+		forcebold = fontm.force_bold;
 	}
 
-	fprintf(pfa_file, "%%!PS-AdobeFont-1.0: %s %s\n", name_fields[6], name_fields[0]);
+	fprintf(pfa_file, "%%!PS-AdobeFont-1.0: %s %s\n", fontm.name_ps, fontm.name_copyright);
 	time(&now);
 	fprintf(pfa_file, "%%%%CreationDate: %s", ctime(&now));
 	fprintf(pfa_file, "%% Converted from TrueType font %s by ttf2pt1 program\n%%\n", argv[1]);
 	fprintf(pfa_file, "%%%%EndComments\n");
 	fprintf(pfa_file, "12 dict begin\n/FontInfo 9 dict dup begin\n");
 
-	WARNING_3 fprintf(stderr, "FontName %s%s\n", name_fields[6], uni_font_name_suffix);
+	WARNING_3 fprintf(stderr, "FontName %s%s\n", fontm.name_ps, uni_font_name_suffix);
 
 
-	fprintf(pfa_file, "/version (%s) readonly def\n", name_fields[5]);
+	fprintf(pfa_file, "/version (%s) readonly def\n", fontm.name_version);
 
-	fprintf(pfa_file, "/Notice (%s) readonly def\n", name_fields[0]);
+	fprintf(pfa_file, "/Notice (%s) readonly def\n", fontm.name_copyright);
 
-	fprintf(pfa_file, "/FullName (%s) readonly def\n", name_fields[4]);
-	fprintf(pfa_file, "/FamilyName (%s) readonly def\n", name_fields[1]);
+	fprintf(pfa_file, "/FullName (%s) readonly def\n", fontm.name_full);
+	fprintf(pfa_file, "/FamilyName (%s) readonly def\n", fontm.name_family);
 
 	if(wantuid) {
 		if(strUID)
 			fprintf(pfa_file, "/UniqueID %s def\n", strUID);
 		else {
 			numUID=0;
-			for(i=0; name_fields[4][i]!=0; i++) {
+			for(i=0; fontm.name_full[i]!=0; i++) {
 				numUID *= 37; /* magic number, good for hash */
-				numUID += name_fields[4][i]-' ';
+				numUID += fontm.name_full[i]-' ';
 				/* if the name is long the first chars
 				 * may be lost forever, so re-insert
 				 * them thus making kind of CRC
@@ -3389,11 +2232,11 @@ main(
 		}
 	}
 
-	fprintf(pfa_file, "/Weight (%s) readonly def\n", name_fields[2]);
+	fprintf(pfa_file, "/Weight (%s) readonly def\n", fontm.name_style);
 
 	fprintf(pfa_file, "/ItalicAngle %f def\n", italic_angle);
 	fprintf(pfa_file, "/isFixedPitch %s def\n",
-		ntohl(post_table->isFixedPitch) ? "true" : "false");
+		fontm.is_fixed_pitch ? "true" : "false");
 
 	/* we don't print out the unused glyphs */
 	nchars = 0;
@@ -3404,54 +2247,52 @@ main(
 	}
 
     fprintf(afm_file, "StartFontMetrics 4.1\n");
-	fprintf(afm_file, "FontName %s%s\n", name_fields[6], uni_font_name_suffix);
-    fprintf(afm_file, "FullName %s\n", name_fields[4]);
-    fprintf(afm_file, "Notice %s\n", name_fields[0]);
+	fprintf(afm_file, "FontName %s%s\n", fontm.name_ps, uni_font_name_suffix);
+    fprintf(afm_file, "FullName %s\n", fontm.name_full);
+    fprintf(afm_file, "Notice %s\n", fontm.name_copyright);
     fprintf(afm_file, "EncodingScheme FontSpecific\n");
-    fprintf(afm_file, "FamilyName %s\n", name_fields[1]);
-    fprintf(afm_file, "Weight %s\n", name_fields[2]);
-    fprintf(afm_file, "Version (%s)\n", name_fields[5]);
+    fprintf(afm_file, "FamilyName %s\n", fontm.name_family);
+    fprintf(afm_file, "Weight %s\n", fontm.name_style);
+    fprintf(afm_file, "Version (%s)\n", fontm.name_version);
     fprintf(afm_file, "Characters %d\n", nchars);
     fprintf(afm_file, "ItalicAngle %.1f\n", italic_angle);
 
-    fprintf(afm_file, "Ascender %d\n",
-            scale((short)ntohs(hhea_table->ascender)));
-    fprintf(afm_file, "Descender %d\n",
-            scale((short)ntohs(hhea_table->descender)));
+    fprintf(afm_file, "Ascender %d\n", fontm.ascender);
+    fprintf(afm_file, "Descender %d\n", fontm.descender);
 
 	if (transform) {
 		fprintf(pfa_file, "/UnderlinePosition %d def\n",
-			scale((short) ntohs(post_table->underlinePosition)));
+			scale(fontm.underline_position));
 
 		fprintf(pfa_file, "/UnderlineThickness %hd def\nend readonly def\n",
-		      (short) scale(ntohs(post_table->underlineThickness)));
+			scale(fontm.underline_thickness));
 
 		fprintf(afm_file, "UnderlineThickness %d\n",
-			(short) scale(ntohs(post_table->underlineThickness)));
+			scale(fontm.underline_thickness));
 
 		fprintf(afm_file, "UnderlinePosition %d\n",
-			scale((short) ntohs(post_table->underlinePosition)));
+			scale(fontm.underline_position));
 
 	} else {
 		fprintf(pfa_file, "/UnderlinePosition %hd def\n",
-			(short) ntohs(post_table->underlinePosition));
+			fontm.underline_position);
 
 		fprintf(pfa_file, "/UnderlineThickness %hd def\nend readonly def\n",
-			(short) ntohs(post_table->underlineThickness));
+			fontm.underline_thickness);
+
 		fprintf(afm_file, "UnderlineThickness %d\n",
-			(short) ntohs(post_table->underlineThickness));
+			fontm.underline_thickness);
 
 		fprintf(afm_file, "UnderlinePosition %d\n",
-			(short) ntohs(post_table->underlinePosition));
-
+			fontm.underline_position);
 	}
 
     fprintf(afm_file, "IsFixedPitch %s\n",
-            ntohl(post_table->isFixedPitch) ? "true" : "false" );
+		fontm.is_fixed_pitch ? "true" : "false");
     fprintf(afm_file, "FontBBox %d %d %d %d\n",
 		bbox[0], bbox[1], bbox[2], bbox[3]);
 
-	fprintf(pfa_file, "/FontName /%s%s def\n", name_fields[6], uni_font_name_suffix);
+	fprintf(pfa_file, "/FontName /%s%s def\n", fontm.name_ps, uni_font_name_suffix);
 	fprintf(pfa_file, "/PaintType 0 def\n/StrokeWidth 0 def\n");
 	/* I'm not sure if these are fixed */
 	fprintf(pfa_file, "/FontType 1 def\n");
@@ -3481,7 +2322,7 @@ main(
 		fprintf(pfa_file,
 			"dup %d /%s put\n", i, glyph_list[encoding[i]].name);
 		if( glyph_list[encoding[i]].flags & GF_USED ) 
-			print_glyf_metrics(i, encoding[i]);
+			print_glyph_metrics(i, encoding[i]);
 	}
 
 	/* print the metrics for glyphs not in encoding table */
@@ -3489,7 +2330,7 @@ main(
 		for(i=0; i<numglyphs; i++) {
 			if( (glyph_list[i].flags & GF_USED)
 			&& glyph_list[i].char_no == -1 )
-				print_glyf_metrics(-1, i);
+				print_glyph_metrics(-1, i);
 		}
 	}
 
@@ -3562,7 +2403,7 @@ main(
 	subid=5;
 	for (i = 0; i < numglyphs; i++) {
 		if (glyph_list[i].flags & GF_USED) {
-			subid+=print_glyf_subs(i, subid);
+			subid+=print_glyph_subs(i, subid);
 		}
 	}
 
@@ -3572,7 +2413,7 @@ main(
 
 	for (i = 0; i < numglyphs; i++) {
 		if (glyph_list[i].flags & GF_USED) {
-			print_glyf(i);
+			print_glyph(i);
 		}
 	}
 
@@ -3586,13 +2427,9 @@ main(
 
     fprintf(afm_file, "EndCharMetrics\n");
 
-    if (kern_table != NULL) {
-        fprintf(afm_file, "StartKernData\n");
-        handle_kern();
-        fprintf(afm_file, "EndKernData\n");
-    } else {
-        WARNING_1 fputs("No Kerning data\n", stderr);
-    }
+	/* print the kerning data if present */
+	cursw->prkern(glyph_list, afm_file);
+
     fprintf(afm_file, "EndFontMetrics\n");
     fclose(afm_file);
 

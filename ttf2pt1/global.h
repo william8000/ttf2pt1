@@ -21,6 +21,7 @@ extern int      correctvsize;	/* try to correct the vertical size of characters 
 extern int      wantuid;	/* user wants UniqueID entry in the font */
 extern int      allglyphs;	/* convert all glyphs, not only 256 of them */
 extern int      warnlevel;	/* the level of permitted warnings */
+extern int      forceunicode; /* consider any fonr as Unicode for mapping purposes */
 /* options - maximal limits */
 extern int      max_stemdepth;	/* maximal depth of stem stack in interpreter */
 
@@ -79,5 +80,54 @@ extern int      numglyphs, long_offsets, ncurves;
 #endif
 
 /* prototypes */
-void get_glyf_table( int glyphno, TTF_GLYF **tab, int *len);
 int scale( int val);
+int unicode_to_win31( int unival, char *name);
+
+/* global metrics for a font */
+
+struct font_metrics {
+	/* post */
+	double	italic_angle;
+	short	underline_position;
+	short	underline_thickness;
+	short	is_fixed_pitch;
+
+	/* hhea */
+	short	ascender; 
+	short	descender;
+
+	/* head */
+	unsigned short	units_per_em;
+	short   bbox[4];
+
+	/* name */
+	char	*name_copyright;
+	char	*name_family;
+	char	*name_style;
+	char	*name_full;
+	char	*name_version;
+	char	*name_ps;
+
+	/* other */
+	int		force_bold;
+};
+
+/* switch table structure for front-ends */
+
+#define MAXSUFFIX	10
+
+struct frontsw {
+	char  *name; /* name of the front end */
+	char  *descr; /* description of the front end */
+	char  *suffix[MAXSUFFIX]; /* possible file name suffixes */
+
+	void  (*open)(char *fname); /* open font file */
+	void  (*close)(void); /* close font file */
+	int   (*nglyphs)(void); /* get the number of glyphs */
+	int   (*glnames)(GLYPH *glyphs); /* get the names of glyphs */
+	void  (*glmetrics)(GLYPH *glyphs); /* get the metrics of glyphs */
+	int   (*glenc)(GLYPH *glyphs, int *enc); /* get the encoding */
+	void  (*fnmetrics)(struct font_metrics *fm); /* get the font metrics */
+	int   (*glpath)(int glyphno, GLYPH *glyphs); /* get the glyph path */
+	void  (*prkern)(GLYPH *glyphs, FILE *afm_file); /* print the kerning data */
+};

@@ -84,8 +84,11 @@ ttf2pt1.o: ttf2pt1.c ttf.h pt1.h global.h
 pt1.o: pt1.c ttf.h pt1.h global.h
 	$(CC) $(CFLAGS) -c pt1.c
 
-ttf2pt1:	ttf2pt1.o pt1.o t1asm.o
-	$(CC) $(CFLAGS) -o ttf2pt1 ttf2pt1.o pt1.o t1asm.o $(LIBS)
+ttf.o: ttf.c ttf.h pt1.h global.h
+	$(CC) $(CFLAGS) -c ttf.c
+
+ttf2pt1:	ttf2pt1.o pt1.o t1asm.o ttf.o
+	$(CC) $(CFLAGS) -o ttf2pt1 ttf2pt1.o pt1.o t1asm.o ttf.o $(LIBS)
 
 CHANGES: CHANGES.html
 	scripts/unhtml <CHANGES.html >CHANGES
