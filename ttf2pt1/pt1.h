@@ -49,6 +49,7 @@ typedef struct gentry {
 
 	char            flags; 
 #define GEF_FLOAT	0x02 /* entry contains floating point data */
+#define GEF_LINE	0x04 /* entry looks like a line even if it's a curve */
 
 	unsigned char	dir; /* used to temporarily store the values for
 				* the directions of the ends of curves */
