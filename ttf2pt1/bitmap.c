@@ -318,3 +318,58 @@ bmp_outline(
 	free(hlm); free(vlm); free(amp);
 }
 
+#if 0
+/* print out the bitmap */
+printbmap(bmap, xsz, ysz, xoff, yoff)
+	char *bmap;
+	int xsz, ysz, xoff, yoff;
+{
+	int x, y;
+
+	for(y=ysz-1; y>=0; y--) {
+		putchar( (y%10==0) ? y/10+'0' : ' ' );
+		putchar( y%10+'0' );
+		for(x=0; x<xsz; x++)
+			putchar( bmap[y*xsz+x] ? 'X' : '.' );
+		if(-yoff==y)
+			putchar('_'); /* mark the baseline */
+		putchar('\n');
+	}
+	putchar(' '); putchar(' ');
+	for(x=0; x<xsz; x++)
+		putchar( x%10+'0' );
+	putchar('\n'); putchar(' '); putchar(' ');
+	for(x=0; x<xsz; x++)
+		putchar( (x%10==0) ? x/10+'0' : ' ' );
+	putchar('\n');
+}
+
+/* print out the limits of outlines */
+printlimits(hlm, vlm, amp, xsz, ysz)
+	char *hlm, *vlm, *amp;
+	int xsz, ysz;
+{
+	int x, y;
+	static char h_char[]={ ' ', '~', '^' };
+	static char v_char[]={ ' ', '(', ')' };
+
+	for(y=ysz-1; y>=0; y--) {
+		for(x=0; x<xsz; x++) {
+			if(amp[y*xsz+x])
+				putchar('!'); /* ambigouos point is always on a limit */
+			else
+				putchar(v_char[ vlm[y*(xsz+1)+x] & (L_ON|L_OFF) ]);
+			putchar(h_char[ hlm[(y+1)*xsz+x] & (L_ON|L_OFF) ]);
+		}
+		putchar(v_char[ vlm[y*(xsz+1)+x] & (L_ON|L_OFF) ]);
+		putchar('\n');
+	}
+	/* last line */
+	for(x=0; x<xsz; x++) {
+		putchar(' ');
+		putchar(h_char[ hlm[x] & (L_ON|L_OFF) ]);
+	}
+	putchar(' ');
+	putchar('\n');
+}
+#endif /* 0 */
