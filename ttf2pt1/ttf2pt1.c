@@ -1676,7 +1676,18 @@ convert_glyf(
 
 		/* float processing */
 		if(smooth) {
+#if 1
+			fnormalize(g);
+			assertpath(g->entries, __FILE__, __LINE__, g->name);
+#endif
+
 			ffixquadrants(g);
+			assertpath(g->entries, __FILE__, __LINE__, g->name);
+
+			fsplitzigzags(g);
+			assertpath(g->entries, __FILE__, __LINE__, g->name);
+
+			fforceconcise(g);
 			assertpath(g->entries, __FILE__, __LINE__, g->name);
 		}
 
@@ -1694,14 +1705,13 @@ convert_glyf(
 			smoothjoints(g);
 			assertpath(g->entries, __FILE__, __LINE__, g->name);
 
+#if 0
 			straighten(g, 1);
-			assertpath(g->entries, __FILE__, __LINE__, g->name);
-
-			splitzigzags(g);
 			assertpath(g->entries, __FILE__, __LINE__, g->name);
 
 			forceconcise(g);
 			assertpath(g->entries, __FILE__, __LINE__, g->name);
+#endif
 
 			straighten(g, 0);
 			assertpath(g->entries, __FILE__, __LINE__, g->name);

@@ -23,6 +23,10 @@
 #include "pt1.h"
 #include "global.h"
 
+/* big and small values for comparisons */
+#define FBIGVAL	(1e10)
+#define FEPS	(10000./FBIGVAL)
+
 int      stdhw, stdvw;	/* dominant stems widths */
 int      stemsnaph[12], stemsnapv[12];	/* most typical stem width */
 
@@ -43,6 +47,10 @@ static void fixcvdir( GENTRY * ge, int dir);
 static void fixcvends( GENTRY * ge);
 static int fgetcvdir( GENTRY * ge);
 static int igetcvdir( GENTRY * ge);
+static int fiszigzag( GENTRY *ge);
+static int iszigzag( GENTRY *ge);
+static GENTRY * ffreenextge( GENTRY *ge);
+static GENTRY * freethisge( GENTRY *ge);
 
 static int
 isign(
@@ -75,7 +83,7 @@ newgentry(void)
 {
 	GENTRY         *ge;
 
-	ge = malloc(sizeof(GENTRY));
+	ge = calloc(sizeof(GENTRY), 1);
 
 	if (ge == 0) {
 		fprintf(stderr, "***** Memory allocation error *****\n");
@@ -4201,7 +4209,7 @@ fsqequation(
 
   The formulas are:
 
-  y = A*(1-t)^3 + B*(1-t)^2*t + C*(1-t)*t^2 + D*t^3
+  y = A*(1-t)^3 + 3*B*(1-t)^2*t + 3*C*(1-t)*t^2 + D*t^3
   y = (-A+3*B-3*C+D)*t^3 + (3*A-6*B+3*C)*t^2 + (-3*A+3*B)*t + A
   dy/dt = 3*(-A+3*B-3*C+D)*t^2 + 2*(3*A-6*B+3*C)*t + (-3*A+3*B)
  */
@@ -4356,43 +4364,64 @@ ffixquadrants(
 
 }
 
-/* find the approximate length of curve */
+/* check if a curve is a zigzag */
 
-double
-curvelen(
-	 int x0, int y0, int x1, int y1,
-	 int x2, int y2, int x3, int y3
-)
+static int
+iszigzag(
+	GENTRY *ge
+) 
 {
-	double          len = 0.;
-	double          dx, dy;
-	double          step, t, mt, n, x = (double) x0, y = (double) y0;
-	int             i;
+	double          k, k1, k2;
+	double          a, b, c, d;
 
-	x1 *= 3;
-	y1 *= 3;
-	x2 *= 3;
-	y2 *= 3;
+	if (ge->type != GE_CURVE)
+		return 0;
 
-	step = 1. / 10.;
-	t = 0;
-	len = 0;
-	for (i = 1; i <= 10; i++) {
-		t += step;
-		mt = 1 - t;
+	a = ge->iy2 - ge->iy1;
+	b = ge->ix2 - ge->ix1;
+	k = fabs(a == 0 ? (b == 0 ? 1. : FBIGVAL) : (double) b / (double) a);
+	a = ge->iy1 - ge->prev->iy3;
+	b = ge->ix1 - ge->prev->ix3;
+	k1 = fabs(a == 0 ? (b == 0 ? 1. : FBIGVAL) : (double) b / (double) a);
+	a = ge->iy3 - ge->iy2;
+	b = ge->ix3 - ge->ix2;
+	k2 = fabs(a == 0 ? (b == 0 ? 1. : FBIGVAL) : (double) b / (double) a);
 
-		n = x0 * mt * mt * mt + x1 * mt * mt * t + x2 * mt * t * t + x3 * t * t * t;
-		dx = n - x;
-		x = n;
+	/* if the curve is not a zigzag */
+	if (k1 >= k && k2 <= k || k1 <= k && k2 >= k)
+		return 0;
+	else
+		return 1;
+}
 
-		n = y0 * mt * mt * mt + y1 * mt * mt * t + y2 * mt * t * t + y3 * t * t * t;
-		dy = n - y;
-		y = n;
+/* check if a curve is a zigzag - floating */
 
-		len += sqrt(dx * dx + dy * dy);
-	}
+static int
+fiszigzag(
+	GENTRY *ge
+) 
+{
+	double          k, k1, k2;
+	double          a, b, c, d;
 
-	return len;
+	if (ge->type != GE_CURVE)
+		return 0;
+
+	a = fabs(ge->fy2 - ge->fy1);
+	b = fabs(ge->fx2 - ge->fx1);
+	k = a < FEPS ? (b <FEPS ? 1. : FBIGVAL) : b / a;
+	a = fabs(ge->fy1 - ge->prev->fy3);
+	b = fabs(ge->fx1 - ge->prev->fx3);
+	k1 = a < FEPS ? (b < FEPS ? 1. : FBIGVAL) : b / a;
+	a = fabs(ge->fy3 - ge->fy2);
+	b = fabs(ge->fx3 - ge->fx2);
+	k2 = a < FEPS ? (b <FEPS ? 1. : FBIGVAL) : b / a;
+
+	/* if the curve is not a zigzag */
+	if (k1 >= k && k2 <= k || k1 <= k && k2 >= k)
+		return 0;
+	else
+		return 1;
 }
 
 /* split the zigzag-like curves into two parts */
@@ -4406,22 +4435,13 @@ splitzigzags(
 	double          k, k1, k2;
 	int             a, b, c, d;
 
+	assertisint(g, "splitting zigzags");
 	for (ge = g->entries; ge != 0; ge = ge->next) {
 		if (ge->type != GE_CURVE)
 			continue;
 
-		a = ge->iy2 - ge->iy1;
-		b = ge->ix2 - ge->ix1;
-		k = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : (double) b / (double) a);
-		a = ge->iy1 - ge->prev->iy3;
-		b = ge->ix1 - ge->prev->ix3;
-		k1 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : (double) b / (double) a);
-		a = ge->iy3 - ge->iy2;
-		b = ge->ix3 - ge->ix2;
-		k2 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : (double) b / (double) a);
-
 		/* if the curve is not a zigzag */
-		if (k1 >= k && k2 <= k || k1 <= k && k2 >= k) {
+		if ( !iszigzag(ge) ) {
 			fixcvends(ge);
 			continue;
 		}
@@ -4499,6 +4519,553 @@ splitzigzags(
 	}
 }
 
+/* split the zigzag-like curves into two parts */
+
+void
+fsplitzigzags(
+	     GLYPH * g
+)
+{
+	GENTRY         *ge, *nge;
+	double          k, k1, k2;
+	double          a, b, c, d;
+
+	assertisfloat(g, "splitting zigzags");
+	for (ge = g->entries; ge != 0; ge = ge->next) {
+		if (ge->type != GE_CURVE)
+			continue;
+
+		/* if the curve is not a zigzag */
+		if ( !fiszigzag(ge) ) {
+			continue;
+		}
+
+		/* split the curve by t=0.5 */
+		nge = newgentry();
+		(*nge) = (*ge);
+		nge->type = GE_CURVE;
+
+		nge->next = ge->next;
+		ge->next->prev = nge;
+
+		ge->next = nge;
+		nge->prev = ge;
+
+		nge->first = ge->first;
+		ge->first = 0;
+
+		a = ge->prev->fx3;
+		b = ge->fx1;
+		c = ge->fx2;
+		d = ge->fx3;
+		nge->fx3 = d;
+		nge->fx2 = (c + d) / 2.;
+		nge->fx1 = (b + 2. * c + d) / 4.;
+		ge->fx3 = (a + b * 3. + c * 3. + d) / 8.;
+		ge->fx2 = (a + 2. * b + c) / 4.;
+		ge->fx1 = (a + b) / 2.;
+
+		a = ge->prev->fy3;
+		b = ge->fy1;
+		c = ge->fy2;
+		d = ge->fy3;
+		nge->fy3 = d;
+		nge->fy2 = (c + d) / 2.;
+		nge->fy1 = (b + 2. * c + d) / 4.;
+		ge->fy3 = (a + b * 3. + c * 3. + d) / 8.;
+		ge->fy2 = (a + 2. * b + c) / 4.;
+		ge->fy1 = (a + b) / 2.;
+	}
+}
+
+/* free the next floating GENTRY, returns the new next entry
+ */
+
+static GENTRY *
+ffreenextge(
+	GENTRY *ge
+)
+{
+	GENTRY *nge;
+
+	if (ge->first) {
+		nge = ge->first;
+		/*
+		 * move the start point of the
+		 * contour
+		 */
+		nge->prev->fx3 = ge->fx3;
+		nge->prev->fy3 = ge->fy3;
+		nge->prev->next = nge->next;
+		nge->next->prev = nge->prev;
+		ge->first = nge->next;
+		free(nge);
+		return ge->first;
+	} else {
+		freethisge(ge->next);
+		if (ge->first)
+			return ge->first;
+		else
+			return ge->next;
+	}
+}
+
+/* free this GENTRY (int or float) with correction of all pointers
+ * returns what was ge->next
+ * GENTRY must be LINE or CURVE
+ */
+
+static GENTRY *
+freethisge(
+	GENTRY *ge
+)
+{
+	GENTRY *nge;
+
+	nge = ge->next;
+
+	/* this ge may be at beginning of path with ->first pointing
+	 * to it, so actually icopy the next ge here and free the next ge
+	 */
+
+	if(nge->next)
+		nge->next->prev = ge;
+
+	nge->prev = ge->prev;
+
+	if(ge->first && ge->prev->type != GE_MOVE)
+		ge->prev->first = ge->first;
+		
+	*ge = *nge;
+	free(nge);
+	return ge;
+}
+
+/* normalize curves to the form where their ends
+ * can be safely used as derivatives
+ */
+
+void
+fnormalize(
+	GLYPH *g
+)
+{
+	GENTRY  *ge, *nge, *xge;
+	int i, j, found;
+	double d[2], dx, dy, d2, d2m;
+#define MINLEN	0.3 /* minimal permitted length of curve */
+#define TIMESLARGER	5.	/* how much larger must be a curve to not change too much */
+
+	/* does not work quite well yet */
+	return;
+
+	for (ge = g->entries; ge != 0; ge = ge->next) {
+
+		if (ge->type != GE_CURVE && ge->type != GE_LINE)
+			continue;
+
+		if(ge->first)
+			nge = ge->first;
+		else
+			nge = ge->next;
+
+		d2m = 0;
+		for(i= (ge->type==GE_CURVE? 0: 2); i<3; i++) {
+			dx = ge->fxn[i] - ge->prev->fx3;
+			dy = ge->fyn[i] - ge->prev->fy3;
+			d2 = dx*dx + dy*dy;
+			if(d2m < d2)
+				d2m = d2;
+		}
+
+		if( d2m > (MINLEN*MINLEN) ) { /* line is not too small */
+			/* XXX add more normalization here */
+			continue;
+		}
+
+		/* if the line is too small */
+		if(ISDBG(FCONCISE)) 
+			fprintf(stderr, "glyph %s has a very small fragment(%x), removed it\n", 
+			g->name, ge);
+
+		if(nge == ge) { /* points to itself, just remove the path completely */
+			if(ISDBG(FCONCISE)) 
+				fprintf(stderr, "    points to itself\n");
+
+			ge->prev->next = ge->next->next;
+			if(ge->next->next)
+				ge->next->next->prev = ge->prev;
+			free(ge->next); /* remove GE_PATH */
+
+			nge = ge; ge = ge->prev;
+			free(nge); /* step back to the previous entry */
+			continue;
+		} 
+
+		/* this is the gap we need to close */
+		d[0] = ge->fx3 - ge->prev->fx3;
+		d[1] = ge->fy3 - ge->prev->fy3;
+
+		/* check if the previous line is big */
+		xge = ge->prev;
+		if(xge && (xge->type == GE_LINE || xge->type == GE_CURVE)
+		&& fabs(xge->fx3 - xge->prev->fx3) >= fabs(d[0]*TIMESLARGER)
+		&& fabs(xge->fy3 - xge->prev->fy3) >= fabs(d[1]*TIMESLARGER) ) { /* large thing */
+			if(ISDBG(FCONCISE)) 
+				fprintf(stderr, "    previous fragment is big, scaled\n");
+			for(i=0; i<2; i++) {
+				if(d[i] == 0)
+					continue; /* avoid division by 0 */
+
+				d2 = xge->fpoints[i][2] - xge->prev->fpoints[i][2];
+				d2 = (d2+d[i]) / d2; /* scale : d[i] was already counted in */
+				for(j=0; j<3; j++)
+					xge->fpoints[i][j] = 
+						(xge->fpoints[i][j] - xge->prev->fpoints[i][2]) * d2
+						+ xge->prev->fpoints[i][2];
+			}
+			ge = freethisge(ge)->prev; /* step back to the previous entry */
+			continue;
+		}
+
+		/* check if the next line is also small */
+		for(i= (nge->type==GE_CURVE? 0: 2); i<3; i++) {
+			dx = nge->fxn[i] - ge->fx3;
+			dy = nge->fyn[i] - ge->fy3;
+			d2 = dx*dx + dy*dy;
+			if(d2m < d2)
+				d2m = d2;
+		}
+		if( d2m < (MINLEN*MINLEN) ) { /* yes, it is */
+			if(ISDBG(FCONCISE)) 
+				fprintf(stderr, "    next is small, joined\n");
+
+			/* replace them both with one curve that looks as a line */
+			ge->fx3 = nge->fx3;
+			ge->fy3 = nge->fy3;
+			ge->fx2 = ge->prev->fx3 + 0.9*(ge->fx3 - ge->prev->fx3);
+			ge->fy2 = ge->prev->fy3 + 0.9*(ge->fy3 - ge->prev->fy3);
+			ge->fx2 = ge->prev->fx3 + 0.1*(ge->fx3 - ge->prev->fx3);
+			ge->fy2 = ge->prev->fy3 + 0.1*(ge->fy3 - ge->prev->fy3);
+			ge->type = GE_CURVE;
+			nge = ffreenextge(ge);
+
+			if(nge == ge) { /* oops, that was a small closed loop - remove the path completely */
+				if(ISDBG(FCONCISE)) 
+					fprintf(stderr, "    was small closed loop\n");
+				ge->prev->next = ge->next->next;
+				if(ge->next->next)
+					ge->next->next->prev = ge->prev;
+				free(ge->next); /* remove GE_PATH */
+
+				nge = ge; ge = ge->prev;
+				free(nge); /* step back to the previous entry */
+			} else {
+				ge=ge->prev; /* consider the new joined entry again */
+			}
+			continue; 
+		}
+
+
+		/* eliminate this part */
+		for(i=0; i<3; i++) {
+			xge->fxn[i] -= d[0];
+			xge->fyn[i] -= d[1];
+		}
+		if(xge->first) { /* fix MOVETO */
+			nge->prev->fx3 -= d[0];
+			nge->prev->fy3 -= d[1];
+		}
+
+		/* then scale some large fragment to cover the gap */
+		found = 0;
+		while(nge != ge) {
+			xge = nge;
+			if(xge->first)
+				nge = xge->first;
+			else
+				nge = xge->next;
+
+			if( fabs(xge->fx3 - xge->prev->fx3) >= fabs(d[0]*TIMESLARGER)
+			&& fabs(xge->fy3 - xge->prev->fy3) >= fabs(d[1]*TIMESLARGER) ) { /* large thing */
+				if(ISDBG(FCONCISE)) 
+					fprintf(stderr, "    found a big fragment to scale\n");
+				for(i=0; i<2; i++) {
+					if(d[i] == 0)
+						continue; /* avoid division by 0 */
+
+					d2 = xge->fpoints[i][2] - xge->prev->fpoints[i][2];
+					d2 = d2 / (d2-d[i]); /* scale : d[i] was already counted in */
+					for(j=0; j<3; j++)
+						xge->fpoints[i][j] = 
+							(xge->fpoints[i][j] - xge->prev->fpoints[i][2] - d[i]) * d2
+							+ xge->prev->fpoints[i][2];
+				}
+				found = 1;
+				break;
+			} else {
+				for(i=0; i<3; i++) {
+					xge->fxn[i] -= d[0];
+					xge->fyn[i] -= d[1];
+				}
+				if(xge->first) { /* fix MOVETO */
+					nge->prev->fx3 -= d[0];
+					nge->prev->fy3 -= d[1];
+				}
+			}
+		}
+		if(!found) { /* oops, found no large fragments */
+			if(ISDBG(FCONCISE)) 
+				fprintf(stderr, "    found no big fragments to scale\n");
+
+			/* xge is logically previous to ge now */
+			nge = ge->prev; /* remember for next step */
+
+			if( fabs(xge->fx3 - xge->prev->fx3) >= fabs(d[0]*1.1)
+			&& fabs(xge->fy3 - xge->prev->fy3) >= fabs(d[1]*1.1) ) { /* not too small thing */
+				if(ISDBG(FCONCISE)) 
+					fprintf(stderr, "    scaling previous fragnemt\n");
+				for(i=0; i<2; i++) {
+					if(d[i] == 0)
+						continue; /* avoid division by 0 */
+
+					d2 = xge->fpoints[i][2] - xge->prev->fpoints[i][2];
+					d2 = d2 / (d2-d[i]); /* scale - d[i] was already counted in */
+					for(j=0; j<3; j++)
+						xge->fpoints[i][j] = 
+							(xge->fpoints[i][j] - xge->prev->fpoints[i][2] + d[i]) * d2
+							+ xge->prev->fpoints[i][2];
+				}
+			} else { /* xge is also not that big */
+				if(ISDBG(FCONCISE)) 
+					fprintf(stderr, "    replaced this and prev\n");
+				/* replace both xge and ge with one curve that looks as a line */
+				xge->fx3 = ge->fx3;
+				xge->fy3 = ge->fy3;
+				xge->fx2 = xge->prev->fx3 + 0.9*(xge->fx3 - xge->prev->fx3);
+				xge->fy2 = xge->prev->fy3 + 0.9*(xge->fy3 - xge->prev->fy3);
+				xge->fx1 = xge->prev->fx3 + 0.1*(xge->fx3 - xge->prev->fx3);
+				xge->fy1 = xge->prev->fy3 + 0.1*(xge->fy3 - xge->prev->fy3);
+				xge->type = GE_CURVE;
+			}
+
+			freethisge(ge);
+
+			ge = nge; /* previous entry */
+		} else {
+			ge = freethisge(ge)->prev; /* step back to the previous entry */
+		}
+	}
+#undef MINLEN
+#undef TIMESLARGER
+}
+
+/* force conciseness: substitute 2 or more curves going in the
+** same quadrant with one curve
+** in floating point
+*/
+
+void
+fforceconcise(
+	     GLYPH * g
+)
+{
+	GENTRY         *ge, *nge;
+	GENTRY          tge;
+	double          firstlen, lastlen, sumlen, scale;
+	double          dxw1, dyw1, dxw2, dyw2;
+	double          dxb1, dyb1, dxe1, dye1;
+	double          dxb2, dyb2, dxe2, dye2;
+	int             i;
+
+	assertisfloat(g, "enforcing conciseness");
+	for (ge = g->entries; ge != 0; ge = ge->next) {
+		if (ge->type != GE_CURVE)
+			continue;
+
+		/* the whole direction of curve */
+		dxw1 = ge->fx3 - ge->prev->fx3;
+		dyw1 = ge->fy3 - ge->prev->fy3;
+
+		while (1) {
+			/* the whole direction of curve */
+			dxw1 = ge->fx3 - ge->prev->fx3;
+			dyw1 = ge->fy3 - ge->prev->fy3;
+
+			/* directions of  ends of curve */
+			dxb1 = ge->fx1 - ge->prev->fx3;
+			dyb1 = ge->fy1 - ge->prev->fy3;
+			dxe1 = ge->fx3 - ge->fx2;
+			dye1 = ge->fy3 - ge->fy2;
+
+#if 1 /* quadrant are taken care of, and horiz/vert don't bother us any more */
+			/* if this curve ends horizontally or vertically */
+			/* or crosses quadrant boundaries */
+			if (dxe1 == 0 || dye1 == 0 || dxb1 * dxe1 < 0 || dyb1 * dye1 < 0)
+				break;
+#endif
+
+			if (ge->first)
+				nge = ge->first;
+			else
+				nge = ge->next;
+
+			if (nge->type != GE_CURVE)
+				break;
+
+			dxw2 = nge->fx3 - ge->fx3;
+			dyw2 = nge->fy3 - ge->fy3;
+
+			dxb2 = nge->fx1 - ge->fx3;
+			dyb2 = nge->fy1 - ge->fy3;
+			dxe2 = nge->fx3 - nge->fx2;
+			dye2 = nge->fy3 - nge->fy2;
+
+			/* if curve changes direction */
+			if (fsign(dxw1) != fsign(dxw2) || fsign(dyw1) != fsign(dyw2))
+				break;
+
+#if 1 /* quadrant are taken care of, and horiz/vert don't bother us any more */
+			/* if the next curve crosses quadrant boundaries */
+			/* or joints very abruptly */
+			if (dxb2 * dxe2 < 0 || dyb2 * dye2 < 0
+			    || fsign(dxb2) != fsign(dxe1) || fsign(dyb2) != fsign(dye1))
+				break;
+#endif
+
+			/* if the arch is going in other direction */
+			if (fsign(fabs(dxb1 * dyw1) - fabs(dyb1 * dxw1))
+			    * fsign(fabs(dxe2 * dyw2) - fabs(dye2 * dxw2)) > 0)
+				break;
+
+#if 1
+			/* if the next curve is not continuing the trend set */
+			/* by the end of the first curve, i.e. could make a zigzag */
+			/* note, the previous one has ">=", this one has ">" */
+
+			if( fsign(fabs(dye1 * dxw2) - fabs(dyw2 * dxe1))
+				* fsign(fabs(dye1 * dxw1) - fabs(dyw1 * dxe1)) > 0 )
+				break;
+#endif
+
+			/* check possible limits within which we won't cross quadrants */
+			{
+			}
+
+			/* OK, it seems like we can attempt to join these two curves */
+			firstlen = sqrt( dxe1*dxe1 + dye1*dye1 );
+			lastlen = sqrt( dxb2*dxb2 + dyb2*dyb2 );
+			sumlen = firstlen + lastlen;
+
+			/* limit it for now */
+			if(firstlen < FEPS || lastlen <FEPS) {
+				WARNING_3 fprintf(stderr, "warning: glyph %s has strange curve with delta==0\n",
+					g->name);
+				break;
+			}
+
+			tge.flags = ge->flags;
+			tge.prev = ge->prev;
+			tge.fx1 = ge->fx1;
+			tge.fy1 = ge->fy1;
+			tge.fx2 = nge->fx2;
+			tge.fy2 = nge->fy2;
+			tge.fx3 = nge->fx3;
+			tge.fy3 = nge->fy3;
+
+			dxb1 = tge.fx1 - tge.prev->fx3;
+			dyb1 = tge.fy1 - tge.prev->fy3;
+			dxe1 = tge.fx3 - tge.fx2;
+			dye1 = tge.fy3 - tge.fy2;
+
+			/* scale the first segment */
+			scale = sumlen / firstlen;
+			tge.fx1 = tge.prev->fx3 + scale * dxb1;
+			tge.fy1 = tge.prev->fy3 + scale * dyb1;
+
+			/* scale the last segment */
+			scale = sumlen / lastlen;
+			tge.fx2 = tge.fx3 - scale * dxe1;
+			tge.fy2 = tge.fy3 - scale * dye1;
+
+			/* now check if we got something sensible */
+
+			if( fiszigzag(&tge) ) /* have a zigzag ? */
+				break;
+
+			/* check if the joint point is too far from original */
+			{
+				double k1, a, b, c;
+				double p1e[2][3], p2b[2][2];
+
+				k1 = firstlen / sumlen; 
+#define SPLIT(pt1, pt2)	( (pt1) + k1*((pt2)-(pt1)) ) /* order is important! */
+				for(i=0; i<2; i++) { /* for x and y */
+					a = tge.fpoints[i][0]; /* get the middle points */
+					b = tge.fpoints[i][1];
+
+					/* calculate new internal points */
+					c = SPLIT(a, b);
+
+					p1e[i][0] = SPLIT(tge.prev->fpoints[i][2], a);
+					p1e[i][1] = SPLIT(p1e[i][0], c);
+
+					p2b[i][1] = SPLIT(b, tge.fpoints[i][2]);
+					p2b[i][0] = SPLIT(c, p2b[i][1]);
+
+					p1e[i][2] = SPLIT(p1e[i][1], p2b[i][0]);
+				}
+#undef SPLIT
+
+				a = p1e[0][2] - ge->fx3;
+				b = p1e[1][2] - ge->fy3;
+				c = a*a + b*b; /* square of offset distance */
+
+				a = tge.fx3 - tge.prev->fx3;
+				b = tge.fy3 - tge.prev->fy3;
+				a = (0.05 * 0.05) * (a*a + b*b); /* square of 5% permitted relative tolerance */
+				if(a < 9.)
+					a = 9.; /* for small curves the tolerance is higher */
+				if(a > 100.)
+					a = 100.; /* for big curves the tolerance is limited anyway */
+
+				if( c > a ) { /* not within tolerance ? */
+					if(ISDBG(FCONCISE)) 
+						fprintf(stderr, "%s: out of order by d=%.2f t=%.2f\n", 
+						g->name, c, a);
+					/*
+					break;
+					*/
+				} 
+				else
+					if(ISDBG(FCONCISE)) 
+						fprintf(stderr, "%s: in range d=%.2f t=%.2f\n", g->name, c, a);
+			}
+
+			/* OK, it looks reasonably, let's apply it */
+
+			for(i=0; i<3; i++) {
+				ge->fxn[i] = tge.fxn[i];
+				ge->fyn[i] = tge.fyn[i];
+			}
+
+			if (ge->first) {
+				nge->prev->fx3 = ge->fx3;
+				nge->prev->fy3 = ge->fy3;
+				nge->prev->next = nge->next;
+				nge->next->prev = nge->prev;
+				ge->first = nge->next;
+			} else {
+				ge->first = nge->first;
+				ge->next = nge->next;
+				nge->next->prev = ge;
+			}
+			free(nge);
+		}
+
+	}
+}
+
 /* force conciseness: substitute 2 or more curves going in the
 ** same quadrant with one curve
 */
@@ -4509,17 +5076,17 @@ forceconcise(
 )
 {
 	GENTRY         *ge, *nge;
+	GENTRY          tge;
 	double          firstlen, lastlen, sumlen, scale;
 	int             dxw1, dyw1, dxw2, dyw2;
 	int             dxb1, dyb1, dxe1, dye1;
 	int             dxb2, dyb2, dxe2, dye2;
-	int             n;	/* number of curves we are going to sum */
+	int             i;
 
+	assertisint(g, "enforcing conciseness");
 	for (ge = g->entries; ge != 0; ge = ge->next) {
 		if (ge->type != GE_CURVE)
 			continue;
-
-		n = 1;
 
 		/* the whole direction of curve */
 		dxw1 = ge->ix3 - ge->prev->ix3;
@@ -4580,20 +5147,46 @@ forceconcise(
 				* isign(abs(dye1 * dxw1) - abs(dyw1 * dxe1)) > 0 )
 				break;
 
-			/* OK, it seeme like we can join these two curves */
-			if (n == 1) {
-				firstlen = sumlen = curvelen(ge->prev->ix3, ge->prev->iy3,
-							     ge->ix1, ge->iy1, ge->ix2, ge->iy2, ge->ix3, ge->iy3);
-			}
-			lastlen = curvelen(ge->ix3, ge->iy3,
-					   nge->ix1, nge->iy1, nge->ix2, nge->iy2, nge->ix3, nge->iy3);
-			sumlen += lastlen;
-			n++;
+			/* OK, it seeme like we can attempt to join these two curves */
+			firstlen = sqrt( dxe1*dxe1 + dye1*dye1 );
+			lastlen = sqrt( dxb2*dxb2 + dyb2*dyb2 );
+			sumlen = firstlen + lastlen;
 
-			ge->ix2 = nge->ix2;
-			ge->iy2 = nge->iy2;
-			ge->ix3 = nge->ix3;
-			ge->iy3 = nge->iy3;
+			tge.flags = ge->flags;
+			tge.prev = ge->prev;
+			tge.ix1 = ge->ix1;
+			tge.iy1 = ge->iy1;
+			tge.ix2 = nge->ix2;
+			tge.iy2 = nge->iy2;
+			tge.ix3 = nge->ix3;
+			tge.iy3 = nge->iy3;
+
+			dxb1 = tge.ix1 - tge.prev->ix3;
+			dyb1 = tge.iy1 - tge.prev->iy3;
+			dxe1 = tge.ix3 - tge.ix2;
+			dye1 = tge.iy3 - tge.iy2;
+
+			/* scale the first segment */
+			scale = sumlen / firstlen;
+			tge.ix1 = tge.prev->ix3 + (int) (0.5 + scale * dxb1);
+			tge.iy1 = tge.prev->iy3 + (int) (0.5 + scale * dyb1);
+
+			/* scale the last segment */
+			scale = sumlen / lastlen;
+			tge.ix2 = tge.ix3 - (int) (0.5 + scale * dxe1);
+			tge.iy2 = tge.iy3 - (int) (0.5 + scale * dye1);
+
+			/* now check if we got something sensible */
+
+			if( iszigzag(&tge) ) /* have a zigzag ? */
+				break;
+
+			/* OK, it looks reasonably, let's apply it */
+
+			for(i=0; i<3; i++) {
+				ge->ixn[i] = tge.ixn[i];
+				ge->iyn[i] = tge.iyn[i];
+			}
 
 			if (ge->first) {
 				nge->prev->ix3 = ge->ix3;
@@ -4609,22 +5202,6 @@ forceconcise(
 			free(nge);
 		}
 
-		if (n > 1) {	/* we got something to do */
-			dxb1 = ge->ix1 - ge->prev->ix3;
-			dyb1 = ge->iy1 - ge->prev->iy3;
-			dxe1 = ge->ix3 - ge->ix2;
-			dye1 = ge->iy3 - ge->iy2;
-
-			/* scale the first segment */
-			scale = sumlen / firstlen;
-			ge->ix1 = ge->prev->ix3 + (int) (0.5 + scale * dxb1);
-			ge->iy1 = ge->prev->iy3 + (int) (0.5 + scale * dyb1);
-
-			/* scale the last segment */
-			scale = sumlen / lastlen;
-			ge->ix2 = ge->ix3 - (int) (0.5 + scale * dxe1);
-			ge->iy2 = ge->iy3 - (int) (0.5 + scale * dye1);
-		}
 	}
 }
 

@@ -199,9 +199,9 @@ void joinsubstems( STEM * s, short *pairs, int nold, int useblues);
 int joinmainstems( STEM * s, int nold, int useblues);
 void buildstems( GLYPH * g);
 void straighten( GLYPH * g, int zigonly);
-double curvelen( int x0, int y0, int x1, int y1,
-	 int x2, int y2, int x3, int y3);
 void splitzigzags( GLYPH * g);
+void fsplitzigzags( GLYPH * g);
+void fforceconcise( GLYPH * g);
 void forceconcise( GLYPH * g);
 void reversepathsfromto( GENTRY * from, GENTRY * to);
 void reversepaths( GLYPH * g);
