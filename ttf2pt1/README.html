@@ -192,6 +192,35 @@ The <B>options</B> are:
    &nbsp;&nbsp;<TT>bulgarian</TT> - for the Bulgarian language 
 <br>
    &nbsp;&nbsp;<TT>adobestd</TT> - for the AdobeStandard encoding used by TeX
+<br>
+   &nbsp;&nbsp;<TT>plane+<i>argument</i></TT> - to select one plane from a multi-byte encoding
+<p>
+
+   The argument of the "<tt>plane</tt>" language may be in one of three forms:
+<p>
+   <tt>plane+<b>pid=</b><i>&lt;pid&gt;</i><b>,eid=</b><i>&lt;eid&gt;</i></tt>
+<br>
+   <tt>plane+<b>pid=</b><i>&lt;pid&gt;</i><b>,eid=</b><i>&lt;eid&gt;</i><b>,</b><i>&lt;plane_number&gt;</i></tt>
+<br>
+   <tt>plane+<i>&lt;plane_number&gt;</i></tt>
+<p>
+
+   Pid (TTF platform id) and eid (TTF encoding id) select a particular 
+   TTF encoding table in the original font. They are specified as decimal
+   numbers. If this particular encoding table is not present in the font
+   file then the conversion fails. The native ("ttf") front-end parser supports
+   only pid=3 (Windows platform), the FreeType-based ("ft") front-end supports 
+   any platform. If pid/eid is not specified then the TTF encoding table is 
+   determined as usual: Unicode encoding if it's first or an 8-bit encoding
+   if not (and for an 8-bit encoding the plane number is silently ignored). 
+   To prevent the converter from falling back to an 8-bit encoding, specify
+   the Unicode pid/eid value explicitly.
+<p>
+
+   Plane_number is a hexadecimal (if starts with "<b>0x</b>") or decimal number.
+   It gives the values of upper bytes for which 256 characters will be 
+   selected. If not specified, defaults to 0. It is also used as a font
+   name suffix (the leading "0x" is not included into the suffix).
 <p>
 
 <I>
