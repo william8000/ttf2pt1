@@ -104,16 +104,19 @@ all:	t1asm ttf2pfa ttf2pt1 docs rpm
 docs: $(DOCS)
 
 clean:
-	rm -f t1asm ttf2pfa ttf2pt1 *.o app/RPM/Makefile *.core core.* core
+	rm -f t1asm ttf2pfa ttf2pt1 *.o app/RPM/Makefile app/RPM/*.spec *.core core.* core
 	( cd other && make clean; )
 
 veryclean: clean
 	rm -f $(DOCS)
 
-rpm: app/RPM/Makefile
+rpm: app/RPM/Makefile app/RPM/ttf2pt1.spec
 
 app/RPM/Makefile: Makefile
 	sed 's/^CFLAGS_SYS.*=.*$$/CFLAGS_SYS= -O2 -D_GNU_SOURCE/;/warning:/,/^$$/s/^/#/' <Makefile >app/RPM/Makefile
+
+app/RPM/ttf2pt1.spec: app/RPM/ttf2pt1.spec.src version.h
+	sed 's/^Version:.*/Version: '`grep TTF2PT1_VERSION version.h| cut -d\" -f2`'/' <app/RPM/ttf2pt1.spec.src  >$@
 
 t1asm: t1asm.c
 	$(CC) $(CFLAGS) -o t1asm -DSTANDALONE t1asm.c $(LIBS)
