@@ -117,3 +117,11 @@ INSTALL: INSTALL.html
 
 INSTALL.hpux: INSTALL.hpux.html
 	scripts/unhtml <INSTALL.hpux.html >INSTALL.hpux
+
+# targets for automatic generation of releases and snapshots
+
+snapshot:
+	scripts/mkrel snapshot
+
+release:
+	scripts/mkrel release
