@@ -245,7 +245,28 @@ glenc(
 
 	enc_type = 0;
 
-	/* first check for a direct Adobe mapping */
+	/* first check for an explicit PID/EID */
+
+	if(force_pid != -1) {
+		for(e=0; e < face->num_charmaps; e++) {
+			if(face->charmaps[e]->platform_id == force_pid
+			&& face->charmaps[e]->encoding_id == force_eid) {
+				WARNING_1 fprintf(stderr, "Found Encoding PID=%d/EID=%d\n", 
+					force_pid, force_eid);
+				if( FT_Set_Charmap(face, face->charmaps[e]) ) {
+					fprintf(stderr, "**** Cannot set charmap in FreeType ****\n");
+					exit(1);
+				}
+				enc_type = 1;
+				goto populate_map;
+			}
+		}
+		fprintf(stderr, "*** TTF encoding table PID=%d/EID=%d not found\n", 
+			force_pid, force_eid);
+		exit(1);
+	}
+
+	/* next check for a direct Adobe mapping */
 
 	if(!forceunicode) {
 		for(e=0; e < face->num_charmaps; e++) {

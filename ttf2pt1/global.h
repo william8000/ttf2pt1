@@ -27,6 +27,10 @@ extern int      subhints;	/* enables autogeneration of substituted hints */
 extern int      trybold;	/* try to guess whether the font is bold */
 extern int      correctwidth;	/* try to correct the character width */
 
+/* not quite options to select a particular source encoding */
+extern int      force_pid; /* specific platform id */
+extern int      force_eid; /* specific encoding id */
+
 /* other globals */
 extern FILE    *pfa_file, *afm_file;
 extern int      numglyphs;

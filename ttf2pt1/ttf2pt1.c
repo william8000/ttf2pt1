@@ -130,6 +130,10 @@ int      subhints;	/* enables autogeneration of substituted hints */
 int      trybold;	/* try to guess whether the font is bold */
 int      correctwidth;	/* try to correct the character width */
 
+/* not quite options to select a particular source encoding */
+int      force_pid = -1; /* specific platform id */
+int      force_eid = -1; /* specific encoding id */
+
 /* table of Outline Processing (may think also as Optimization) options */
 static struct {
 	char disbl; /* character to disable - enforced lowercase */
@@ -440,6 +444,7 @@ static uni_init_t unicode_latin4;
 static uni_init_t unicode_latin5;
 static uni_init_t unicode_russian;
 static uni_init_t unicode_adobestd;
+static uni_init_t unicode_plane;
 static uni_conv_t unicode_adobestd_byname;
 
 static uni_init_t unicode_init_user;
@@ -507,16 +512,14 @@ static struct uni_language uni_lang[]= {
 		{ NULL },
 		'A'
 	},
-#if 0 /* nonfunctional, needs a translation map - here only as example */
 	{
-		{ unicode_GBK },
+		{ unicode_plane },
 		0, /* no name-based mapping */
-		"GBK",
-		"Chinese in GBK encoding",
-		{ "zh_CN.GBK" }, /* not sure if it's right */
-		0 /* have no idea about capital letters in Chinese */
+		"plane",
+		"one plane of Unicode or other multi-byte encoding as is",
+		{ NULL },
+		0 /* no easy way to predict the capital letters */
 	},
-#endif
 };
 
 static struct uni_language uni_lang_user = {
@@ -1014,35 +1017,59 @@ unicode_latin5(
 		unicode_map[i] = latin5_unicode_map2[i-0xD0];
 }
 
-#if 0
-/* non-functional now, shown as example */
+/* a way to select one 256-character plane from Unicode 
+ * or other multi-byte encoding
+ */
 
 static void
-unicode_GBK(
+unicode_plane(
 		 char *arg
 )
 {
-	static int GBK_plane;
-	int i;
+	static unsigned plane;
+	int nchars;
+	int c1, c2, i;
 
-	if(sscanf(arg, "%x", &GBK_plane) < 1 || GBK_plane < 0x81 || GBK_plane > 0xFE) {
-		fprintf(stderr, "**** language Chinese GBK requires argument of plane, 81 to FE (hexadecimal)\n");
-		fprintf(stderr, "for example\n");
-		fprintf(stderr, "  ttf2pt1 -l GBK%c81\n", LANG_ARG_SEP);
-		fprintf(stderr, "to select plane 81\n");
+	plane = 0; force_pid = force_eid = -1;
+
+	c1 = sscanf(arg, "pid=%d,eid=%d%n", &force_pid, &force_eid, &nchars);
+	if(c1 == 2) {
+		arg += nchars;
+		if(*arg == ',')
+			arg++;
+	}
+	if(arg[0] == '0' && (arg[1]=='x' || arg[1]=='X') ) {
+		arg += 2;
+		c2 = sscanf(arg, "%x", &plane);
+	} else {
+		c2 = sscanf(arg, "%d", &plane);
+	}
+
+	if( (c1!=2 && c1!=0) || (c1==0 && c2==0) ) {
+		fprintf(stderr, "**** option -l plane requires expects one of the following formats:\n");
+		fprintf(stderr, "  -l plane+0xNN - select hexadecimal number of plane of Unicode\n");
+		fprintf(stderr, "  -l plane+NN - select decimal number of plane of Unicode\n");
+		fprintf(stderr, "  -l plane+pid=N,eid=N - select plane 0 of specified encoding\n");
+		fprintf(stderr, "  -l plane+pid=N,eid=N,0xNN - select hex plane of TTF encoding with this PID/EID\n");
+		fprintf(stderr, "  -l plane+pid=N,eid=N,NN - select decimal plane of TTF encoding with this PID/EID\n");
 		exit(1);
 	}
 
-	/* not snprintf() for reasons of compatibility with old systems */
-	sprintf(uni_suffix_buf, "-%02x", GBK_plane);
-	uni_font_name_suffix = uni_suffix_buf;
+	if(c2!=0) {
+		if(strlen(arg) > sizeof(uni_suffix_buf)-2) {
+			fprintf(stderr, "**** plane number is too large\n");
+		}
 
-	GBK_plane <<= 8;
+		sprintf(uni_suffix_buf, "-%s", arg);
+		uni_font_name_suffix = uni_suffix_buf;
+	} else {
+		uni_font_name_suffix = "";
+	}
+
+	plane <<= 8;
 	for(i=0; i<=0xFF; i++)
-		unicode_map[i] = GBK_plane | i;
+		unicode_map[i] = plane | i;
 }
-
-#endif /* 0 */
 
 /* look up the 8-bit code by unicode */
 

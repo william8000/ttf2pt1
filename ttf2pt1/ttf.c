@@ -1265,6 +1265,11 @@ glenc(
 		return 0;
 	}
 
+	if(force_pid != -1 && force_pid != 3) {
+		fputs("*** Only platform ID == 3 is supported\n", stderr);
+		exit(1);
+	}
+
 	enc_type = 0;
 	found = 0;
 
@@ -1277,25 +1282,33 @@ glenc(
 		encoding_id = ntohs(table_entry->encodingID);
 
 		if (platform == 3 && format == 4) {
-			switch (encoding_id) {
-			case 0:
-				WARNING_1 fputs("Found Symbol Encoding\n", stderr);
-				break;
-			case 1:
-				WARNING_1 fputs("Found Unicode Encoding\n", stderr);
+			if(force_pid == 3) {
+				if(encoding_id != force_eid)
+					continue;
+				WARNING_1 fprintf(stderr, "Found Encoding PID=%d/EID=%d\n", 
+					force_pid, force_eid);
 				enc_type = 1;
-				break;
-			default:
-				WARNING_1 {
-					fprintf(stderr,
-					"****MS Encoding ID %d not supported****\n",
-						encoding_id);
-					fputs("Treating it like Symbol encoding\n", stderr);
+			} else {
+				switch (encoding_id) {
+				case 0:
+					WARNING_1 fputs("Found Symbol Encoding\n", stderr);
+					break;
+				case 1:
+					WARNING_1 fputs("Found Unicode Encoding\n", stderr);
+					enc_type = 1;
+					break;
+				default:
+					WARNING_1 {
+						fprintf(stderr,
+						"****MS Encoding ID %d not supported****\n",
+							encoding_id);
+						fputs("Treating it like Symbol encoding\n", stderr);
+					}
+					break;
 				}
-				break;
-			}
-			if (forceunicode) {
-				WARNING_1 fputs("Forcing Unicode Encoding\n", stderr);
+				if (forceunicode) {
+					WARNING_1 fputs("Forcing Unicode Encoding\n", stderr);
+				}
 			}
 
 			found = 1;
@@ -1313,6 +1326,12 @@ glenc(
 	}
 
 	if (!found) {
+		if(force_pid != -1) {
+			fprintf(stderr, "*** TTF encoding table PID=%d/EID=%d not found\n", 
+				force_pid, force_eid);
+			exit(1);
+		}
+
 		WARNING_1 fputs("No Microsoft encoding, looking for MAC encoding\n", stderr);
 		for (i = 0; i < num_tables && !found; i++) {
 			table_entry = &(cmap_table->encodingTable[i]);
