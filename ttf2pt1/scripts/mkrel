@@ -20,8 +20,7 @@ snapshot)
 		echo "mkrel: CHANGES.html must list 'current' to create a snapshot" >&2
 		exit 1
 	}
-	ymd=`date "+%y %m %d"`
-	snapdate=`printf "%02d%02d%02d" $ymd`
+	snapdate=`date "+ %y  %m  %d " | sed 's/ \([0-9]\) / 0& /g;s/ //g'`
 	NEWVER=`echo "$VER" | sed "s/-CURRENT/-SNAP-$snapdate/"`
 	TAG="-D tomorrow"
 	;;
