@@ -26,13 +26,17 @@ extern int      hints;	/* enables autogeneration of hints */
 extern int      subhints;	/* enables autogeneration of substituted hints */
 extern int      trybold;	/* try to guess whether the font is bold */
 extern int      correctwidth;	/* try to correct the character width */
+/* options - suboptions of File Generation */
+extern int      gen_pfa;	/* generate the font file */
+extern int      gen_afm;	/* generate the metrics file */
+extern int      gen_dvienc;	/* generate the dvips encoding file */
 
 /* not quite options to select a particular source encoding */
 extern int      force_pid; /* specific platform id */
 extern int      force_eid; /* specific encoding id */
 
 /* other globals */
-extern FILE    *pfa_file, *afm_file;
+extern FILE    *null_file, *pfa_file, *afm_file, *dvienc_file;
 extern int      numglyphs;
 
 /* warnings */
