@@ -21,19 +21,19 @@
 # Special formatting in the html file is:
 # All controls are hidden within HTML comments that must occupy a whole separate line
 # Such a line looks like:
-# <!-- =<html2man_directive> <arguments> >
-# <!-- ==<pod_directive> <arguments> >
+# <!-- =<html2man_directive> <arguments> -->
+# <!-- ==<pod_directive> <arguments> -->
 # Any sort of directive must be followed by a space. The pod directives are
 # automatically surrounded by empty lines in the output file.
 # The html2man directives are:
 #
-# <!-- =defdoc <docid> <file> <section> >
+# <!-- =defdoc <docid> <file> <section> -->
 # Define a man page. Multiple man pages can be defined in the same HTML
 # file. <Docid> is a short name by which this man page will be referred in the
 # other directives. <File> is the name of the man page, and <section> is the
 # section of the manual (do not confuse with sections within a man page).
 #
-# <!-- =section <docid> <page_section_name> >
+# <!-- =section <docid> <page_section_name> -->
 # All the text following this directive is copied (with translation)
 # into the specified section of the specified man page. The sections
 # may appear in arbitrary order, they will be rearranged to the standard
@@ -54,13 +54,13 @@
 # If the same section is started more than once, the text from the
 # second appearance will be added to the first, etc.
 #
-# <!-- =stop >
+# <!-- =stop -->
 # Stop copying text to the man page.
 #
-# <!-- =cont >
+# <!-- =cont -->
 # Continue copying text to the man page, same section as before.
 #
-# <!-- =text <text> >
+# <!-- =text <text> -->
 # Insert this <text> into the man page (works only when copying is enabled).
 # Characters &lt;, &gt;, &amp; are converted as usual.
 
@@ -125,7 +125,7 @@ $writemode = 0;
 while(<STDIN>) {
 	if( s/^\<\!\-\- \=(\S+)\s+//) { 
 		$cmd = $1;
-		s/\s*\>\s*$//;
+		s/\s*--\>\s*$//;
 		#printf(STDERR "cmd=%s args=%s\n", $cmd, $_);
 		if($cmd =~ /^=/) {
 			if($writemode) {

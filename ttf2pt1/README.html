@@ -5,11 +5,11 @@ TTF2PT1 - A True Type to PostScript Type 1 Converter
 </TITLE>
 </HEAD>
 <BODY>
-<!-- =defdoc t1 ttf2pt1 1 >
+<!-- =defdoc t1 ttf2pt1 1 -->
 <H2>
-<!-- =section t1 NAME >
+<!-- =section t1 NAME -->
 TTF2PT1 - A True Type to PostScript Type 1 Font Converter 
-<!-- =stop >
+<!-- =stop -->
 </H2>
 
 <! 
@@ -18,7 +18,7 @@ TTF2PT1 - A True Type to PostScript Type 1 Font Converter
 <TT>
 [
 <blockquote>
-<!-- =section t1 HISTORY >
+<!-- =section t1 HISTORY -->
   Based on ttf2pfa by Andrew Weeks, and help from Frank Siegert.
 <BR>
   Modification by Mark Heath.
@@ -27,7 +27,7 @@ TTF2PT1 - A True Type to PostScript Type 1 Font Converter
 <BR>
   The Type1 assembler by I. Lee Hetherington with modifications by 
   Kai-Uwe Herbing.
-<!-- =stop >
+<!-- =stop -->
 </blockquote>
 ]
 </TT>
@@ -49,7 +49,7 @@ can be replaced by macros if your platform doesn't have them.
 Of course the target platform requires a C compiler and command line ability.
 <p>
 
-<!-- =section t1 DESCRIPTION >
+<!-- =section t1 DESCRIPTION -->
 Ttf2pt1 is a font converter from the True Type format (and some other formats
 supported by the FreeType library as well) to the Adobe Type1 format.
 <p>
@@ -64,12 +64,12 @@ has its price, and some of the optimizations may not work well for certain
 fonts. That's why the options were added to the converter, to control
 the performed optimizations.
 <p>
-<!-- =stop >
+<!-- =stop -->
 
 The converter is simple to run, just:
 <p>
 
-<!-- =section t1 SYNOPSIS >
+<!-- =section t1 SYNOPSIS -->
 <blockquote>
 	<tt>ttf2pt1 <i>[-options] ttffont.ttf [Fontname]</i></tt>
 </blockquote>
@@ -77,10 +77,10 @@ or
 <blockquote>
 	<tt>ttf2pt1 <i>[-options] ttffont.ttf -</i></tt>
 </blockquote>
-<!-- =stop >
+<!-- =stop -->
 <p>
 
-<!-- =section t1 OPTIONS >
+<!-- =section t1 OPTIONS -->
 The first variant creates the file <tt>Fontname.pfa</tt> (or <tt>Fontname.pfb</tt> if the 
 option `<b>-b</b>' was used) with the converted font and <tt>Fontname.afm</tt> with the 
 font metrics, the second one prints the font or the font metrics (if the option
@@ -96,8 +96,8 @@ may be used to control the conversion.
 The <B>options</B> are:
 <p>
 
-<!-- ==over 2 >
-<!-- ==item * >
+<!-- ==over 2 -->
+<!-- ==item * -->
 <TT><B>-a</TT></B> - Include all the glyphs from the source file into the converted
    file. If this option is not specified then only the glyphs that have
    been assigned some encoding are included, because the rest of glyphs
@@ -111,15 +111,15 @@ The <B>options</B> are:
    patch to X11 which fixes this problem.
 <p>
 
-<!-- ==item * >
+<!-- ==item * -->
 <TT><B>-A</TT></B> - Print the font metrics (.afm file) instead of the font on STDOUT
 <p>
 
-<!-- ==item * >
+<!-- ==item * -->
 <TT><B>-b</TT></B> - Encode the resulting font to produce a ready <tt>.pfb</tt> file.
 <p>
 
-<!-- ==item * >
+<!-- ==item * -->
 <TT><B>-d <i>suboptions</i></TT></B> - Debugging options. The suboptions are:
 <p>
 
@@ -140,7 +140,7 @@ The <B>options</B> are:
 <p>
 </blockquote>
 
-<!-- ==item * >
+<!-- ==item * -->
 <TT><B>-e</TT></B> - Assemble the resulting font to produce a ready <tt>.pfa</tt> file.
 <I>
    [ </I>S.B.<I>: Personally I don't think that this option is particularly useful.
@@ -151,7 +151,7 @@ The <B>options</B> are:
 </I>
 <p>
 
-<!-- ==item * >
+<!-- ==item * -->
 <TT><B>-F</TT></B> - Force the Unicode encoding: any type of MS encoding specified
    in the font is ignored and the font is treated like it has Unicode
    encoding. <B>WARNING:</B> <I>this option is intended for buggy fonts
@@ -159,7 +159,7 @@ The <B>options</B> are:
    effect on the other fonts is unpredictable.</I>
 <p>
 
-<!-- ==item * >
+<!-- ==item * -->
 <TT><B>-l <I>language</I>[+<I>argument</I>]</TT></B> - Extract the fonts for the specified language from a
    multi-language Unicode font. If this option is not used the converter
    tries to guess the language by the values of the shell variable LANG.
@@ -223,17 +223,17 @@ The <B>options</B> are:
    name suffix (the leading "0x" is not included into the suffix).
 <p>
 
-<!-- =stop >
+<!-- =stop -->
    <B>NOTE:</B>
-<!-- =section t1 BUGS >
+<!-- =section t1 BUGS -->
    It seems that many Eastern fonts use features of the TTF format that are 
    not supported by the ttf2pt1's built-in front-end parser. Because of
    this for now we recommend using the FreeType-based parser (option
    `<b>-p ft</b>') with the "<tt>plane</tt>" language.
 <p>
-<!-- =stop >
+<!-- =stop -->
 
-<!-- =section t1 OPTIONS >
+<!-- =section t1 OPTIONS -->
 <I>
    <B>NOTE:</B>
    You may notice that the language names are not uniform: some are the
@@ -267,7 +267,7 @@ The <B>options</B> are:
    with an external map. 
 <p>
 
-<!-- ==item * >
+<!-- ==item * -->
 <TT><B>-L <I>file</I>[+<I>plane</I>]</TT></B> - Extract the fonts for the specified language from the
    multi-language Unicode font using the map from this file. This is
    rather like the option `<b>-l</b>' but the encoding map is not 
@@ -292,7 +292,7 @@ The <B>options</B> are:
    a different plane name specified.
 <p>
 
-<!-- ==item * >
+<!-- ==item * -->
 <TT><B>-m <i>type</i>=<i>value</i></TT></B> - Set maximal or minimal limits of resources.
    These limits control the the font generation by limiting the resources
    that the font is permitted to require from the PostScript interpreter.
@@ -308,7 +308,7 @@ The <B>options</B> are:
 <p>
 </blockquote>
 
-<!-- ==item * >
+<!-- ==item * -->
 <TT><B>-O <i>suboptions</i></TT></B> - Outline processing options. The suboptions
    may be lowercase or uppercase, the lowercase ones disable the features,
    the corresponding uppercase suboptions enable the same features.
@@ -406,7 +406,7 @@ The <B>options</B> are:
 <p>
 </blockquote>
 
-<!-- ==item * >
+<!-- ==item * -->
 <TT><B>-p <I>parser_name</I></TT></B> - Use the specified front-end parser to read the font file.
    If this option is not used, ttf2pt1 selects the parser automatically based
    on the suffix of the font file name, it uses the first parser in its
@@ -425,7 +425,7 @@ The <B>options</B> are:
    to build it. 
 <p>
 
-<!-- ==item * >
+<!-- ==item * -->
 <TT><B>-u <I>number</I></TT></B> - Mark the font with this value as its
    UniqueID. The UniqueID is used by the printers with the hard disks
    to cache the rasterized characters and thus significantly
@@ -455,7 +455,7 @@ The <B>options</B> are:
    plus it will also give the exact list of files with duplicate UIDs.
 <p>
 
-<!-- ==item * >
+<!-- ==item * -->
 <TT><B>-v <I>size</I></TT></B> - Re-scale the font to get the size of a typical uppercase
    letter somewhere around the specified size. Actually, it re-scales
    the whole font to get the size of one language-dependent letter to be
@@ -471,7 +471,7 @@ The <B>options</B> are:
    understand the balance of its effects.
 <p>
 
-<!-- ==item * >
+<!-- ==item * -->
 <TT><B>-W <i>level</i></TT></B> - Select the verbosity level of the warnings.
    Currently the levels from 0 to 4 are supported. Level 0 means no warnings
    at all, level 4 means all the possible warnings. The default level is 3.
@@ -481,7 +481,7 @@ The <B>options</B> are:
    the problems with the fonts being converted.
 <p>
 
-<!-- ==item * >
+<!-- ==item * -->
 <B>Very obsolete option:</B>
 <br>
    The algorithm that implemented the forced fixed width had major
@@ -494,7 +494,7 @@ The <B>options</B> are:
    than 5% as buggy fixed width fonts and forces them to have really
    fixed width. If this is undesirable, it can be disabled by this option.
 <p>
-<!-- ==back >
+<!-- ==back -->
 
 The <tt>.pfa</tt> font format supposes that the description of the characters
 is binary encoded and encrypted. This converter does not encode or
@@ -524,9 +524,9 @@ instead. For a newer version of <tt>t1utils</tt> please look at
 </A>
 </blockquote>
 <p>
-<!-- =stop >
+<!-- =stop -->
 
-<!-- =section t1 EXAMPLES >
+<!-- =section t1 EXAMPLES -->
 So, the following command lines:
 <p>
 
@@ -541,7 +541,7 @@ represent two ways to get a working font. The benefit of the second form
 is that other filters may be applied to the font between the converter
 and assembler.
 <p>
-<!-- =stop >
+<!-- =stop -->
 
 <H4>
 Installation and deinstallation of the converter
@@ -646,8 +646,8 @@ TROUBLESHOOTING AND BUG REPORTS
 <!
 -------------------------------
 >
-<!-- =section t1 BUGS >
-<!-- ==head2 Troubleshooting and bug reports >
+<!-- =section t1 BUGS -->
+<!-- ==head2 Troubleshooting and bug reports -->
 
 Have problems with conversion of some font ? The converter dumps core ? Or your
 printer refuses to understand the converted fonts ? Or some characters are 
@@ -702,23 +702,23 @@ This is a volunteer project and its resources are limited. Because
 of this we would appreciate bug reports as detailed as possible,
 and we would appreciate the ready fixes and contributions even more.
 <p>
-<!-- =stop >
-<!-- =section t1 FILES >
-<!-- ==over 2 >
-<!-- ==item * >
-<!-- =text TTF2PT1_LIBXDIR/t1asm >
-<!-- ==item * >
-<!-- =text TTF2PT1_SHAREDIR/* >
-<!-- ==item * >
-<!-- =text TTF2PT1_SHAREDIR/scripts/* >
-<!-- ==item * >
-<!-- =text TTF2PT1_SHAREDIR/other/* >
-<!-- ==item * >
-<!-- =text TTF2PT1_SHAREDIR/README >
-<!-- ==item * >
-<!-- =text TTF2PT1_SHAREDIR/FONTS >
-<!-- ==back >
-<!-- =stop >
+<!-- =stop -->
+<!-- =section t1 FILES -->
+<!-- ==over 2 -->
+<!-- ==item * -->
+<!-- =text TTF2PT1_LIBXDIR/t1asm -->
+<!-- ==item * -->
+<!-- =text TTF2PT1_SHAREDIR/* -->
+<!-- ==item * -->
+<!-- =text TTF2PT1_SHAREDIR/scripts/* -->
+<!-- ==item * -->
+<!-- =text TTF2PT1_SHAREDIR/other/* -->
+<!-- ==item * -->
+<!-- =text TTF2PT1_SHAREDIR/README -->
+<!-- ==item * -->
+<!-- =text TTF2PT1_SHAREDIR/FONTS -->
+<!-- ==back -->
+<!-- =stop -->
 
 <H4>
 CONTACTS
@@ -726,16 +726,16 @@ CONTACTS
 <!
 --------
 >
-<!-- =section t1 SEE ALSO >
-<!-- ==over 4 >
-<!-- ==item * >
-<!-- =text L&lt;ttf2pt1_convert(1)&gt; >
-<!-- ==item * >
-<!-- =text L&lt;ttf2pt1_x2gs(1)&gt; >
-<!-- ==item * >
-<!-- =text L&lt;t1asm(1)&gt; >
+<!-- =section t1 SEE ALSO -->
+<!-- ==over 4 -->
+<!-- ==item * -->
+<!-- =text L&lt;ttf2pt1_convert(1)&gt; -->
+<!-- ==item * -->
+<!-- =text L&lt;ttf2pt1_x2gs(1)&gt; -->
+<!-- ==item * -->
+<!-- =text L&lt;t1asm(1)&gt; -->
 
-<!-- ==item * >
+<!-- ==item * -->
 <A HREF="http://lists.sourceforge.net/mailman/listinfo/ttf2pt1-announce">
 ttf2pt1-announce@lists.sourceforge.net
 </A><br>
@@ -748,7 +748,7 @@ ttf2pt1-announce@lists.sourceforge.net
   will help you with subscription.
 <p>
 
-<!-- ==item * >
+<!-- ==item * -->
 <A HREF="mailto:ttf2pt1-devel@lists.sourceforge.net">
 ttf2pt1-devel@lists.sourceforge.net
 </A><br>
@@ -764,7 +764,7 @@ ttf2pt1-users@lists.sourceforge.net
   will help you with subscription.
 <p>
 
-<!-- =stop >
+<!-- =stop -->
 <A HREF="mailto:mheath@netspace.net.au">
 mheath@netspace.net.au
 </A><br>
@@ -792,8 +792,8 @@ SEE ALSO
 --------
 >
 
-<!-- =section t1 SEE ALSO >
-<!-- ==item * >
+<!-- =section t1 SEE ALSO -->
+<!-- ==item * -->
 <A HREF="http://ttf2pt1.sourceforge.net">
 http://ttf2pt1.sourceforge.net
 </A><br>
@@ -802,8 +802,8 @@ http://www.netspace.net.au/~mheath/ttf2pt1/
 </A><br>
   The primary copies of the main page of the project.
 <p>
-<!-- ==back >
-<!-- =stop >
+<!-- ==back -->
+<!-- =stop -->
 
 <A HREF="http://www.lcdf.org/~eddietwo/type/">
 http://www.lcdf.org/~eddietwo/type/
