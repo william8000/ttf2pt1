@@ -25,6 +25,149 @@
 </th></tr></table> </td></tr></table>
 
 <table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>Oct 22nd 2000 v 3.3.1</font>
+</th></tr><tr><td>
+Packaged by
+Sergey Babkin
+<h2><font face=helvetica>New Features</font></h2>
+<ul>
+<li>
+Added front-end parser based on the FreeType-2 library. See Makefile
+for build instructions.
+<li>
+Changed the handling of encodings to accomodate the FreeType model.
+<li>
+Further cleaned up the front-end parser interface.
+</ul>
+<h2><font face=helvetica> Bux fixes:</font></h2>
+<ul>
+<li>
+Fixed a bug that caused core dump on Alpha machines.
+<li>
+Fixed a bug in the outline smoothing that occasionally caused core dump.
+<li>
+Cleaned up warnings from picky compilers
+<li>
+Fixed more bugs in the Windows port (by Stefan Bauer).
+<li>
+Fixed the RPM spec file (suggested by Brian Armstrong).
+</ul>
+</th></tr></table> </td></tr></table>
+
+<table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>Sep 22nd 2000 v 3.3.0</font>
+</th></tr><tr><td>
+Packaged by
+Sergey Babkin
+<h2><font face=helvetica>New Features</font></h2>
+<ul>
+<li>
+Converted most of the outlines' processing to floating point
+arithmetic.
+<li>
+Added splitting of curves crossing the quadrant boundaries (no gross 
+damage is done any more to the Marvosym font and others like it).
+<li>
+Added modular interface for front-end font parsers and option to control
+their selection at run time.
+<li>
+Grouped the outline processing control options into one to reduce the
+options namespace pollution.
+<li>
+Thomas moved the Chinese maps into a separate module, chinese-maps.
+<li>
+Thomas added option -V to print version number. In addition, the version
+number is put in the header of the font file.
+<li>
+Added long option names (suggested by Thomas).
+<li>
+Added support for multi-level composite glyphs.
+<li>
+TH: Made &lt;fontname&gt; command-line argument optional; default to &lt;ttf-file&gt;
+with suffix replaced.
+<li>
+In <tt>other/showg</tt> added more ways to specify glyphs and the comparison option.
+</ul>
+<h2><font face=helvetica> Bux fixes:</font></h2>
+<ul>
+<li>
+Fixed the VC++ batch file, added batch file for Cygnus GCC on Windows.
+<li>
+Removed parentheses from the Version string in AFM files because it does
+not help StarOffice anyway. StarOffice 5.2 has been reported to have this
+bug fixed. Added paragraph on StarOffice in INSTALL.html.
+<li>
+Made messages on the '?' option parameter more meaningful (by Johan Vromans).
+<li>
+Changed the latin1 encoding table to include the Euro sign, Z and z with
+caron (by Thomas Henlich).
+<li>
+Improved the smoothing code which occasionally had problems with
+joining curves. Also fixed a few minor bugs in it.
+</ul>
+</th></tr></table> </td></tr></table>
+
+<table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>May 23rd 2000 v 3.22</font>
+</th></tr><tr><td>
+Packaged by
+Sergey Babkin
+<h2><font face=helvetica>New Features</font></h2>
+<ul>
+<li>
+Included windows support by Frank Siegert (somewhat amended)
+<li>
+Added control over verbosity of warnings.
+<li>
+Added arguments and initialization functions to the language
+translation routines.
+<li>
+Added support of planes determined by arguments to the external
+maps.
+<li>
+Added compact external maps format (primarily for Eastern fonts).
+<li>
+Added external maps for Chinese GBK and Big5 encodings (converted
+from ttf2pfb) as well as maps for other Chinese encodings by Wang Lei.
+<li>
+Added the idea of buckets to speed up the search in external maps.
+<li>
+Changed the grouping algorithm for substituted hints: now it creates
+a bit bigger files but requires smaller hint stack when being rendered.
+<li>
+Added maximal limit of hint stack depth, glyphs requiring bigger 
+stack get generation of substituted hints disabled. This makes substituted 
+hints safe to use, no more lost glyphs due to hint stack overflow.
+<li>
+Added the font dump program <tt>other/dumpf</tt>.
+<li>
+Changed the testing HTML generator <tt>other/lst.pl</tt> to use tables.
+<li>
+Added debugging script <tt>other/cntstems.pl</tt> to count required hint
+stack depth for the glyphs.
+</ul>
+<h2><font face=helvetica> Bux fixes:</font></h2>
+<ul>
+<li>
+Fixed printing of UID in script/trans. Changed the auto-generated UID to
+be in range 4000000-4999999 which is reserved by Adobe for private use.
+<li>
+Fixed handling of "cleartomark" in built-in t1asm.
+<li>
+Added handling of "can't happen" case in straighten() routine
+which actually happened on strange fonts and caused failure on assertion.
+<li>
+Made it always include the glyph .notdef in the resulting font.
+<li>
+Placed the version string in AFM file in parentheses, hopefully
+that would fix the problem with StarOffice.
+<li>
+Improved the smoothing code which occasionally had problems with
+joining curves.
+</ul>
+</th></tr></table> </td></tr></table>
+
+<table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
 <font face=helvetica>Feb 28th 2000 v 3.21</font>
 </th></tr><tr><td>
 Submitted by
@@ -56,8 +199,8 @@ BlueZones. Now the fonts with hint substitution seem to
 be always at least not worse than without it (well, when 
 they fit in the X11 file size limit). 
 </ul>
-
 </th></tr></table> </td></tr></table>
+
 <table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
 <font face=helvetica>Jan 15th 2000 v 3.2</font>
 </th></tr><tr><td>
