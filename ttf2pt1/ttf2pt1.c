@@ -3084,7 +3084,7 @@ main(
     fprintf(afm_file, "EncodingScheme FontSpecific\n");
     fprintf(afm_file, "FamilyName %s\n", name_fields[1]);
     fprintf(afm_file, "Weight %s\n", name_fields[2]);
-    fprintf(afm_file, "Version %s\n", name_fields[5]);
+    fprintf(afm_file, "Version (%s)\n", name_fields[5]);
     fprintf(afm_file, "Characters %d\n", nchars);
     fprintf(afm_file, "ItalicAngle %.1f\n", italic_angle);
 

@@ -36,6 +36,7 @@ extern int      ttf_file, numglyphs, long_offsets, ncurves;
 #define DEBUG_FIXCVDIR	0x00000010 /* fixcvdir() */
 #define DEBUG_STEMOVERLAP	0x00000020 /* stemoverlap() */
 #define DEBUG_BLUESTEMS	0x00000040 /* markbluestems() */
+#define DEBUG_STRAIGHTEN	0x00000080 /* markbluestems() */
 #define DEBUG_DISABLED	0x80000000 /* special flag: temporary disable debugging */
 
 /* at what we want to look now */
@@ -44,7 +45,7 @@ extern int      ttf_file, numglyphs, long_offsets, ncurves;
 #endif
 
 /* uncomment the next line if debugging data is wanted for one glyph only */
-/* #define DBG_GLYPH	"exclam"  /* */
+/* #define DBG_GLYPH	"thorn"  /* */
 
 #if DEBUG==0
 #	define ISDBG(name)	(0)

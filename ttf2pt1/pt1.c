@@ -3127,10 +3127,20 @@ straighten(
 	int             psx, psy, nsx, nsy;	/* stretchability limits */
 	int             n;
 	int             svdir;
+	GENTRY         *fr;
 
 	for (ge = g->entries; ge != 0; ge = ge->next) {
+		if(ISDBG(STRAIGHTEN) && ge->type == GE_PATH) {
+			fprintf(stderr, "** closepath, last 0x%x\n", ge->prev);
+			if(ge->prev->first == 0) {
+				fprintf(stderr, "*** broken backlink!\n");
+				exit(1);
+			}
+		}
 		if (ge->type != GE_CURVE)
 			continue;
+
+		fr = ge->first;
 
 		pge = ge->prev;
 		if (ge->first)
@@ -3142,8 +3152,8 @@ straighten(
 		prevlen = nextlen = 0;
 
 		/*
-		 * if current curve is almost a vertical line, and it *
-		 * doesn't begin or end horizontally * (and the prev/next
+		 * if current curve is almost a vertical line, and it
+		 * doesn't begin or end horizontally (and the prev/next
 		 * line doesn't join smoothly ?)
 		 */
 		if (ge->y3 != ge->y2 && ge->y1 != pge->y3
@@ -3152,13 +3162,15 @@ straighten(
 		     || sign(ge->x1 - pge->x3) + sign(ge->x2 - ge->x3) == 0)
 			) {
 
+			if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten almost vertical\n");
+
 			dx = ge->x3 - pge->x3;
 			dir = sign(ge->y3 - pge->y3);
 			ge->type = GE_LINE;
 
 			/*
-			 * suck in all the sequence of such almost lines *
-			 * going in the same direction * but not deviating
+			 * suck in all the sequence of such almost lines
+			 * going in the same direction but not deviating
 			 * too far from vertical
 			 */
 
@@ -3171,6 +3183,7 @@ straighten(
 				ge->y3 = nge->y3;
 				ge->x3 = nge->x3;
 
+				if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten collapsing vertical\n");
 				if (ge->first) {
 					/*
 					 * move the start point of the
@@ -3205,8 +3218,8 @@ straighten(
 				nextlen = abs(nge->y3 - ge->y3);
 		}
 		/*
-		 * if current curve is almost a horizontal line, and it *
-		 * doesn't begin or end vertucally * (and the prev/next line
+		 * if current curve is almost a horizontal line, and it 
+		 * doesn't begin or end vertucally (and the prev/next line
 		 * doesn't join smoothly ?)
 		 */
 		else if (ge->x3 != ge->x2 && ge->x1 != pge->x3
@@ -3215,13 +3228,15 @@ straighten(
 			     || sign(ge->y1 - pge->y3) + sign(ge->y2 - ge->y3) == 0)
 			) {
 
+			if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten almost horizontal\n");
+
 			dy = ge->y3 - pge->y3;
 			dir = sign(ge->x3 - pge->x3);
 			ge->type = GE_LINE;
 
 			/*
-			 * suck in all the sequence of such almost lines *
-			 * going in the same direction * but doesn't deviate
+			 * suck in all the sequence of such almost lines
+			 * going in the same direction but doesn't deviate
 			 * too far from horizontal
 			 */
 
@@ -3234,10 +3249,12 @@ straighten(
 				ge->x3 = nge->x3;
 				ge->y3 = nge->y3;
 
+				if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten collapsing horizontal\n");
+
 				if (ge->first) {
+					if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten horizontal first\n");
 					/*
-					 * move the start point of the
-					 * contour
+					 * move the start point of the contour
 					 */
 					nge->prev->y3 = nge->y3;
 					nge->prev->x3 = nge->x3;
@@ -3247,6 +3264,7 @@ straighten(
 					free(nge);
 					nge = ge->first;
 				} else {
+					if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten horizontal other\n");
 					ge->first = nge->first;
 					ge->next = nge->next;
 					nge->next->prev = ge;
@@ -3258,6 +3276,8 @@ straighten(
 				}
 
 				dy = ge->y3 - pge->y3;
+				if(ISDBG(STRAIGHTEN) && ge->next->type == GE_PATH && ge->next->prev->first == 0)
+						fprintf(stderr,"*** straighten horiz: broken backlink 0x%x\n", fr);
 			}
 
 			/* now check what do we have as previous/next line */
@@ -3267,7 +3287,10 @@ straighten(
 			if (nge->type == GE_LINE && nge->y3 == ge->y3)
 				nextlen = abs(nge->x3 - ge->x3);
 		}
-		if (prevlen != 0) {
+		if(ISDBG(STRAIGHTEN) && ge->next->type == GE_PATH && ge->next->prev->first == 0)
+				fprintf(stderr,"*** straighten before join: broken backlink 0x%x\n", fr);
+		if (prevlen != 0 && ge != pge) {
+			if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten join with previous\n");
 			/* join the previous line with current */
 			ge->next->prev = pge;
 			pge->next = ge->next;
@@ -3280,7 +3303,10 @@ straighten(
 			ge = pge;
 			pge = ge->prev;
 		}
-		if (nextlen != 0) {
+		if(ISDBG(STRAIGHTEN) && ge->next->type == GE_PATH && ge->next->prev->first == 0)
+				fprintf(stderr,"*** straighten join prev: broken backlink 0x%x\n", fr);
+		if (nextlen != 0 && ge != nge) {
+			if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten join with next 0x%x 0x%x\n", ge, nge);
 			/* join the next line with current */
 			ge->x3 = nge->x3;
 			ge->y3 = nge->y3;
@@ -3305,8 +3331,11 @@ straighten(
 			}
 
 		}
+		if(ISDBG(STRAIGHTEN) && ge->next->type == GE_PATH && ge->next->prev->first == 0)
+				fprintf(stderr,"*** straighten join next: broken backlink 0x%x\n", fr);
 		/* if we have to align the lines */
 		if (dx != 0 || dy != 0) {
+			if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten align\n");
 
 			/* find the stretchability limits of prev element */
 			if (pge->type == GE_LINE) {

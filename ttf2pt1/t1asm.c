@@ -258,7 +258,7 @@ static void eexec_start()
   eexec_byte(0);
 }
 
-/* This function wraps-up the eexec-encrypted data and writes ASCII trailer.
+/* This function wraps-up the eexec-encrypted data.
    If output is in PFB format then this entails flushing binary block and
    starting an ASCII block. */
 
@@ -278,14 +278,23 @@ static void eexec_end()
       eexec_byte('0');
     eexec_byte('\n');
   }
+#if 0
   eexec_string("cleartomark\n");
+#endif
+}
+
+/* This function writes ASCII trailer.
+   If output is in PFB format then this entails flushing binary block and
+   starting an ASCII block. */
+
+static void file_end()
+{
   if (pfb) {
     output_block();
     fputc(MARKER, ofp);
     fputc(DONE, ofp);
   }
 }
-
 /* This function returns an input line of characters.  A line is terminated by
    length (including terminating null) greater than LINESIZE, a newline \n, or
    when active (looking for charstrings) by '{'.  When terminated by a newline
@@ -571,6 +580,9 @@ int runt1asm(int pfbflag)
     }
     /* output line data */
     eexec_string(line);
+	if ((p = strstr(line, "currentfile closefile"))) {
+		eexec_end();
+	}
     if (start_charstring) {
       if (!cs_start[0]) {
         fprintf(stderr, "error: couldn't find charstring start command\n");
@@ -579,7 +591,7 @@ int runt1asm(int pfbflag)
       parse_charstring();
     }
   }
-  eexec_end();
+  file_end();
 
   fclose(ifp);
   fclose(ofp);
