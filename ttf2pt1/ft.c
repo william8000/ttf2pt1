@@ -54,6 +54,8 @@ struct frontsw freetype_sw = {
 static FT_Library library;
 static FT_Face face;
 
+static int enc_type, enc_found;
+
 /* SFNT functions do not seem to be included by default in FT2beta8 */
 #undef ENABLE_SFNT
 
@@ -92,6 +94,8 @@ openfont(
 	}
 
 	if(ISDBG(FT)) fprintf(stderr," %d units per EM\n", face->units_per_EM);
+
+	enc_found = 0;
 }
 
 /*
@@ -240,49 +244,52 @@ glenc(
 	int *unimap
 )
 {
-	int i, e, type;
+	int i, e;
 	unsigned code;
 
-	type = 0;
-	for(e=0; e < face->num_charmaps; e++) {
-		if(face->charmaps[e]->platform_id == 3) {
-			switch(face->charmaps[e]->encoding_id) {
-			case 0:
-				WARNING_1 fputs("Found Symbol Encoding\n", stderr);
-				break;
-			case 1:
-				WARNING_1 fputs("Found Unicode Encoding\n", stderr);
-				type = 1;
-				break;
-			default:
-				WARNING_1 {
-					fprintf(stderr,
-					"****MS Encoding ID %d not supported****\n",
-						face->charmaps[e]->encoding_id);
-					fputs("Treating it like Symbol encoding\n", stderr);
+	if(!enc_found) {
+		enc_type = 0;
+		for(e=0; e < face->num_charmaps; e++) {
+			if(face->charmaps[e]->platform_id == 3) {
+				switch(face->charmaps[e]->encoding_id) {
+				case 0:
+					WARNING_1 fputs("Found Symbol Encoding\n", stderr);
+					break;
+				case 1:
+					WARNING_1 fputs("Found Unicode Encoding\n", stderr);
+					enc_type = 1;
+					break;
+				default:
+					WARNING_1 {
+						fprintf(stderr,
+						"****MS Encoding ID %d not supported****\n",
+							face->charmaps[e]->encoding_id);
+						fputs("Treating it like Symbol encoding\n", stderr);
+					}
+					break;
 				}
 				break;
 			}
-			break;
 		}
-	}
-	if(e >= face->num_charmaps) {
-		WARNING_1 fputs("No Microsoft encoding, using first encoding available\n", stderr);
-		e = 0;
-	}
-	if(forceunicode) {
-		WARNING_1 fputs("Forcing Unicode Encoding\n", stderr);
-	}
-	
-	if( FT_Set_Charmap(face, face->charmaps[e]) ) {
-		fprintf(stderr, "**** Cannot set charmap in FreeType ****\n");
-		exit(1);
+		if(e >= face->num_charmaps) {
+			WARNING_1 fputs("No Microsoft encoding, using first encoding available\n", stderr);
+			e = 0;
+		}
+		if(forceunicode) {
+			WARNING_1 fputs("Forcing Unicode Encoding\n", stderr);
+		}
+		
+		if( FT_Set_Charmap(face, face->charmaps[e]) ) {
+			fprintf(stderr, "**** Cannot set charmap in FreeType ****\n");
+			exit(1);
+		}
+		enc_found = 1;
 	}
 
 	for(i=0; i<256; i++) {
 		if(encoding[i] != -1)
 			continue;
-		if(type == 1 || forceunicode) {
+		if(enc_type == 1 || forceunicode) {
 			code = unimap[i];
 			if(code == (unsigned) -1)
 				continue;
@@ -296,7 +303,7 @@ glenc(
 		encoding[i] = code;
 	}
 
-	return type;
+	return enc_type;
 }
 
 /*

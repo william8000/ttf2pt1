@@ -87,9 +87,13 @@ static union {
 static short    cmap_n_segs;
 static USHORT  *cmap_seg_start, *cmap_seg_end;
 static short   *cmap_idDelta, *cmap_idRangeOffset;
+static TTF_CMAP_FMT0  *encoding0;
+static int             enc_type;
 
 static char     name_buffer[2000];
 static char    *name_fields[8];
+
+static int enc_found_ms, enc_found_mac;
 
 static char    *mac_glyph_names[258] = {
 	".notdef", ".null", "CR",
@@ -920,6 +924,8 @@ openfont(
 	handle_head();
 
 	ttf_nglyphs = ntohs(maxp_table->numGlyphs);
+
+	enc_found_ms = enc_found_mac = 0;
 }
 
 /*
@@ -1111,6 +1117,126 @@ glmetrics(
 
 }
 
+
+static void
+handle_ms_encoding(
+	GLYPH *glyph_list,
+	int *encoding,
+	int *unimap
+)
+{
+	int             j, k, kk, set_ok;
+	USHORT          start, end, ro;
+	short           delta, n;
+
+	for (j = 0; j < cmap_n_segs - 1; j++) {
+		start = ntohs(cmap_seg_start[j]);
+		end = ntohs(cmap_seg_end[j]);
+		delta = ntohs(cmap_idDelta[j]);
+		ro = ntohs(cmap_idRangeOffset[j]);
+
+		for (k = start; k <= end; k++) {
+			if (ro == 0) {
+				n = k + delta;
+			} else {
+				n = ntohs(*((ro >> 1) + (k - start) +
+				 &(cmap_idRangeOffset[j])));
+				if (delta != 0)
+				{
+					/*  Not exactly sure how to deal with this circumstance,
+						I suspect it never occurs */
+					n += delta;
+					fprintf (stderr,
+						 "rangeoffset and delta both non-zero - %d/%d",
+						 ro, delta);
+				}
+			}
+			if(n<0 || n>=ttf_nglyphs) {
+				WARNING_1 fprintf(stderr, "Font contains a broken glyph code mapping, ignored\n");
+				continue;
+			}
+			if (glyph_list[n].orig_code != -1) {
+				if (strcmp(glyph_list[n].name, ".notdef") != 0) {
+					WARNING_2 fprintf(stderr,
+						"Glyph %s has >= two encodings (A), %4.4x & %4.4x\n",
+					 glyph_list[n].name,
+						glyph_list[n].orig_code,
+						k);
+				}
+				set_ok = 0;
+			} else {
+				set_ok = 1;
+			}
+			if (enc_type==1 || forceunicode) {
+				kk = unicode_rev_lookup(k);
+				if(ISDBG(UNICODE))
+					fprintf(stderr, "Unicode %s - 0x%04x\n",glyph_list[n].name,k);
+				if (set_ok) {
+					glyph_list[n].orig_code = k;
+					/* glyph_list[n].char_no = kk; */
+				}
+				if ((kk & ~0xff) == 0 && encoding[kk] == -1)
+					encoding[kk] = n;
+			} else {
+				if ((k & 0xff00) == 0xf000) {
+					if( encoding[k & 0x00ff] == -1 ) {
+						encoding[k & 0x00ff] = n;
+						if (set_ok) {
+							/* glyph_list[n].char_no = k & 0x00ff; */
+							glyph_list[n].orig_code = k;
+						}
+					}
+				} else {
+					if (set_ok) {
+						/* glyph_list[n].char_no = k; */
+						glyph_list[n].orig_code = k;
+					}
+					WARNING_2 fprintf(stderr,
+						"Glyph %s has non-symbol encoding %4.4x\n",
+					 glyph_list[n].name,
+						k & 0xffff);
+					/*
+					 * just use the code
+					 * as it is
+					 */
+					if ((k & ~0xff) == 0 && encoding[k] == -1 )
+						encoding[k] = n;
+				}
+			}
+		}
+	}
+}
+
+static void
+handle_mac_encoding(
+	GLYPH *glyph_list,
+	int *encoding,
+	int *unimap
+)
+{
+	short           n;
+	int             j, size;
+
+	size = ntohs(encoding0->length) - 6;
+	for (j = 0; j < size; j++) {
+		n = encoding0->glyphIdArray[j];
+		if (glyph_list[n].char_no != -1) {
+			WARNING_2 fprintf(stderr,
+				"Glyph %s has >= two encodings (B), %4.4x & %4.4x\n",
+				glyph_list[n].name,
+				  glyph_list[n].char_no,
+				j);
+		} else {
+			if (j < 256) {
+				if(encoding[j] == -1) {
+					glyph_list[n].char_no = j;
+					encoding[j] = n;
+				}
+			}
+		}
+	}
+}
+
 /*
  * Get the original encoding of the font. 
  * Returns 1 for if the original encoding is Unicode, 2 if the
@@ -1126,15 +1252,18 @@ glenc(
 {
 	int             num_tables = ntohs(cmap_table->numberOfEncodingTables);
 	BYTE           *ptr;
-	int             i, j, k, kk, size, format, offset, seg_c2, found,
-	                set_ok;
+	int             i, format, offset, seg_c2, found;
 	int             platform, encoding_id;
 	TTF_CMAP_ENTRY *table_entry;
-	TTF_CMAP_FMT0  *encoding0;
 	TTF_CMAP_FMT4  *encoding4;
-	USHORT          start, end, ro;
-	short           delta, n;
-	int             enc_type;
+
+	if(enc_found_ms) {
+		handle_ms_encoding(glyph_list, encoding, unimap);
+		return enc_type;
+	} else if(enc_found_mac) {
+		handle_mac_encoding(glyph_list, encoding, unimap);
+		return 0;
+	}
 
 	enc_type = 0;
 	found = 0;
@@ -1177,83 +1306,9 @@ glenc(
 			cmap_seg_start = (USHORT *) (ptr + seg_c2 + 2);
 			cmap_idDelta = (short *) (ptr + (seg_c2 * 2) + 2);
 			cmap_idRangeOffset = (short *) (ptr + (seg_c2 * 3) + 2);
+			enc_found_ms = 1;
 
-			for (j = 0; j < cmap_n_segs - 1; j++) {
-				start = ntohs(cmap_seg_start[j]);
-				end = ntohs(cmap_seg_end[j]);
-				delta = ntohs(cmap_idDelta[j]);
-				ro = ntohs(cmap_idRangeOffset[j]);
-
-				for (k = start; k <= end; k++) {
-					if (ro == 0) {
-						n = k + delta;
-					} else {
-						n = ntohs(*((ro >> 1) + (k - start) +
-						 &(cmap_idRangeOffset[j])));
-						if (delta != 0)
-						{
-						 	/*  Not exactly sure how to deal with this circumstance,
-						 		I suspect it never occurs */
-						 	n += delta;
-							fprintf (stderr,
-								 "rangeoffset and delta both non-zero - %d/%d",
-								 ro, delta);
-						}
- 					}
- 					if(n<0 || n>=ttf_nglyphs) {
- 						WARNING_1 fprintf(stderr, "Font contains a broken glyph code mapping, ignored\n");
- 						continue;
-					}
-					if (glyph_list[n].orig_code != -1) {
-						if (strcmp(glyph_list[n].name, ".notdef") != 0) {
-							WARNING_2 fprintf(stderr,
-								"Glyph %s has >= two encodings (A), %4.4x & %4.4x\n",
-							 glyph_list[n].name,
-								glyph_list[n].orig_code,
-								k);
-						}
-						set_ok = 0;
-					} else {
-						set_ok = 1;
-					}
-					if (enc_type==1 || forceunicode) {
-						kk = unicode_rev_lookup(k);
-						if(ISDBG(UNICODE))
-							fprintf(stderr, "Unicode %s - 0x%04x\n",glyph_list[n].name,k);
-						if (set_ok) {
-							glyph_list[n].orig_code = k;
-							/* glyph_list[n].char_no = kk; */
-						}
-						if ((kk & ~0xff) == 0 && encoding[kk] == -1)
-							encoding[kk] = n;
-					} else {
-						if ((k & 0xff00) == 0xf000) {
-							if( encoding[k & 0x00ff] == -1 ) {
-								encoding[k & 0x00ff] = n;
-								if (set_ok) {
-									/* glyph_list[n].char_no = k & 0x00ff; */
-									glyph_list[n].orig_code = k;
-								}
-							}
-						} else {
-							if (set_ok) {
-								/* glyph_list[n].char_no = k; */
-								glyph_list[n].orig_code = k;
-							}
-							WARNING_2 fprintf(stderr,
-								"Glyph %s has non-symbol encoding %4.4x\n",
-							 glyph_list[n].name,
-								k & 0xffff);
-							/*
-							 * just use the code
-							 * as it is
-							 */
-							if ((k & ~0xff) == 0 && encoding[k] == -1 )
-								encoding[k] = n;
-						}
-					}
-				}
-			}
+			handle_ms_encoding(glyph_list, encoding, unimap);
 		}
 	}
 
@@ -1269,24 +1324,9 @@ glenc(
 
 			if (format == 0) {
 				found = 1;
-				size = ntohs(encoding0->length) - 6;
-				for (j = 0; j < size; j++) {
-					n = encoding0->glyphIdArray[j];
-					if (glyph_list[n].char_no != -1) {
-						WARNING_2 fprintf(stderr,
-							"Glyph %s has >= two encodings (B), %4.4x & %4.4x\n",
-							glyph_list[n].name,
-						      glyph_list[n].char_no,
-							j);
-					} else {
-						if (j < 256) {
-							if(encoding[j] == -1) {
-								glyph_list[n].char_no = j;
-								encoding[j] = n;
-							}
-						}
-					}
-				}
+				enc_found_mac = 1;
+
+				handle_mac_encoding(glyph_list, encoding, unimap);
 			}
 		}
 	}
