@@ -60,7 +60,7 @@ The converter is simple to run, just:
 <p>
 
 <blockquote><tt>
-	ttf2pt1 [-options] ttffont.ttf Fontname
+	ttf2pt1 [-options] ttffont.ttf [Fontname]
 </tt></blockquote>
 or
 <blockquote><tt>
@@ -70,9 +70,11 @@ or
 
 The first variant creates the file <tt>Fontname.pfa</tt> (or <tt>Fontname.pfb</tt> if the 
 option "<tt>-b</tt>" was used) with the converted font and <tt>Fontname.afm</tt> with the 
-font metrics, the second one prints the font or the font metrics (if the 
-option "<tt>-A</tt>" was used) on the standard output from where it can be 
-immediately piped through some filter.
+font metrics, the second one prints the font or the font metrics (if the option
+"<tt>-A</tt>" was used) on the standard output from where it can be immediately
+piped through some filter. If no <tt>Fontname</tt> is specified for the first
+variant, the name is generated from <tt>ttffont</tt> by replacing the <tt>.ttf</tt>
+filename suffix.
 <p>
 
 Most of the time no options are neccessary (with a possible exception

@@ -1802,7 +1802,7 @@ usage(void)
 #endif
 
 	fputs("Use:\n", stderr);
-	fputs("ttf2pt1 [-<opts>] [-l language | -L file] <ttf-file> <fontname>\n", stderr);
+	fputs("ttf2pt1 [-<opts>] [-l language | -L file] <ttf-file> [<fontname>]\n", stderr);
 	fputs("  or\n", stderr);
 	fputs("ttf2pt1 [-<opts>] [-l language | -L file] <ttf-file> -\n", stderr);
 	fputs("  or\n", stderr);
@@ -1815,7 +1815,7 @@ usage(void)
 	fplop(" --afm\n");
 	fputs("  -A - write the .afm file to STDOUT instead of the font itself\n", stderr);
 	fplop(" --all-glyphs\n");
-	fputs("  -a - include all glyphs, even those  not in the encoding table\n", stderr);
+	fputs("  -a - include all glyphs, even those not in the encoding table\n", stderr);
 	fplop(" --pfb\n");
 	fputs("  -b - produce a compressed .pfb file\n", stderr);
 	fplop(" --debug dbg_suboptions\n");
@@ -1851,6 +1851,7 @@ usage(void)
 	fputs("  -s - disable outline smoothing\n", stderr);
 	fputs("  -t - disable auto-scaling to 1000x1000 standard matrix\n", stderr);
 	fputs("  -w - correct the glyph widths (use only for buggy fonts)\n", stderr);
+	fputs("With no <fontname>, write to <ttf-file> with suffix replaced.\n", stderr);
 	fputs("The last '-' means 'use STDOUT'.\n", stderr);
 
 #undef fplop
@@ -2168,10 +2169,18 @@ main(
 		fprintf(stderr, "**** options -a and -e are incompatible ****\n");
 		exit(1);
 	}
-	if (argc != 3) {
+        /* Get name of output file if not specified */
+        if (argc == 2) {
+	        char *p;
+                argv[2] = strdup (argv[1]);
+		p = strrchr(argv[2], '.');
+	        if (p)
+		  *p = '\0';
+	} else 
+	  if (argc != 3) {
 		usage();
 		exit(1);
-	}
+	  }
 
 	/* try to guess the language by the locale used */
 	if(uni_lang_converter==0 && (lang=getenv("LANG"))!=0 ) {
