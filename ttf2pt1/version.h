@@ -4,4 +4,4 @@
 
 
 /* version number */
-#define TTF2PT1_VERSION "3.4.4"
+#define TTF2PT1_VERSION "3.4.5-CURRENT"
