@@ -51,13 +51,15 @@ struct frontsw freetype_sw = {
 
 /* statics */
 
+static char * dupcnstring( char *s, int len);
+
 static FT_Library library;
 static FT_Face face;
 
 static int enc_type, enc_found;
 
 /* SFNT functions do not seem to be included by default in FT2beta8 */
-#undef ENABLE_SFNT
+#define ENABLE_SFNT
 
 /*
  * Open font and prepare to return information to the main driver.
@@ -314,6 +316,25 @@ populate_map:
 	return enc_type;
 }
 
+/* duplicate a string with counter to a 0-terminated string */
+static char *
+dupcnstring(
+	char *s,
+	int len
+)
+{
+	char *res;
+
+	if(( res = malloc(len+1) )==NULL) {
+		fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
+		exit(255);
+	}
+
+	memcpy(res, s, len);
+	res[len] = 0;
+	return res;
+}
+
 /*
  * Get the font metrics
  */
@@ -350,7 +371,7 @@ fnmetrics(
 		fm->name_copyright = "";
 #ifdef ENABLE_SFNT
 	else
-		fm->name_copyright = sn.string;
+		fm->name_copyright = dupcnstring(sn.string, sn.string_len);
 #endif /* ENABLE_SFNT */
 
 	fm->name_family = face->family_name;
@@ -378,7 +399,7 @@ fnmetrics(
 	} 
 #ifdef ENABLE_SFNT
 	else
-		fm->name_full = sn.string;
+		fm->name_full = dupcnstring(sn.string, sn.string_len);
 #endif /* ENABLE_SFNT */
 
 #ifdef ENABLE_SFNT
@@ -387,7 +408,7 @@ fnmetrics(
 		fm->name_version = "1.0";
 #ifdef ENABLE_SFNT
 	else
-		fm->name_version = sn.string;
+		fm->name_version = dupcnstring(sn.string, sn.string_len);
 #endif /* ENABLE_SFNT */
 
 #ifdef ENABLE_SFNT
@@ -399,7 +420,7 @@ fnmetrics(
 		}
 #ifdef ENABLE_SFNT
 	} else
-		fm->name_ps = sn.string;
+		fm->name_ps = dupcnstring(sn.string, sn.string_len);
 #endif /* ENABLE_SFNT */
 
 	/* guess the boldness from the font names */
