@@ -83,6 +83,16 @@ snapshot)
 esac
 )
 
+# generate the man pages - in case if the users would have no pod2man
+(
+	cd ttf2pt1-$NEWVER || {
+		echo "mkrel: can't cd to ../ttf2pt1-$NEWVER" >&2
+		exit 1
+	}
+
+	make mans
+)
+
 tar czvf ttf2pt1-$NEWVER.tgz ttf2pt1-$NEWVER || {
 	echo "mkrel: can't create .tgz archive" >&2
 	exit 1

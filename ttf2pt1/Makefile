@@ -99,18 +99,25 @@ warning: docs
 DOCS=CHANGES README INSTALL INSTALL.hpux encodings/README other/README \
 	app/X11/README app/netscape/README
 
-all:	t1asm ttf2pt1 docs rpm
+MANS=ttf2pt1.1
+
+all:	t1asm ttf2pt1 docs mans rpm
 
 docs: $(DOCS)
+
+mans: $(MANS) 
 
 clean:
 	rm -f t1asm ttf2pt1 *.o app/RPM/Makefile app/RPM/*.spec *.core core.* core
 	( cd other && make clean; )
 
 veryclean: clean
-	rm -f $(DOCS)
+	rm -f $(DOCS) $(MANS)
 
 rpm: app/RPM/Makefile app/RPM/ttf2pt1.spec
+
+ttf2pt1.1: README.html
+	scripts/html2man . . <$>
 
 app/RPM/Makefile: Makefile
 	sed 's/^CFLAGS_SYS.*=.*$$/CFLAGS_SYS= -O2 -D_GNU_SOURCE/;/warning:/,/^$$/s/^/#/' <Makefile >app/RPM/Makefile
