@@ -229,11 +229,11 @@ FONTS.hpux: FONTS.hpux.html
 	scripts/unhtml <FONTS.hpux.html >FONTS.hpux
 
 install: all
-	scripts/inst_dir $(BINDIR)
-	scripts/inst_dir $(LIBXDIR)
-	scripts/inst_dir $(SHAREDIR)
-	scripts/inst_dir $(MANDIR)/man1
-	scripts/inst_dir $(MANDIR)/man5
+	scripts/inst_dir $(BINDIR) $(OWNER) $(GROUP) 0755
+	scripts/inst_dir $(LIBXDIR) $(OWNER) $(GROUP) 0755
+	scripts/inst_dir $(SHAREDIR) $(OWNER) $(GROUP) 0755
+	scripts/inst_dir $(MANDIR)/man1 $(OWNER) $(GROUP) 0755
+	scripts/inst_dir $(MANDIR)/man5 $(OWNER) $(GROUP) 0755
 	cp -R $(TXTFILES) $(SUBDIRS) $(SHAREDIR)
 	chown -R $(OWNER) $(SHAREDIR)
 	chgrp -R $(GROUP) $(SHAREDIR)
