@@ -77,9 +77,8 @@
 # The map planes are not supported in the scripts yet.
 
 SRCDIRS="
-/SOME_DIR_WITH_russian_windows_TTF_FONTS russian ibm-1251
-/SOME_DIR_WITH_russian_koi_TTF_FONTS russian koi8-r
-/SOME_DIR_WITH_bulgarian_windows_TTF_FONTS bulgarian ibm-1251
+/SOME_DIR_WITH_cyrillic_windows_TTF_FONTS cyrillic ibm-1251
+/SOME_DIR_WITH_cyrillic_koi_TTF_FONTS cyrillic koi8-r
 /SOME_DIR_WITH_unicode_TTF_FONTS latin4 iso8859-4
 /SOME_DIR_WITH_unicode_TTF_FONTS latin5 iso8859-9
 /SOME_DIR_WITH_unicode_TTF_FONTS latin2 iso8859-2
@@ -120,8 +119,7 @@ GSCONFDIR=$GSDIR/6.0
 # Netscape Navigator. For the same reason prefer
 # cp-866 over ibm-866.
 
-DSTENCrussian="koi8-r windows-1251 iso8859-1"
-DSTENCbulgarian="koi8-r windows-1251 iso8859-1"
+DSTENCcyrillic="koi8-r windows-1251 iso8859-1"
 DSTENClatin1="iso8859-1"
 DSTENClatin2="iso8859-2"
 DSTENClatin4="iso8859-4"

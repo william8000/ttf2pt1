@@ -13,6 +13,9 @@ in this distribution unless explicitly noted otherwise
    Szalay Tamas <tomek@elender.hu>
    Johan Vromans <jvromans@squirrel.nl>
    Petr Titera <P.Titera@sh.cvut.cz>
+   Lei Wang <lwang@amath8.amt.ac.cn>
+   Chen Xiangyang <chenxy@sun.ihep.ac.cn>
+   Zvezdan Petkovic <z.petkovic@computer.org>
   All rights reserved.
  
   Redistribution and use in source and binary forms, with or without
@@ -66,6 +69,9 @@ Frank M. Siegert <frank@this.net>
 Lei Wang <lwang@amath8.amt.ac.cn>
 Chen Xiangyang <chenxy@sun.ihep.ac.cn>
  Translation maps for Chinese fonts.
+
+Zvezdan Petkovic <z.petkovic@computer.org>
+ The Unicode translation tables for the Cyrillic alphabet.
 
 I. Lee Hetherington <ilh@lcs.mit.edu>
  The Type1 assembler (from the package 't1utils'), its full copyright

@@ -599,6 +599,39 @@ in <A HREF="app/netscape/README.html">app/netscape/README</a>.
 &nbsp;&nbsp;<FONT SIZE=-1>*) See Monty Python's Flying Circus, episode 15</FONT></FONT>
 <p>
 
+<FONT COLOR="#3333FF"><FONT SIZE=-1>*8*</FONT></FONT>
+<H4>
+Netscape and cyrillic fonts<br>
+<!
+---------------------------
+>
+(courtesy of Zvezdan Petkovic)
+</H4>
+
+If you use TrueType fonts in your X, as I do, and you always get
+KOI8-R encoded pages, then your Netscape does not recognise windows-1251
+encoding.  Microsoft TrueType fonts simply declare all encodings they
+can support including KOI8-R.  For some reason, KOI8-R always wins over
+ISO-8859-5 in Netscape under X.  If you are reading other cyrillic
+languages besides Russian, you might want to either erase KOI8-R entries
+from the fonts.dir and fonts.scale files, or alternatively fix Netscape.
+I put this line in my .Xdefaults.
+<p>
+
+<blockquote><tt>
+    Netscape*documentFonts.charset*koi8-r:               iso-8859-5
+</tt></blockquote>
+<p>
+
+Notice that you can still read Russian sites without trouble because
+Netscape translates KOI8-R to ISO-8859-5 on the fly. I read both Russian
+and Serbian sites with no trouble.
+<p>
+
+<b>Note:</b> <i>If anybody knows the way to tell Netscape under Unix how to 
+recognise {windows,ibm,cp}-1251 encoded fonts, I'd like to hear about that.</i>
+<p>
+
 <A NAME="rpm"></a>
 <H3>
 Linux RPM package

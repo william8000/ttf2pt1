@@ -442,7 +442,7 @@ static uni_init_t unicode_latin1;
 static uni_init_t unicode_latin2;
 static uni_init_t unicode_latin4;
 static uni_init_t unicode_latin5;
-static uni_init_t unicode_russian;
+static uni_init_t unicode_cyrillic;
 static uni_init_t unicode_adobestd;
 static uni_init_t unicode_plane;
 static uni_conv_t unicode_adobestd_byname;
@@ -488,20 +488,28 @@ static struct uni_language uni_lang[]= {
 		{ "tr_" },
 		'A'
 	},
-	{
-		{ unicode_russian, unicode_latin1 },
+	{ /* by Zvezdan Petkovic <z.petkovic@computer.org> */
+		{ unicode_cyrillic, unicode_latin1 },
 		0, /* no name-based mapping */
-		"russian",
+		"cyrillic",
 		"in Windows encoding",
-		{ "ru_", "su_" },
+		{ "bg_", "be_", "mk_", "ru_", "sr_", "su_", "uk_" },
 		'A'
 	},
 	{
-		{ unicode_russian, unicode_latin1 },
+		{ unicode_cyrillic, unicode_latin1 },
+		0, /* no name-based mapping */
+		"russian",
+		"obsolete, use cyrillic instead",
+		{ 0 },
+		'A'
+	},
+	{
+		{ unicode_cyrillic, unicode_latin1 },
 		0, /* no name-based mapping */
 		"bulgarian",
-		"in Windows encoding",
-		{ "bg_" }, /* not sure whether the Bulgarian locale is named this way */
+		"obsolete, use cyrillic instead",
+		{ 0 },
 		'A'
 	},
 	{
@@ -703,28 +711,31 @@ unicode_init_user(
 		uni_sample = 0; /* don't make any assumptions */
 }
 
+/*
+ * by Zvezdan Petkovic <z.petkovic@computer.org> 
+ */
 static void
-unicode_russian(
+unicode_cyrillic(
 		 char *arg
 )
 {
 	int i;
-	static unsigned int russian_unicode_map[] = {
-		0x0080, 0x0081, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021,  /* 80 */
-		0x02c6, 0x2030, 0x0160, 0x2039, 0x0152, 0x008d, 0x017d, 0x008f,  /* 88 */
-		0x0090, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014,  /* 90 */
-		0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0x009d, 0x017e, 0x0178,  /* 98 */
-		0x00a0, 0x00a1, 0x00a2, 0x00a3, 0x00a4, 0x00a5, 0x00a6, 0x00a7,  /* A0 direct */
-		0x0401, 0x00a9, 0x00aa, 0x00ab, 0x00ac, 0x00ad, 0x00ae, 0x00af,  /* A8 */
-		0x00b0, 0x00b1, 0x00b2, 0x00b3, 0x00b4, 0x00b5, 0x00b6, 0x00b7,  /* B0 direct */
-		0x0451, 0x00b9, 0x00ba, 0x00bb, 0x00bc, 0x00bd, 0x00be, 0x00bf,  /* B8 */
+	static unsigned int cyrillic_unicode_map[] = {
+		0x0402, 0x0403, 0x201a, 0x0453, 0x201e, 0x2026, 0x2020, 0x2021,  /* 80 */
+		0x20ac, 0x2030, 0x0409, 0x2039, 0x040a, 0x040c, 0x040b, 0x040f,  /* 88 */
+		0x0452, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014,  /* 90 */
+		0x02dc, 0x2122, 0x0459, 0x203a, 0x045a, 0x045c, 0x045b, 0x045f,  /* 98 */
+		0x00a0, 0x040e, 0x045e, 0x0408, 0x00a4, 0x0490, 0x00a6, 0x00a7,  /* A0 */
+		0x0401, 0x00a9, 0x0404, 0x00ab, 0x00ac, 0x00ad, 0x00ae, 0x0407,  /* A8 */
+		0x00b0, 0x00b1, 0x0406, 0x0456, 0x0491, 0x00b5, 0x00b6, 0x00b7,  /* B0 */
+		0x0451, 0x2116, 0x0454, 0x00bb, 0x0458, 0x0405, 0x0455, 0x0457,  /* B8 */
 	};
 
 	for(i=0; i<=0x7F; i++)
 		unicode_map[i] = i;
 
 	for(i=0x80; i<=0xBF; i++)
-		unicode_map[i] = russian_unicode_map[i-0x80];
+		unicode_map[i] = cyrillic_unicode_map[i-0x80];
 
 	for(i=0xC0; i<=0xFF; i++)
 		unicode_map[i] = i+0x350;
