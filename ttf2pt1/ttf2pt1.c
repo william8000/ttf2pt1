@@ -1857,7 +1857,8 @@ main(
 					reverse = 0;
 					break;
 				default:
-					fprintf(stderr, "**** Unknown debugging option '%c' ****\n", optarg[i]);
+					if (optarg[i] != '?')
+					  fprintf(stderr, "**** Unknown debugging option '%c' ****\n", optarg[i]);
 					fputs("The recognized debugging options are:\n", stderr);
 					fputs("  a - enable absolute coordinates\n", stderr);
 					fputs("  r - do not reverse font outlines directions\n", stderr);
@@ -1883,7 +1884,8 @@ main(
 				max_stemdepth = val;
 				break;
 			default:
-				fprintf(stderr, "**** Unknown limit type '%c' ****\n", subopt);
+				if (subopt != '?')
+				  fprintf(stderr, "**** Unknown limit type '%c' ****\n", subopt);
 				fputs("The recognized limit types are:\n", stderr);
 				fputs("  h - maximal hint stack depth in the PostScript interpreter\n", stderr);
 				exit(1);
@@ -1948,7 +1950,8 @@ main(
 				}
 
 			if(cursw==0) {
-				fprintf(stderr, "**** unknown front-end parser '%s' ****\n", optarg);
+				if (strcmp(optarg, "?"))
+				  fprintf(stderr, "**** unknown front-end parser '%s' ****\n", optarg);
 				fputs("the following front-ends are supported now:\n", stderr);
 				for(i=0; frontswtab[i] != NULL; i++) {
 					fprintf(stderr,"  %s (%s)\n   file suffixes: ", 
@@ -1987,7 +1990,8 @@ main(
 				}
 
 			if(uni_lang_converter==0) {
-				fprintf(stderr, "**** unknown language '%s' ****\n", optarg);
+				if (strcmp(optarg, "?"))
+				  fprintf(stderr, "**** unknown language '%s' ****\n", optarg);
 				fputs("       the following languages are supported now:\n", stderr);
 				for(i=0; i < sizeof uni_lang/(sizeof uni_lang[0]); i++)
 					fprintf(stderr,"         %s (%s)\n", 
