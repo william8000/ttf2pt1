@@ -1672,7 +1672,7 @@ convert_glyf(
 		g->lastentry = 0;
 
 		if(ISDBG(BUILDG))
-			dumppaths(g);
+			dumppaths(g, NULL, NULL);
 
 		assertpath(g->entries, __FILE__, __LINE__, g->name);
 
@@ -1681,11 +1681,6 @@ convert_glyf(
 
 		/* float processing */
 		if(smooth) {
-#if 1
-			fnormalize(g);
-			assertpath(g->entries, __FILE__, __LINE__, g->name);
-#endif
-
 			ffixquadrants(g);
 			assertpath(g->entries, __FILE__, __LINE__, g->name);
 
