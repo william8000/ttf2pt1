@@ -126,7 +126,7 @@ struct frontsw {
 	char  *descr; /* description of the front end */
 	char  *suffix[MAXSUFFIX]; /* possible file name suffixes */
 
-	void  (*open)(char *fname); /* open font file */
+	void  (*open)(char *fname, char *arg); /* open font file */
 	void  (*close)(void); /* close font file */
 	int   (*nglyphs)(void); /* get the number of glyphs */
 	int   (*glnames)(GLYPH *glyphs); /* get the names of glyphs */

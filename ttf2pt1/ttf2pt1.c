@@ -87,7 +87,8 @@ struct frontsw *frontswtab[] = {
 	NULL /* end of table */
 };
 
-struct frontsw *cursw; /* the active front end */
+struct frontsw *cursw=0; /* the active front end */
+char *front_arg=""; /* optional argument */
 
 /* options */
 int      optimize = 1;	/* enables space optimization */
@@ -1787,6 +1788,7 @@ usage(void)
 	fputs("  -L file - convert Unicode according to encoding description file\n", stderr);
 	fputs("  -m <type>=<value> - set maximal limit of given type to value, types:\n", stderr);
 	fputs("      h - maximal hint stack depth in the PostScript interpreter\n", stderr);
+	fputs("  -p name - use specific front-end parser, run ttf2pt1 -p? for list\n", stderr);
 	fputs("  -o - disable outline optimization\n", stderr);
 	fputs("  -s - disable outline smoothing\n", stderr);
 	fputs("  -t - disable auto-scaling to 1000x1000 standard matrix\n", stderr);
@@ -1803,7 +1805,7 @@ main(
      char **argv
 )
 {
-	int             i;
+	int             i, j;
 	time_t          now;
 	char            filename[256];
 	int             c,nchars,nmetrics;
@@ -1813,10 +1815,7 @@ main(
 	int             oc;
 	int             subid;
 
-	/* XXX temporary */
-	cursw = frontswtab[0];
-
-	while(( oc=getopt(argc, argv, "FaoebAsthHfwv:l:d:u:L:m:W:") )!= -1) {
+	while(( oc=getopt(argc, argv, "FaoebAsthHfwv:p:l:d:u:L:m:W:") )!= -1) {
 		switch(oc) {
 		case 'W':
 			if(sscanf(optarg, "%d", &warnlevel) < 1 || warnlevel < 0) {
@@ -1928,6 +1927,42 @@ main(
 				correctvsize=0;
 			}
 			break;
+		case 'p':
+			if(cursw!=0) {
+				fprintf(stderr, "**** only one front-end parser be used ****\n");
+				exit(1);
+			}
+
+			{ /* separate parser from parser-specific argument */
+				char *p = strchr(optarg, LANG_ARG_SEP);
+				if(p != 0) {
+					*p = 0;
+					front_arg = p+1;
+				} else
+					front_arg = "";
+			}
+			for(i=0; frontswtab[i] != NULL; i++)
+				if( !strcmp(frontswtab[i]->name, optarg) ) {
+					cursw = frontswtab[i];
+					break;
+				}
+
+			if(cursw==0) {
+				fprintf(stderr, "**** unknown front-end parser '%s' ****\n", optarg);
+				fputs("the following front-ends are supported now:\n", stderr);
+				for(i=0; frontswtab[i] != NULL; i++) {
+					fprintf(stderr,"  %s (%s)\n   file suffixes: ", 
+						frontswtab[i]->name,
+						frontswtab[i]->descr ? frontswtab[i]->descr : "no description"
+					);
+					for(j=0; j<MAXSUFFIX; j++)
+						if(frontswtab[i]->suffix[j])
+							fprintf(stderr, "%s ", frontswtab[i]->suffix[j]);
+					fprintf(stderr, "\n");
+				}
+				exit(1);
+			}
+			break;
 		case 'l':
 			if(uni_lang_converter!=0) {
 				fprintf(stderr, "**** only one language option may be used ****\n");
@@ -1942,18 +1977,19 @@ main(
 				} else
 					uni_lang_arg = "";
 			}
-			for(i=0; i < sizeof uni_lang/sizeof(struct uni_language); i++)
+			for(i=0; i < sizeof uni_lang/(sizeof uni_lang[0]); i++)
 				if( !strcmp(uni_lang[i].name, optarg) ) {
 					uni_lang_converter=uni_lang[i].conv;
 					uni_sample=uni_lang[i].sample_upper;
 					if(uni_lang[i].init != 0)
 						uni_lang[i].init(uni_lang_arg);
+					break;
 				}
 
 			if(uni_lang_converter==0) {
 				fprintf(stderr, "**** unknown language '%s' ****\n", optarg);
 				fputs("       the following languages are supported now:\n", stderr);
-				for(i=0; i < sizeof uni_lang/sizeof(struct uni_language); i++)
+				for(i=0; i < sizeof uni_lang/(sizeof uni_lang[0]); i++)
 					fprintf(stderr,"         %s (%s)\n", 
 						uni_lang[i].name,
 						uni_lang[i].descr ? uni_lang[i].descr : "no description"
@@ -2009,8 +2045,35 @@ main(
 			WARNING_1 fprintf(stderr, "Using language '%s' for Unicode fonts\n", uni_lang[i].name);
 	}
 
+	/* try to guess the front-end parser by the file name suffix */
+	if(cursw==0) {
+		char *p = strrchr(argv[1], '.');
+
+		if(p!=0) {
+			p++;
+			for(i=0; frontswtab[i] != 0 && cursw == 0; i++) {
+				for(j=0; j<MAXSUFFIX; j++)
+					if(frontswtab[i]->suffix[j]
+					&& !strcmp(p, frontswtab[i]->suffix[j]) ) {
+						cursw = frontswtab[i];
+						WARNING_1 fprintf(stderr, "Auto-detected front-end parser '%s'\n", 
+							cursw->name);
+						WARNING_1 fprintf(stderr, " (use ttf2pt1 -p? to get the full list of available front-ends)\n");
+						break;
+					}
+			}
+		}
+
+		if(cursw==0) {
+			cursw = frontswtab[0];
+			WARNING_1 fprintf(stderr, "Can't detect front-end parser, using '%s' by default\n", 
+				cursw->name);
+			WARNING_1 fprintf(stderr, " (use ttf2pt1 -p? to get the full list of available front-ends)\n");
+		}
+	}
+
 	/* open the input file */
-	cursw->open(argv[1]);
+	cursw->open(argv[1], front_arg);
 
 	if (argv[2][0] == '-' && argv[2][1] == 0) {
 		pfa_file = stdout;

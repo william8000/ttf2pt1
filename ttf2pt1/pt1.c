@@ -4425,10 +4425,6 @@ splitzigzags(
 			fixcvends(ge);
 			continue;
 		}
-		/*
-		 * we probably have also to check that the curve is in one *
-		 * quadrant but we don't (yet)
-		 */
 
 		/* split the curve */
 		nge = newgentry();

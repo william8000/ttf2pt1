@@ -29,7 +29,7 @@
 #include "global.h"
 
 /* prototypes of call entries */
-static void openfont(char *fname);
+static void openfont(char *fname, char *arg);
 static void closefont( void);
 static int getnglyphs ( void);
 static int glnames( GLYPH *glyph_list);
@@ -728,7 +728,8 @@ badpointer(
 
 static void
 openfont(
-	char *fname
+	char *fname,
+	char *arg /* unused now */
 )
 {
 	int             i, j;
