@@ -50,26 +50,26 @@ you actual configuration." >&2
 LOG=$DSTDIR/convert.log
 
 [ -n "$GSDIR" ] || {
-	echo "$MYSELF: The Ghostscript base directory is not specified.\n" >&2
-	echo "$MYSELF: Installation of the Ghostscript fonts is deferred.\n" >&2
+	echo "$MYSELF: The Ghostscript base directory is not specified." >&2
+	echo "$MYSELF: Installation of the Ghostscript fonts is deferred." >&2
 	exit 0
 }
 
 [ -n "$GSCONFDIR" -a -d "$GSCONFDIR" ] || {
-	echo "$MYSELF: The Ghostscript configuration directory does not exist.\n" >&2
-	echo "$MYSELF: Installation of the Ghostscript fonts is aborted.\n" >&2
+	echo "$MYSELF: The Ghostscript configuration directory does not exist." >&2
+	echo "$MYSELF: Installation of the Ghostscript fonts is aborted." >&2
 	exit 1
 }
 
 [ -r "$GSCONFDIR/Fontmap" ] || {
-	echo "$MYSELF: Can't find Fontmap in the GS configuration directory.\n" >&2
-	echo "$MYSELF: Installation of the Ghostscript fonts is aborted.\n" >&2
+	echo "$MYSELF: Can't find Fontmap in the GS configuration directory." >&2
+	echo "$MYSELF: Installation of the Ghostscript fonts is aborted." >&2
 	exit 1
 }
 
 [ -n "$GSFONTDIR" -a -d "$GSFONTDIR" ] || {
-	echo "$MYSELF: The Ghostscript font directory does not exist.\n" >&2
-	echo "$MYSELF: Installation of the Ghostscript fonts is aborted.\n" >&2
+	echo "$MYSELF: The Ghostscript font directory does not exist." >&2
+	echo "$MYSELF: Installation of the Ghostscript fonts is aborted." >&2
 	exit 1
 }
 
