@@ -88,6 +88,22 @@ CFLAGS_PREF=
 CFLAGS= $(CFLAGS_SYS) $(CFLAGS_FT) $(CFLAGS_PREF)
 LIBS= $(LIBS_SYS) $(LIBS_FT)
 
+# Installation-related stuff
+# 
+# The base dir for installation and subdirs in it
+INSTDIR = /usr/local
+# for binaries
+BINDIR = $(INSTDIR)/bin
+# for binaries of little general interest
+LIBXDIR = $(INSTDIR)/libexec/ttf2pt1
+# for scripts, maps/encodings etc.
+SHAREDIR = $(INSTDIR)/share/ttf2pt1
+MANDIR = $(INSTDIR)/man
+
+# owner and group of installed files
+OWNER = root
+GROUP = bin
+
 # After you have configured the Makefile, comment out the following
 # definition:
 warning: docs
@@ -99,7 +115,10 @@ warning: docs
 DOCS=CHANGES README INSTALL INSTALL.hpux encodings/README other/README \
 	app/X11/README app/netscape/README
 
-MANS=ttf2pt1.1
+SUBDIRS = app encodings maps scripts other
+
+MANS1=ttf2pt1.1
+MANS=$(MANS1) $(MANS5)
 
 all:	t1asm ttf2pt1 docs mans rpm
 
@@ -166,6 +185,44 @@ INSTALL: INSTALL.html
 
 INSTALL.hpux: INSTALL.hpux.html
 	scripts/unhtml <INSTALL.hpux.html >INSTALL.hpux
+
+install: all
+	scripts/inst_dir $(BINDIR)
+	scripts/inst_dir $(LIBXDIR)
+	scripts/inst_dir $(SHAREDIR)
+	scripts/inst_dir $(MANDIR)/man1
+	scripts/inst_dir $(MANDIR)/man5
+	cp -R $(SUBDIRS) $(SHAREDIR)
+	chown -R $(OWNER) $(SHAREDIR)
+	chgrp -R $(GROUP) $(SHAREDIR)
+	chmod -R go-w $(SHAREDIR)
+	scripts/inst_file ttf2pt1 $(BINDIR)/ttf2pt1 $(OWNER) $(GROUP) 0755
+	[ -f $(BINDIR)/t1asm ] || scripts/inst_file t1asm $(LIBXDIR)/t1asm $(OWNER) $(GROUP) 0755
+	sed 's|^TTF2PT1_BINDIR=$$|TTF2PT1_BINDIR=$(BINDIR)|;\
+		s|^TTF2PT1_LIBXDIR=$$|TTF2PT1_LIBXDIR=$(LIBXDIR)|;\
+		s|^TTF2PT1_SHAREDIR=$$|TTF2PT1_SHAREDIR=$(SHAREDIR)|;' <scripts/convert >cvt.tmp
+	scripts/inst_file cvt.tmp $(BINDIR)/ttf2pt1_convert $(OWNER) $(GROUP) 0755
+	scripts/inst_file cvt.tmp $(SHAREDIR)/scripts/convert $(OWNER) $(GROUP) 0755
+	rm cvt.tmp
+	scripts/inst_file scripts/x2gs $(BINDIR)/ttf2pt1_x2gs $(OWNER) $(GROUP) 0755
+	for i in $(MANS1); do { \
+		sed 's|TTF2PT1_BINDIR|$(BINDIR)|;\
+			s|TTF2PT1_LIBXDIR|$(LIBXDIR)|;\
+			s|TTF2PT1_SHAREDIR|$(SHAREDIR)|;' <$$i >$(MANDIR)/man1/$$i \
+		&& chown $(OWNER) $(MANDIR)/man1/$$i \
+		&& chgrp $(GROUP) $(MANDIR)/man1/$$i \
+		&& chmod 0644 $(MANDIR)/man1/$$i \
+		|| exit 1; \
+	} done
+
+uninstall:
+	rm -f $(BINDIR)/ttf2pt1 $(BINDIR)/ttf2pt1_convert $(BINDIR)/ttf2pt1_x2gs
+	rm -rf $(LIBXDIR)
+	rm -rf $(SHAREDIR)
+	for i in $(MANS1); do { \
+		rm -f $(MANDIR)/man1/$$i $(MANDIR)/man1/$$i.gz; \
+	} done
+	
 
 # targets for automatic generation of releases and snapshots
 

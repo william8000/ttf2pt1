@@ -41,14 +41,18 @@ fi
 
 # these setting would be edited during installation
 
-TTF2PT1_LIBDIR=
 TTF2PT1_BINDIR=
+TTF2PT1_LIBXDIR=
+TTF2PT1_SHAREDIR=
 
-[ -z "$TTF2PT1_LIBDIR" ] && {
-	TTF2PT1_LIBDIR=`pwd`/..
-}
 [ -z "$TTF2PT1_BINDIR" ] && {
 	TTF2PT1_BINDIR=`pwd`/..
+}
+[ -z "$TTF2PT1_LIBXDIR" ] && {
+	TTF2PT1_LIBXDIR=`pwd`/..
+}
+[ -z "$TTF2PT1_SHAREDIR" ] && {
+	TTF2PT1_SHAREDIR=`pwd`/..
 }
 
 # directory from where we are started
@@ -57,16 +61,16 @@ RUNDIR=`pwd`
 
 # paths to various utilities
 
-T1ASM=$TTF2PT1_LIBDIR/t1asm
+T1ASM=$TTF2PT1_LIBXDIR/t1asm
 [ -f $T1ASM -a -x $T1ASM ] || {
-	# if it's not in libdir, use whatever t1asm the system provides
+	# if it's not in libxdir, use whatever t1asm the system provides
 	T1ASM=t1asm
 }
 TTF2PT1=$TTF2PT1_BINDIR/ttf2pt1
-TRANS=$TTF2PT1_LIBDIR/scripts/trans
-T1FDIR=$TTF2PT1_LIBDIR/scripts/t1fdir
-FORCEISO=$TTF2PT1_LIBDIR/scripts/forceiso
-X2GS=$TTF2PT1_LIBDIR/scripts/x2gs
+TRANS=$TTF2PT1_SHAREDIR/scripts/trans
+T1FDIR=$TTF2PT1_SHAREDIR/scripts/t1fdir
+FORCEISO=$TTF2PT1_SHAREDIR/scripts/forceiso
+X2GS=$TTF2PT1_SHAREDIR/scripts/x2gs
 SUFFIX="pfa"
 
 MYSELF=convert
@@ -88,12 +92,12 @@ you actual configuration." >&2
 
 # path to the directory with descriptions of encodings
 [ -z "$ENCDIR" ] && {
-	ENCDIR=$TTF2PT1_LIBDIR/encodings
+	ENCDIR=$TTF2PT1_SHAREDIR/encodings
 }
 
 # directory with the external Unicode maps
 [ -z "$MAPDIR" ] && {
-	MAPDIR=$TTF2PT1_LIBDIR/maps
+	MAPDIR=$TTF2PT1_SHAREDIR/maps
 }
 
 LOG=$DSTDIR/convert.log
