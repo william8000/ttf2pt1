@@ -20,6 +20,8 @@ extern int      correctwidth;	/* try to correct the character width */
 extern int      correctvsize;	/* try to correct the vertical size of characters */
 extern int      wantuid;	/* user wants UniqueID entry in the font */
 extern int      allglyphs;	/* convert all glyphs, not only 256 of them */
+/* options - maximal limits */
+extern int      max_stemdepth;	/* maximal depth of stem stack in interpreter */
 
 /* other globals */
 extern FILE    *pfa_file, *afm_file;

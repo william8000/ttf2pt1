@@ -2312,6 +2312,8 @@ findstemat(
  * returns 0 if all OK, 1 if too many groups
  */
 
+static int gssentry_lastgrp=0; /* reset to 0 for each new glyph */
+
 static int
 gssentry( /* crazy number of parameters */
 	GENTRY *ge,
@@ -2497,16 +2499,11 @@ gssentry( /* crazy number of parameters */
 	conflict=0; /* no conflicts found yet */
 	for(j=0; j<nr; j++)
 		r[j].already=0;
-	for(i=0, grp=0; i<egp[NSTEMGRP-1]; i++) {
-		if(i == egp[grp]) { /* checked all stems in a group */
-			if(conflict) {
-				grp++; conflict=0; /* check the next group */
-				for(j=0; j<nr; j++)
-					r[j].already=0;
-			} else
-				break; /* insert into this group */
-		}
 
+	/* check if it fits into the last group */
+	grp = gssentry_lastgrp;
+	i = (grp==0)? 0 : egp[grp-1];
+	for(; i<egp[grp]; i++) {
 		lb=s[i].low; hb=s[i].high; isvert=s[i].isvert;
 		for(j=0; j<nr; j++)
 			if( r[j].isvert==isvert  /* intersects */
@@ -2518,7 +2515,36 @@ gssentry( /* crazy number of parameters */
 			}
 
 		if(conflict) 
-			i=egp[grp]-1; /* fast forward to the next group */
+			break;
+	}
+
+	if(conflict) { /* nope, check all the groups */
+		for(j=0; j<nr; j++)
+			r[j].already=0;
+
+		for(i=0, grp=0; i<egp[NSTEMGRP-1]; i++) {
+			if(i == egp[grp]) { /* checked all stems in a group */
+				if(conflict) {
+					grp++; conflict=0; /* check the next group */
+					for(j=0; j<nr; j++)
+						r[j].already=0;
+				} else
+					break; /* insert into this group */
+			}
+
+			lb=s[i].low; hb=s[i].high; isvert=s[i].isvert;
+			for(j=0; j<nr; j++)
+				if( r[j].isvert==isvert  /* intersects */
+				&& r[j].low <= hb && r[j].high >= lb ) {
+					if( r[j].low == lb && r[j].high == hb ) /* coincides */
+						r[j].already=1;
+					else
+						conflict=1;
+				}
+
+			if(conflict) 
+				i=egp[grp]-1; /* fast forward to the next group */
+		}
 	}
 
 	/* do we have any empty group ? */
@@ -2548,7 +2574,7 @@ gssentry( /* crazy number of parameters */
 			egp[i]+=rexpand;
 	}
 
-	ge->stemid=grp;
+	ge->stemid = gssentry_lastgrp = grp;
 	return 0;
 }
 
@@ -2583,6 +2609,8 @@ groupsubstems(
 		egp[i]=0;
 
 	nextvsi=nexthsi= -2; /* processed no horiz/vert line */
+
+	gssentry_lastgrp = 0; /* reset the last group for new glyph */
 
 	for (ge = g->entries; ge != 0; ge = ge->next) {
 		if(ge->type!=GE_LINE && ge->type!=GE_CURVE) {
@@ -2675,6 +2703,7 @@ buildstems(
 	GENTRY         *ge, *nge, *pge;
 	int             nx, ny;
 	int ovalue;
+	int totals, i, grp, lastgrp;
 
 	g->nhs = g->nvs = 0;
 
@@ -3088,7 +3117,7 @@ buildstems(
 
 	if(g->nhs > 0) {
 		if ((sp = malloc(sizeof(STEM) * g->nhs)) == 0) {
-			fprintf(stderr, "**** not enough memory for stems ****\n");
+			fprintf(stderr, "**** not enough memory for hints ****\n");
 			exit(1);
 		}
 		g->hstems = sp;
@@ -3098,7 +3127,7 @@ buildstems(
 
 	if(g->nvs > 0) {
 		if ((sp = malloc(sizeof(STEM) * g->nvs)) == 0) {
-			fprintf(stderr, "**** not enough memory for stems ****\n");
+			fprintf(stderr, "**** not enough memory for hints ****\n");
 			exit(1);
 		}
 		g->vstems = sp;
@@ -3106,6 +3135,52 @@ buildstems(
 	} else
 		g->vstems = 0;
 
+	/* now check that the stems won't overflow the interpreter's stem stack:
+	 * some interpreters (like X11) push the stems on each change into
+	 * stack and pop them only after the whole glyphs is completed.
+	 */
+
+	totals = (g->nhs+g->nvs) / 2; /* we count whole stems, not halves */
+	lastgrp = -1;
+
+	for (ge = g->entries; ge != 0; ge = ge->next) {
+		grp=ge->stemid;
+		if(grp >= 0 && grp != lastgrp)  {
+			if(grp==0)
+				totals += g->nsbs[0];
+			else
+				totals += g->nsbs[grp] - g->nsbs[grp-1];
+
+			lastgrp = grp;
+		}
+	}
+
+	/* be on the safe side, check for >= , not > */
+	if(totals >= max_stemdepth) {  /* oops, too deep */
+		fprintf(stderr, "Warning: glyph %s needs hint stack depth %d\n", g->name, totals);
+		fprintf(stderr, "  (limit %d): removed the substituted hints from it\n", max_stemdepth);
+		if(g->nsg > 0) {
+			for (ge = g->entries; ge != 0; ge = ge->next)
+				ge->stemid = -1;
+			free(g->sbstems); g->sbstems = 0;
+			free(g->nsbs); g->nsbs = 0;
+			g->nsg = 0;
+		}
+	}
+
+	/* now check if there are too many main stems */
+	totals = (g->nhs+g->nvs) / 2; /* we count whole stems, not halves */
+	if(totals >= max_stemdepth) { 
+		/* even worse, too much of non-substituted stems */
+		fprintf(stderr, "Warning: glyph %s has %d main hints\n", g->name, totals);
+		fprintf(stderr, "  (limit %d): removed the hints from it\n", max_stemdepth);
+		if(g->vstems) {
+			free(g->vstems); g->vstems = 0; g->nvs = 0;
+		}
+		if(g->hstems) {
+			free(g->hstems); g->hstems = 0; g->nhs = 0;
+		}
+	}
 }
 
 /* convert weird curves that are close to lines into lines.
@@ -3953,7 +4028,7 @@ print_glyf(
 			closepath();
 			break;
 		default:
-			fprintf(stderr, "Glyph %s: unknown entry type '%c'\n",
+			fprintf(stderr, "**** Glyph %s: unknown entry type '%c'\n",
 				g->name, ge->type);
 			break;
 		}

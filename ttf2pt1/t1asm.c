@@ -33,8 +33,6 @@
  */
 
 #ifndef lint
-static char rcsid[] =
-  "@(#) $Id$";
 static char copyright[] =
   "@(#) Copyright (c) 1992 by I. Lee Hetherington, all rights reserved.";
 #ifdef _MSDOS
@@ -470,7 +468,7 @@ static void usage()
 
 static void print_banner()
 {
-  static char rcs_revision[] = "$Revision$";
+  static char rcs_revision[] = ""; /* removed RCS */
   static char revision[20];
 
   if (sscanf(rcs_revision, "$Revision: %19s", revision) != 1)

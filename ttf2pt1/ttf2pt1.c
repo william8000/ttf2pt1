@@ -89,6 +89,8 @@ int      correctwidth=0;	/* try to correct the character width */
 int      correctvsize=0;	/* try to correct the vertical size of characters */
 int      wantuid = 0;	/* user wants UniqueID entry in the font */
 int      allglyphs = 0;	/* convert all glyphs, not only 256 of them */
+/* options - maximal limits */
+int      max_stemdepth = 128;	/* maximal depth of stem stack in interpreter (128 - limit from X11) */
 
 int	 forceunicode = 0;
 
@@ -427,8 +429,14 @@ static int      unicode_map[256]; /* font-encoding to unicode map */
 
 #define MAXUNIALIAS 10
 
+/* the character used as the language argument separator */
+#define LANG_ARG_SEP ':'
+
+/* type of Unicode converter function */
+typedef int uni_conv_t(int unival, char *name, char *arg);
+
 struct uni_language {
-	int	(*conv)(int unival, char *name); /* the conversion function */
+	uni_conv_t	*conv; /* the conversion function */
 	char *name; /* the language name */
 	char *descr; /* description */
 	char *alias[MAXUNIALIAS]; /* aliases of the language name */
@@ -439,12 +447,23 @@ struct uni_language {
  * Prototypes of the conversion routines
  */
 
-static int unicode_latin1(int unival, char *name);
-static int unicode_latin2(int unival, char *name);
-static int unicode_latin4(int unival, char *name);
-static int unicode_latin5(int unival, char *name);
-static int unicode_russian(int unival, char *name);
-static int unicode_adobestd(int unival, char *name);
+/*
+ * unival is unicode value to translate
+ * name is the glyph name
+ * arg is the user-specified language-dependent argument
+ *   which can for example select the subfont plane for Eastern fonts.
+ *   If none is supplied by user then an empty string ("") is passed.
+ *   If no language is specified by user and auto-guessing happens
+ *   then NULL is passed.
+ */
+
+static uni_conv_t unicode_latin1;
+static uni_conv_t unicode_latin2;
+static uni_conv_t unicode_latin4;
+static uni_conv_t unicode_latin5;
+static uni_conv_t unicode_russian;
+static uni_conv_t unicode_adobestd;
+static uni_conv_t unicode_GBK;
 
 /*
  * The order of descriptions is important: if we can't guess the
@@ -456,7 +475,7 @@ static struct uni_language uni_lang[]= {
 	{
 		unicode_latin1, 
 		"latin1",
-		"works for most of the western languages",
+		"works for most of the Western languages",
 		{ "en_", "de_", "fr_", "nl_", "no_", "da_", "it_" },
 		'A'
 	},
@@ -502,10 +521,20 @@ static struct uni_language uni_lang[]= {
 		{ },
 		'A'
 	},
+#if 0 /* needs a translation map */
+	{
+		unicode_GBK,
+		"GBK",
+		"Chinese in GBK encoding",
+		{ "zh_CN.GBK" }, /* not sure if it's right */
+		0 /* have no idea about capital letters in Chinese */
+	},
+#endif
 };
 
-static int (*uni_lang_converter)(int unival, char *name)=0; /* 0 means "unknown, try all" */
-static int uni_sample; /* sample of an uppercase character */
+static uni_conv_t *uni_lang_converter=0; /* 0 means "unknown, try all" */
+static int uni_sample='A'; /* sample of an uppercase character */
+static char *uni_lang_arg=""; /* user-supplied language-dependent argument */
 
 extern int      runt1asm(int);
 
@@ -525,7 +554,8 @@ extern int      runt1asm(int);
 static int
 unicode_user(
 		 int unival,
-		 char *name
+		 char *name,
+		 char *arg
 )
 {
 	int res;
@@ -539,7 +569,8 @@ unicode_user(
 static int
 unicode_russian(
 		 int unival,
-		 char *name
+		 char *name,
+		 char *arg
 )
 {
 	int res;
@@ -568,7 +599,7 @@ unicode_russian(
 	}
 
 	/* there are enough broken fonts that pretend to be Latin1 */
-	res=unicode_latin1(unival, name);
+	res=unicode_latin1(unival, name, NULL);
 	if(res<256 && res>=0 && !IS_BITMAP(used, res))
 		return res;
 	else
@@ -578,7 +609,8 @@ unicode_russian(
 static int
 unicode_latin1(
 		 int unival,
-		 char *name
+		 char *name,
+		 char *arg
 )
 {
 	int i, res;
@@ -668,7 +700,8 @@ unicode_latin1(
 static int
 unicode_adobestd(
 		 int unival,
-		 char *name
+		 char *name,
+		 char *arg
 )
 {
 	int i, res;
@@ -754,7 +787,8 @@ unicode_adobestd(
 static int
 unicode_latin2(
 		 int unival,
-		 char *name
+		 char *name,
+		 char *arg
 )
 {
 	int i, res;
@@ -964,7 +998,8 @@ unicode_latin2(
 static int
 unicode_latin4(
 		 int unival,
-		 char *name
+		 char *name,
+		 char *arg
 )
 {
 	int i, res;
@@ -1229,7 +1264,8 @@ unicode_latin4(
 static int
 unicode_latin5(
 		 int unival,
-		 char *name
+		 char *name,
+		 char *arg
 )
 {
 	int i, res;
@@ -1319,6 +1355,42 @@ unicode_latin5(
 }
 
 static int
+unicode_GBK(
+		 int unival,
+		 char *name,
+		 char *arg
+)
+{
+	static int page=0;
+	int res;
+
+#if 0
+	fprintf(stderr, "GBK arg='%s'\n", arg);
+#endif
+
+	if(arg==0) /* just probing - never answer */
+		return -1;
+
+	if(page==0) { /* first call - convert argument to Unicode page */
+		if(sscanf(arg, "%d", &page) < 1 || page <= 0 || page > 126) {
+			fprintf(stderr, "**** language Chinese GBK requires argument of plane, 1-126\n");
+			fprintf(stderr, "for example\n");
+			fprintf(stderr, "  ttf2pt1 -l GBK%c1\n", LANG_ARG_SEP);
+			fprintf(stderr, "to select plane 1 (corresponding to the Unicode page 0x81)\n");
+			exit(1);
+		}
+		page+=0x80;
+		page <<= 8;
+	}
+
+	res = (unival & 0xFF);
+	if ((unival & 0xFF00) == page && res >=0x40) 
+		return res;
+	else
+		return -1;
+}
+
+static int
 unicode_to_win31(
 		 int unival,
 		 char *name
@@ -1334,11 +1406,11 @@ unicode_to_win31(
 
 	/* know the language */
 	if(uni_lang_converter!=0)
-		return (*uni_lang_converter)(unival, name);
+		return (*uni_lang_converter)(unival, name, uni_lang_arg);
 
 	/* don't know the language, try all */
 	for(i=0; i < sizeof uni_lang/sizeof(struct uni_language); i++) {
-		res=(*uni_lang[i].conv)(unival, name);
+		res=(*uni_lang[i].conv)(unival, name, NULL);
 		if(res == -1)
 			continue;
 		if(res & ~0xff) {
@@ -2518,19 +2590,15 @@ usage(void)
 	fputs("  -A - write the .afm file to STDOUT instead of the font itself\n", stderr);
 	fputs("  -a - include all glyphs, even those  not in the encoding table\n", stderr);
 	fputs("  -b - produce a compressed .pfb file\n", stderr);
-	fputs("  -d dbg_suboptions - debugging options, run ttf2pt1 -dh for help\n", stderr);
+	fputs("  -d dbg_suboptions - debugging options, run ttf2pt1 -d? for help\n", stderr);
 	fputs("  -e - produce a fully encoded .pfa file\n", stderr);
 	fputs("  -f - don't try to guess the value of the ForceBold hint\n", stderr);
 	fputs("  -h - disable autogeneration of hints\n", stderr);
 	fputs("  -H - enable hint substitution\n", stderr);
-	fputs("  -l language - convert Unicode to the specified language\n", stderr);
-	fputs("       the following languages are supported now:\n", stderr);
-	for(i=0; i < sizeof uni_lang/sizeof(struct uni_language); i++)
-		fprintf(stderr,"         %s (%s)\n", 
-			uni_lang[i].name,
-			uni_lang[i].descr ? uni_lang[i].descr : "no description"
-		);
+	fputs("  -l language - convert Unicode to specified language, run ttf2pt1 -l? for list\n", stderr);
 	fputs("  -L file - convert Unicode according to encoding description file\n", stderr);
+	fputs("  -m <type>=<value> - set maximal limit of given type to value, types:\n", stderr);
+	fputs("      h - maximal hint stack depth in the PostScript interpreter\n", stderr);
 	fputs("  -o - disable outline optimization\n", stderr);
 	fputs("  -s - disable outline smoothing\n", stderr);
 	fputs("  -t - disable auto-scaling to 1000x1000 standard matrix\n", stderr);
@@ -2564,7 +2632,7 @@ main(
 	
 	
 
-	while(( oc=getopt(argc, argv, "FaoebAsthHfwv:l:d:u:L:") )!= -1) {
+	while(( oc=getopt(argc, argv, "FaoebAsthHfwv:l:d:u:L:m:") )!= -1) {
 		switch(oc) {
 		case 'F':
 			forceunicode = 1;
@@ -2606,6 +2674,32 @@ main(
 					exit(1);
 					break;
 				};
+			break;
+		case 'm':
+			{
+			char subopt;
+			int val;
+
+			if(sscanf(optarg, "%c=%d", &subopt, &val) !=2) {
+				fprintf(stderr, "**** Misformatted maximal limit ****\n");
+				fprintf(stderr, "spaces around the equal sign are not allowed\n");
+				fprintf(stderr, "good examples: -mh=100 -m h=100\n");
+				fprintf(stderr, "bad examples: -mh = 100 -mh= 100\n");
+				exit(1);
+				break;
+			}
+			switch(subopt) {
+			case 'h':
+				max_stemdepth = val;
+				break;
+			default:
+				fprintf(stderr, "**** Unknown limit type '%c' ****\n", subopt);
+				fputs("The recognized limit types are:\n", stderr);
+				fputs("  h - maximal hint stack depth in the PostScript interpreter\n", stderr);
+				exit(1);
+				break;
+			}
+			}
 			break;
 		case 'h':
 			hints = 0;
@@ -2649,6 +2743,14 @@ main(
 				exit(1);
 			}
 
+			{ /* separate language from language-specific argument */
+				char *p = strchr(optarg, LANG_ARG_SEP);
+				if(p != 0) {
+					*p = 0;
+					uni_lang_arg = p+1;
+				} else
+					uni_lang_arg = "";
+			}
 			for(i=0; i < sizeof uni_lang/sizeof(struct uni_language); i++)
 				if( !strcmp(uni_lang[i].name, optarg) ) {
 					uni_lang_converter=uni_lang[i].conv;
@@ -2657,6 +2759,12 @@ main(
 
 			if(uni_lang_converter==0) {
 				fprintf(stderr, "**** unknown language '%s' ****\n", optarg);
+				fputs("       the following languages are supported now:\n", stderr);
+				for(i=0; i < sizeof uni_lang/sizeof(struct uni_language); i++)
+					fprintf(stderr,"         %s (%s)\n", 
+						uni_lang[i].name,
+						uni_lang[i].descr ? uni_lang[i].descr : "no description"
+					);
 				exit(1);
 			}
 			break;
