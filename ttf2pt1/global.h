@@ -39,6 +39,7 @@ extern int      ttf_file, numglyphs, long_offsets, ncurves;
 #define DEBUG_STEMOVERLAP	0x00000020 /* stemoverlap() */
 #define DEBUG_BLUESTEMS	0x00000040 /* markbluestems() */
 #define DEBUG_STRAIGHTEN	0x00000080 /* markbluestems() */
+#define DEBUG_EXTMAP	0x00000100 /* parsing of external map */
 #define DEBUG_DISABLED	0x80000000 /* special flag: temporary disable debugging */
 
 /* at what we want to look now */

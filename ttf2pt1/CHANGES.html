@@ -14,6 +14,52 @@ TTF2PT1 -  CHANGES history
 >
 
 <H4>
+3.22-current, work in progress
+</H4>
+<!
+-----------------------
+>
+
+(SB)
+<p>
+
+<b>New features:</b>
+<br>
+- Added arguments and initialization functions to the language
+translation routines.
+<br>
+- Added support of planes determined by arguments to the external
+maps.
+<br>
+- Added compact external maps format (primarily for Eastern fonts).
+<br>
+- Added external maps for Chinese GBK and Big5 encodings (converted
+from ttf2pfb).
+<br>
+- Added the idea of buckets to speed up the search in external maps.
+<br>
+- Changed the grouping algorithm for substituted hints: now it creates
+a bit bigger files but requires smaller hint stack when being rendered.
+<br>
+- Added maximal limit of hint stack depth, glyphs requiring bigger 
+stack get generation of substituted hints disabled. This makes substituted 
+hints safe to use, no more lost glyphs due to hint stack overflow.
+<p>
+
+<b>Bug fixes:</b>
+<br>
+- Fixed handling of "cleartomark" in built-in t1asm.
+<br>
+- Added handling of "can't happen" case in straighten() routine
+which actually happened on strange fonts and caused failure on assertion.
+<br>
+- Made it always include the glyph .notdef in the resulting font.
+<br>
+- Placed the version string in AFM file in parentheses, hopefully
+that would fix the problem with StarOffice.
+<p>
+
+<H4>
 3.21 -- March 1, 2000
 </H4>
 <!
@@ -48,6 +94,7 @@ my bugfixes.
  at octal 0140 to "quoteleft", "quotesingle" at octal 047 to
  "quoteright" to conform to the standard as suggested by 
  Martin Trautner).
+<br>
 - Fixed bug in scripts/trans that corrupted the UniqueID record
  in the translated fonts.
 <br>

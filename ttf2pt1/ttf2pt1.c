@@ -410,8 +410,6 @@ static char    *mac_glyph_names[258] = {
 	"Ccaron", "ccaron", "dmacron"
 };
 
-static int      unicode_map[256]; /* font-encoding to unicode map */
-
 /*
  * Decription of the supported conversions from Unicode
  *
@@ -430,18 +428,27 @@ static int      unicode_map[256]; /* font-encoding to unicode map */
 #define MAXUNIALIAS 10
 
 /* the character used as the language argument separator */
-#define LANG_ARG_SEP ':'
+#define LANG_ARG_SEP '+'
 
 /* type of Unicode converter function */
 typedef int uni_conv_t(int unival, char *name, char *arg);
+/* type of Unicode language initialization function */
+typedef void uni_init_t(char *arg);
 
 struct uni_language {
+	uni_init_t	*init; /* the initialization function */
 	uni_conv_t	*conv; /* the conversion function */
 	char *name; /* the language name */
 	char *descr; /* description */
 	char *alias[MAXUNIALIAS]; /* aliases of the language name */
-	int sample_upper; /* code of some uppercase character for correctvsize */
+	int sample_upper; /* code of some uppercase character for correctvsize() */
 };
+
+/* the converter routines have an option of adding this suffix to the font name */
+static char *uni_font_name_suffix = ""; /* empty by default */
+/* this buffer may be used to store the suffix */
+#define UNI_MAX_SUFFIX_LEN	100
+static char uni_suffix_buf[UNI_MAX_SUFFIX_LEN+1];
 
 /*
  * Prototypes of the conversion routines
@@ -463,7 +470,12 @@ static uni_conv_t unicode_latin4;
 static uni_conv_t unicode_latin5;
 static uni_conv_t unicode_russian;
 static uni_conv_t unicode_adobestd;
+
+static uni_init_t unicode_init_GBK;
 static uni_conv_t unicode_GBK;
+
+static uni_init_t unicode_init_user;
+static uni_conv_t unicode_user;
 
 /*
  * The order of descriptions is important: if we can't guess the
@@ -473,6 +485,7 @@ static uni_conv_t unicode_GBK;
 static struct uni_language uni_lang[]= {
 	/* pseudo-language for all the languages using Latin1 */
 	{
+		0, /* no init function */
 		unicode_latin1, 
 		"latin1",
 		"works for most of the Western languages",
@@ -480,6 +493,7 @@ static struct uni_language uni_lang[]= {
 		'A'
 	},
 	{ /* by Szalay Tamas <tomek@elender.hu> */
+		0, /* no init function */
 		unicode_latin2, 
 		"latin2",
 		"works for Central European languages",
@@ -487,6 +501,7 @@ static struct uni_language uni_lang[]= {
 		'A'
 	},
 	{ /* by Rièardas Èepas <rch@WriteMe.Com> */
+		0, /* no init function */
 		unicode_latin4, 
 		"latin4",
 		"works for Baltic languages",
@@ -494,6 +509,7 @@ static struct uni_language uni_lang[]= {
 		'A'
 	},
 	{ /* by Turgut Uyar <uyar@cs.itu.edu.tr> */
+		0, /* no init function */
 		unicode_latin5, 
 		"latin5",
 		"for Turkish",
@@ -501,6 +517,7 @@ static struct uni_language uni_lang[]= {
 		'A'
 	},
 	{
+		0, /* no init function */
 		unicode_russian,
 		"russian",
 		"in Windows encoding",
@@ -508,6 +525,7 @@ static struct uni_language uni_lang[]= {
 		'A'
 	},
 	{
+		0, /* no init function */
 		unicode_russian, /* a hack to allow different converters */
 		"bulgarian",
 		"in Windows encoding",
@@ -515,14 +533,16 @@ static struct uni_language uni_lang[]= {
 		'A'
 	},
 	{
+		0, /* no init function */
 		unicode_adobestd,
 		"adobestd",
 		"Adobe Standard, expected by TeX",
 		{ },
 		'A'
 	},
-#if 0 /* needs a translation map */
+#if 0 /* nonfunctional, needs a translation map - here only as example */
 	{
+		unicode_init_GBK,
 		unicode_GBK,
 		"GBK",
 		"Chinese in GBK encoding",
@@ -542,14 +562,183 @@ extern int      runt1asm(int);
  * Bitmap control macros
  */
 
-#define DEF_BITMAP(name, size)	unsigned char name[size/8]
+#define DEF_BITMAP(name, size)	unsigned char name[((size)+7)/8]
 #define SET_BITMAP(name, bit)	( name[(bit)/8] |= (1<<((bit)%8)) )
 #define CLR_BITMAP(name, bit)	( name[(bit)/8] &= ~(1<<((bit)%8)) )
 #define IS_BITMAP(name, bit)	( name[(bit)/8] & (1<<((bit)%8)) )
 
 /*
- *
+ * user-defined loadable maps
  */
+
+
+/* The idea begind buckets is to avoid comparing every code with all 256 codes int table.
+ * All the 16-bit unicode space is divided between a number of equal-sized buckets.
+ * Initially all the buckets are marked with 0. Then if any code in the bucket is
+ * used it's marked with 1. Later during translation we check the code's bucket first
+ * and it it's 0 then return failure right away. This may be useful for
+ * Chinese fonts with many thousands of glyphs.
+ */
+
+#define BUCKET_ID_BITS	11
+#define MARK_UNI_BUCKET(unicode) SET_BITMAP(uni_user_buckets, (unicode)>>(16-BUCKET_ID_BITS))
+#define IS_UNI_BUCKET(unicode) IS_BITMAP(uni_user_buckets, (unicode)>>(16-BUCKET_ID_BITS))
+
+static DEF_BITMAP(uni_user_buckets, 1<<BUCKET_ID_BITS);
+
+static unsigned short unicode_map[256]; /* font-encoding to unicode map */
+
+static void
+unicode_init_user(
+		 char *path
+)
+{
+	FILE           *unicode_map_file;
+#define UNIBFSZ	256
+	char            buffer[UNIBFSZ];
+	unsigned        code, unicode, curpos, unicode2;
+	char           *arg, *p;
+	int             enabled, found;
+	int             lineno, cnt, n;
+	char            next;
+
+	/* check if we have an argument (plane name) */
+	arg = strrchr(path, LANG_ARG_SEP);
+	if(arg != 0) {
+		*arg++ = 0;
+		if( *arg == 0 || strlen(arg) > UNI_MAX_SUFFIX_LEN-1) 
+			arg = NULL;
+		else {
+			sprintf(uni_suffix_buf, "-%s", arg);
+			uni_font_name_suffix = uni_suffix_buf;
+		}
+	} 
+
+	/* now read in the encoding description file, if requested */
+	if ((unicode_map_file = fopen(path, "r")) == NULL) {
+		fprintf(stderr, "**** Cannot access map file '%s' ****\n", path);
+		exit(1);
+	}
+
+	if(arg==NULL)
+		enabled = found = 1;
+	else
+		enabled = found = 0;
+
+	lineno=0; curpos=0;
+	while (fgets (buffer, UNIBFSZ, unicode_map_file) != NULL) {
+		char name[UNIBFSZ];
+
+		lineno++;
+
+		if(sscanf(buffer, "plane %s",&name)==1) {
+			if(arg == 0) {
+				fprintf(stderr, "**** map file '%s' requires plane name\n", path);
+				fprintf(stderr, "for example:\n", path);
+				fprintf(stderr, "  ttf2pt1 -L %s%c%s ...\n", path, LANG_ARG_SEP, name);
+				fprintf(stderr, "to select plane '%s'\n", name);
+				exit(1);
+			}
+			if( !strcmp(arg, name) ) {
+				enabled = found = 1; 
+				curpos = 0;
+			} else {
+				enabled = 0;
+				if(found) /* no need to read further */
+					break;
+			}
+			continue;
+		}
+
+		if( !enabled )
+			continue; /* skip to the next plane */
+
+		if( sscanf(buffer, "at %i", &curpos) == 1 ) {
+			if(curpos > 255) {
+				fprintf(stderr, "**** map file '%s' line %d: code over 255\n", path, lineno);
+				exit(1);
+			}
+			if(ISDBG(EXTMAP)) fprintf(stderr, "=== at 0x%x\n", curpos);
+			continue;
+		}
+
+		/* try the format of Roman Czyborra's files */
+		if (sscanf (buffer, " =%x U+%4x", &code, &unicode) == 2) {
+			if (code < 256) {
+				MARK_UNI_BUCKET(unicode);
+				unicode_map[code] = unicode;
+				glyph_rename[code] = NULL;
+			}
+		}
+		/* try the format of Linux locale charmap file */
+		else if (sscanf (buffer, " <%*s /x%x <U%4x>", &code, &unicode) == 2) {
+			if (code < 256) {
+				MARK_UNI_BUCKET(unicode);
+				unicode_map[code] = unicode;
+				glyph_rename[code] = NULL;
+			}
+		}
+		/* try the format with glyph renaming */
+		else if (sscanf (buffer, " !%x U+%4x %128s", &code,
+			&unicode, name) == 3) {
+			if (code < 256) {
+				MARK_UNI_BUCKET(unicode);
+				unicode_map[code] = unicode;
+				glyph_rename[code] = strdup(name);
+			}
+		}
+		/* try the compact sequence format */
+		else if( (n=sscanf(buffer, " %i%n", &unicode, &cnt)) == 1 ) {
+			p = buffer;
+			do {
+				if(curpos > 255) {
+					fprintf(stderr, "**** map file '%s' line %d: code over 255 for unicode 0x%x\n", 
+						path, lineno, unicode);
+					exit(1);
+				}
+				if(ISDBG(EXTMAP)) fprintf(stderr, "=== 0x%d -> 0x%x\n", curpos, unicode);
+				MARK_UNI_BUCKET(unicode);
+				unicode_map[curpos++] = unicode;
+				p += cnt;
+				if( sscanf(p, " %[,-]%n", &next,&cnt) == 1 ) {
+					if(ISDBG(EXTMAP)) fprintf(stderr, "=== next: '%c'\n", next);
+					p += cnt;
+					if( next == '-' ) { /* range */
+						if ( sscanf(p, " %i%n", &unicode2, &cnt) != 1 ) {
+							fprintf(stderr, "**** map file '%s' line %d: missing end of range\n", path, lineno);
+							exit(1);
+						}
+						p += cnt;
+						if(ISDBG(EXTMAP)) fprintf(stderr, "=== range 0x%x to 0x%x\n", unicode, unicode2);
+						for(unicode++; unicode <= unicode2; unicode++) {
+							if(curpos > 255) {
+								fprintf(stderr, "**** map file '%s' line %d: code over 255 in unicode range ...-0x%x\n", 
+									path, lineno, unicode2);
+								exit(1);
+							}
+							if(ISDBG(EXTMAP)) fprintf(stderr, "=== 0x%x -> 0x%x\n", curpos, unicode);
+							MARK_UNI_BUCKET(unicode);
+							unicode_map[curpos++] = unicode;
+						}
+					}
+				}
+			} while ( sscanf(p, " %i%n", &unicode, &cnt) == 1 );
+		}
+
+	}
+
+	fclose (unicode_map_file);
+
+	if( !found ) {
+		fprintf(stderr, "**** map file '%s' has no plane '%s'\n", path, arg);
+		exit(1);
+	}
+
+	if(unicode_map['A'] == 'A')
+		uni_sample = 'A'; /* seems to be compatible with Latin */
+	else
+		uni_sample = 0; /* don't make any assumptions */
+}
 
 static int
 unicode_user(
@@ -559,6 +748,9 @@ unicode_user(
 )
 {
 	int res;
+
+	if( ! IS_UNI_BUCKET(unival) )
+		return -1;
 
 	for (res = 0; res < 256; res++)
 		if (unicode_map[res] == unival)
@@ -1354,6 +1546,32 @@ unicode_latin5(
 	}
 }
 
+/* non-functional now, shown as example */
+static int GBK_plane;
+
+static void
+unicode_init_GBK(
+		 char *arg
+)
+{
+	int res;
+
+	if(sscanf(arg, "%x", &GBK_plane) < 1 || GBK_plane < 0x81 || GBK_plane > 0xFE) {
+		fprintf(stderr, "**** language Chinese GBK requires argument of plane, 81 to FE (hexadecimal)\n");
+		fprintf(stderr, "for example\n");
+		fprintf(stderr, "  ttf2pt1 -l GBK%c81\n", LANG_ARG_SEP);
+		fprintf(stderr, "to select plane 81\n");
+		exit(1);
+	}
+
+	/* not snprintf() for reasons of compatibility with old systems */
+	sprintf(uni_suffix_buf, "-%02x", GBK_plane);
+	uni_font_name_suffix = uni_suffix_buf;
+
+	GBK_plane <<= 8;
+}
+
+/* non-functional now, shown as example */
 static int
 unicode_GBK(
 		 int unival,
@@ -1361,31 +1579,18 @@ unicode_GBK(
 		 char *arg
 )
 {
-	static int page=0;
+	static int map[0]={};
 	int res;
-
-#if 0
-	fprintf(stderr, "GBK arg='%s'\n", arg);
-#endif
 
 	if(arg==0) /* just probing - never answer */
 		return -1;
 
-	if(page==0) { /* first call - convert argument to Unicode page */
-		if(sscanf(arg, "%d", &page) < 1 || page <= 0 || page > 126) {
-			fprintf(stderr, "**** language Chinese GBK requires argument of plane, 1-126\n");
-			fprintf(stderr, "for example\n");
-			fprintf(stderr, "  ttf2pt1 -l GBK%c1\n", LANG_ARG_SEP);
-			fprintf(stderr, "to select plane 1 (corresponding to the Unicode page 0x81)\n");
-			exit(1);
-		}
-		page+=0x80;
-		page <<= 8;
-	}
+	if(unival >= sizeof map)
+		return -1;
 
-	res = (unival & 0xFF);
-	if ((unival & 0xFF00) == page && res >=0x40) 
-		return res;
+	res = map[unival];
+	if((res & 0xFF00) == GBK_plane)
+		return res & 0xFF;
 	else
 		return -1;
 }
@@ -2624,13 +2829,6 @@ main(
 	char           *lang;
 	int             oc;
 	int             subid;
-	char           *unicode_map_filename;
-	FILE           *unicode_map_file;
-#define UNIBFSZ	100
-	char            buffer[UNIBFSZ];
-	int             code, unicode;
-	
-	
 
 	while(( oc=getopt(argc, argv, "FaoebAsthHfwv:l:d:u:L:m:") )!= -1) {
 		switch(oc) {
@@ -2755,6 +2953,8 @@ main(
 				if( !strcmp(uni_lang[i].name, optarg) ) {
 					uni_lang_converter=uni_lang[i].conv;
 					uni_sample=uni_lang[i].sample_upper;
+					if(uni_lang[i].init != 0)
+						uni_lang[i].init(uni_lang_arg);
 				}
 
 			if(uni_lang_converter==0) {
@@ -2774,8 +2974,7 @@ main(
 				exit(1);
 			}
 			uni_lang_converter = unicode_user;
-			uni_sample = 'A'; /* hope that it's compatible with ASCII */
-			unicode_map_filename = optarg; 
+			unicode_init_user(optarg);
 			break;
 		default:
 			usage();
@@ -2815,44 +3014,6 @@ main(
 	got_a_language:
 		if(uni_lang_converter!=0) 
 			fprintf(stderr, "Using language '%s' for Unicode fonts\n", uni_lang[i].name);
-	}
-
-/* now read in the encoding description file, if requested */
-	if (uni_lang_converter == unicode_user) {
-		if ((unicode_map_file = fopen(unicode_map_filename, "r")) == NULL) {
-			fprintf(stderr, "**** Cannot access file '%s' ****\n", 
-				unicode_map_filename);
-			exit(1);
-		}
-
-		while (fgets (buffer, 100, unicode_map_file) != NULL) {
-			char gname[128];
-			/* try the format of Roman Czyborra's files */
-			if (sscanf (buffer, " =%x U+%4x", &code, &unicode) == 2) {
-				if (code < 256) {
-					unicode_map[code] = unicode;
-					glyph_rename[code] = NULL;
-				}
-			}
-			/* try the format of locale charmap file */
-			else if (sscanf (buffer, " <%*s /x%x <U%4x>", &code, &unicode) == 2) {
-				if (code < 256) {
-					unicode_map[code] = unicode;
-					glyph_rename[code] = NULL;
-				}
-			}
-			/* Try format with glyph renaming */
-			else if (sscanf (buffer, " !%x U+%4x %128s", &code,
-				&unicode, gname) == 3) {
-				if (code < 256) {
-					unicode_map[code] = unicode;
-					glyph_rename[code] = strdup(gname);
-				}
-			}
-
-		}
-
-		fclose (unicode_map_file);
 	}
 
 	if (stat(argv[1], &statbuf) == -1) {
@@ -3047,6 +3208,13 @@ main(
 		for (i = 0; i < 256; i++) {
 			glyph_list[encoding[i]].flags |= GF_USED;
 		}
+
+		/* also always include .notdef */
+		for (i = 0; i < numglyphs; i++) 
+			if(!strcmp(glyph_list[i].name, ".notdef")) {
+				glyph_list[i].flags |= GF_USED;
+				break;
+			}
 	}
 
 	for (i = 0; i < numglyphs; i++) {
@@ -3143,7 +3311,7 @@ main(
 	fprintf(pfa_file, "%%%%EndComments\n");
 	fprintf(pfa_file, "12 dict begin\n/FontInfo 9 dict dup begin\n");
 
-	fprintf(stderr, "FontName %s\n", name_fields[6]);
+	fprintf(stderr, "FontName %s%s\n", name_fields[6], uni_font_name_suffix);
 
 
 	fprintf(pfa_file, "/version (%s) readonly def\n", name_fields[5]);
@@ -3186,7 +3354,7 @@ main(
 	}
 
     fprintf(afm_file, "StartFontMetrics 4.1\n");
-    fprintf(afm_file, "FontName %s\n", name_fields[6]);
+	fprintf(afm_file, "FontName %s%s\n", name_fields[6], uni_font_name_suffix);
     fprintf(afm_file, "FullName %s\n", name_fields[4]);
     fprintf(afm_file, "Notice %s\n", name_fields[0]);
     fprintf(afm_file, "EncodingScheme FontSpecific\n");
@@ -3233,7 +3401,7 @@ main(
     fprintf(afm_file, "FontBBox %d %d %d %d\n",
 		bbox[0], bbox[1], bbox[2], bbox[3]);
 
-	fprintf(pfa_file, "/FontName /%s def\n", name_fields[6]);
+	fprintf(pfa_file, "/FontName %s%s\n", name_fields[6], uni_font_name_suffix);
 	fprintf(pfa_file, "/PaintType 0 def\n/StrokeWidth 0 def\n");
 	/* I'm not sure if these are fixed */
 	fprintf(pfa_file, "/FontType 1 def\n");
