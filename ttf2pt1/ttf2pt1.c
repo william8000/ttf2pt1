@@ -2424,7 +2424,8 @@ main(
 		if(strUID)
 			fprintf(pfa_file, "/UniqueID %s def\n", strUID);
 		else
-			fprintf(pfa_file, "/UniqueID %lu def\n", numUID);
+			/* the range for private UIDs is 4 000 000 - 4 999 999 */
+			fprintf(pfa_file, "/UniqueID %lu def\n", numUID%1000000+4000000);
 	}
 
 	if(forcebold==0)
