@@ -2546,7 +2546,7 @@ main(
 		if( glyph_list[encoding[i]].flags & GF_USED )  {
 			short bbox[4];
 
-			cursw->glbbox(i, bbox);
+			cursw->glbbox(encoding[i], bbox);
 			print_glyph_metrics(i, encoding[i], bbox);
 		}
 	}
