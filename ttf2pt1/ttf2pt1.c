@@ -72,9 +72,11 @@
 #ifndef WINDOWS
 #	include <unistd.h>
 #	include <netinet/in.h>
+#       define BITBUCKET "/dev/null"
 #else
 #	define WINDOWS_FUNCTIONS /* ask to define functions - in one file only */
 #	include "windows.h"
+#       define BITBUCKET "NUL"
 #endif
 
 #include "pt1.h"
@@ -2243,16 +2245,15 @@ main(
 
 	if (argv[2][0] == '-' && argv[2][1] == 0) {
 		pfa_file = stdout;
-#ifndef WINDOWS
-		if ((afm_file = fopen("/dev/null", "w+")) == NULL) {
-#else /* WINDOWS */
+#ifdef WINDOWS
 		if(encode) {
 			fprintf(stderr, "**** can't write encoded file to stdout ***\n");
 			exit(1);
 		}
-		if ((afm_file = fopen("NUL", "w+")) == NULL) {
 #endif /* WINDOWS */
-			fprintf(stderr, "**** Cannot open /dev/null ****\n");
+		if ((afm_file = fopen(BITBUCKET, "w+")) == NULL) {
+			fprintf(stderr, "**** Cannot open %s ****\n",
+				BITBUCKET);
 			exit(1);
 		}
 		if(wantafm) { /* print .afm instead of .pfa */
@@ -2483,7 +2484,7 @@ main(
 	}
 
     fprintf(afm_file, "StartFontMetrics 4.1\n");
-	fprintf(afm_file, "FontName %s%s\n", fontm.name_ps, uni_font_name_suffix);
+    fprintf(afm_file, "FontName %s%s\n", fontm.name_ps, uni_font_name_suffix);
     fprintf(afm_file, "FullName %s\n", fontm.name_full);
     fprintf(afm_file, "Notice %s\n", fontm.name_copyright);
     fprintf(afm_file, "EncodingScheme FontSpecific\n");
