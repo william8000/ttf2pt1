@@ -1336,8 +1336,8 @@ handle_gnames(void)
 		for (n = 0; n < numglyphs; n++) {
 			c = uni_lang_selected->convbyname(glyph_list[n].name, 
 				uni_lang_arg, UNICONV_BYNAME_BEFORE);
-			if(c>=0 && c<ENCTABSZ && encoding[n] == -1)
-				encoding[n] = n;
+			if(c>=0 && c<ENCTABSZ && encoding[c] == -1)
+				encoding[c] = n;
 		}
 	}
 
@@ -1380,8 +1380,8 @@ handle_gnames(void)
 		for (n = 0; n < numglyphs; n++) {
 			c = uni_lang_selected->convbyname(glyph_list[n].name, 
 				uni_lang_arg, UNICONV_BYNAME_AFTER);
-			if(c>=0 && c<ENCTABSZ && encoding[n] == -1)
-				encoding[n] = n;
+			if(c>=0 && c<ENCTABSZ && encoding[c] == -1)
+				encoding[c] = n;
 		}
 	}
 	/* all the encoding things are done */
