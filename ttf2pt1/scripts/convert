@@ -67,14 +67,14 @@ LOG=$DSTDIR/convert.log
 
 # artefact of backwards-compatibility with .cfg
 [ -z "$CORRECTWIDTH" -a YES != "$DONTCORRECTWIDTH" ] && {
-	TTF2PT1="$TTF2PT1 -w"
+	TTF2PT1="$TTF2PT1 -OW"
 }
 [ YES = "$CORRECTWIDTH" ] && {
-	TTF2PT1="$TTF2PT1 -w"
+	TTF2PT1="$TTF2PT1 -OW"
 }
 
-[ YES = "$HINTSUBST" ] && {
-	TTF2PT1="$TTF2PT1 -H"
+[ YES != "$HINTSUBST" ] && {
+	TTF2PT1="$TTF2PT1 -Ou" # meaning changed past 3.22
 }
 
 [ YES = "$ALLGLYPHS" -a YES = "$ENFORCEISO" ] && {

@@ -5,18 +5,9 @@
 
 /* options */
 
-extern int      optimize;	/* enables space optimization */
-extern int      smooth;	/* enable smoothing of outlines */
-extern int      transform;	/* enables transformation to 1000x1000 matrix */
-extern int      hints;	/* enables autogeneration of hints */
-extern int      subhints;	/* enables autogeneration of substituted hints */
-extern int      absolute;	/* print out in absolute values */
-extern int      trybold;	/* try to guess whether the font is bold */
-extern int      reverse;	/* reverse font to Type1 path directions */
 extern int      encode;	/* encode the resulting file */
 extern int      pfbflag;	/* produce compressed file */
 extern int      wantafm;	/* want to see .afm instead of .t1a on stdout */
-extern int      correctwidth;	/* try to correct the character width */
 extern int      correctvsize;	/* try to correct the vertical size of characters */
 extern int      wantuid;	/* user wants UniqueID entry in the font */
 extern int      allglyphs;	/* convert all glyphs, not only 256 of them */
@@ -24,6 +15,17 @@ extern int      warnlevel;	/* the level of permitted warnings */
 extern int      forceunicode; /* consider any fonr as Unicode for mapping purposes */
 /* options - maximal limits */
 extern int      max_stemdepth;	/* maximal depth of stem stack in interpreter */
+/* options - debugging */
+extern int      absolute;	/* print out in absolute values */
+extern int      reverse;	/* reverse font to Type1 path directions */
+/* options - suboptions of Outline Processing */
+extern int      optimize;	/* enables space optimization */
+extern int      smooth;	/* enable smoothing of outlines */
+extern int      transform;	/* enables transformation to 1000x1000 matrix */
+extern int      hints;	/* enables autogeneration of hints */
+extern int      subhints;	/* enables autogeneration of substituted hints */
+extern int      trybold;	/* try to guess whether the font is bold */
+extern int      correctwidth;	/* try to correct the character width */
 
 /* other globals */
 extern FILE    *pfa_file, *afm_file, *ttf_file;

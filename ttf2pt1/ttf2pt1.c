@@ -91,18 +91,9 @@ struct frontsw *cursw=0; /* the active front end */
 char *front_arg=""; /* optional argument */
 
 /* options */
-int      optimize = 1;	/* enables space optimization */
-int      smooth = 1;	/* enable smoothing of outlines */
-int      transform = 1;	/* enables transformation to 1000x1000 matrix */
-int      hints = 1;	/* enables autogeneration of hints */
-int      subhints = 0;	/* enables autogeneration of substituted hints */
-int      absolute = 0;	/* print out in absolute values */
-int      trybold = 1;	/* try to guess whether the font is bold */
-int      reverse = 1;	/* reverse font to Type1 path directions */
 int      encode = 0;	/* encode the resulting file */
 int      pfbflag = 0;	/* produce compressed file */
 int      wantafm=0;	/* want to see .afm instead of .t1a on stdout */
-int      correctwidth=0;	/* try to correct the character width */
 int      correctvsize=0;	/* try to correct the vertical size of characters */
 int      wantuid = 0;	/* user wants UniqueID entry in the font */
 int      allglyphs = 0;	/* convert all glyphs, not only 256 of them */
@@ -110,7 +101,34 @@ int      warnlevel = 3;	/* the level of permitted warnings */
 int      forceunicode = 0; /* consider any fonr as Unicode for mapping purposes */
 /* options - maximal limits */
 int      max_stemdepth = 128;	/* maximal depth of stem stack in interpreter (128 - limit from X11) */
+/* options - debugging */
+int      absolute = 0;	/* print out in absolute values */
+int      reverse = 1;	/* reverse font to Type1 path directions */
+/* options - suboptions of Outline Processing, defaults are set in table */
+int      optimize;	/* enables space optimization */
+int      smooth;	/* enable smoothing of outlines */
+int      transform;	/* enables transformation to 1000x1000 matrix */
+int      hints;	/* enables autogeneration of hints */
+int      subhints;	/* enables autogeneration of substituted hints */
+int      trybold;	/* try to guess whether the font is bold */
+int      correctwidth;	/* try to correct the character width */
 
+/* table of Outline Processing (may think also as Optimization) options */
+static struct {
+	char disbl; /* character to disable - enforced lowercase */
+	char enbl;  /* character to enable - auto-set as toupper(disbl) */
+	int *valp; /* pointer to the actual variable containign value */
+	int  dflt; /* default value */
+	char *descr; /* description */
+} opotbl[] = {
+	{ 'b', 0/*auto-set*/, &trybold, 1, "guessing of the ForceBold hint" },
+	{ 'h', 0/*auto-set*/, &hints, 1, "autogeneration of hints" },
+	{ 'u', 0/*auto-set*/, &subhints, 1, "hint substitution technique" },
+	{ 'o', 0/*auto-set*/, &optimize, 1, "space optimization of font files" },
+	{ 's', 0/*auto-set*/, &smooth, 1, "smoothing and repair of outlines" },
+	{ 't', 0/*auto-set*/, &transform, 1, "auto-scaling to the standard matrix 1000x1000" },
+	{ 'w', 0/*auto-set*/, &correctwidth, 0, "correct the glyph widths (use only for buggy fonts)" },
+};
 
 int      debug = DEBUG;	/* debugging flag */
 
@@ -1755,9 +1773,9 @@ handle_gnames(void)
 
 	/* enforce two special cases defined in TTF manual */
 	if(numglyphs > 0)
-		glyph_list[0].name = ".null";
+		glyph_list[0].name = ".notdef";
 	if(numglyphs > 1)
-		glyph_list[1].name = ".notdef";
+		glyph_list[1].name = ".null";
 
  	for (i = 0; i < 256; i++) {
  		if ((encoding[i] != 0) && glyph_rename[i]) {
@@ -1783,22 +1801,24 @@ usage(void)
 	fputs("  -b - produce a compressed .pfb file\n", stderr);
 	fputs("  -d dbg_suboptions - debugging options, run ttf2pt1 -d? for help\n", stderr);
 	fputs("  -e - produce a fully encoded .pfa file\n", stderr);
-	fputs("  -f - don't try to guess the value of the ForceBold hint\n", stderr);
-	fputs("  -h - disable autogeneration of hints\n", stderr);
-	fputs("  -H - enable hint substitution\n", stderr);
+	fputs("  -F - force use of Unicode encoding even if other MS encoding detected\n", stderr); 
 	fputs("  -l language - convert Unicode to specified language, run ttf2pt1 -l? for list\n", stderr);
 	fputs("  -L file - convert Unicode according to encoding description file\n", stderr);
 	fputs("  -m <type>=<value> - set maximal limit of given type to value, types:\n", stderr);
 	fputs("      h - maximal hint stack depth in the PostScript interpreter\n", stderr);
+	fputs("  -O suboptions - control outline processing, run ttf2pt1 -O? for help\n", stderr);
 	fputs("  -p name - use specific front-end parser, run ttf2pt1 -p? for list\n", stderr);
+	fputs("  -u id - use this UniqueID, -u A means autogeneration\n", stderr);
+	fputs("  -v size - scale the font to make uppercase letters >size/1000 high\n", stderr);
+	fputs("  -W <number> - set the level of permitted warnings (0 - disable)\n", stderr);
+	fputs("Obsolete options (will be removed in future releases, use -O? instead):\n", stderr); 
+	fputs("  -f - don't try to guess the value of the ForceBold hint\n", stderr);
+	fputs("  -h - disable autogeneration of hints\n", stderr);
+	fputs("  -H - disable hint substitution\n", stderr);
 	fputs("  -o - disable outline optimization\n", stderr);
 	fputs("  -s - disable outline smoothing\n", stderr);
 	fputs("  -t - disable auto-scaling to 1000x1000 standard matrix\n", stderr);
-	fputs("  -u id - use this UniqueID, -u A means autogeneration\n", stderr);
-	fputs("  -v size - scale the font to make uppercase letters >size/1000 high\n", stderr);
 	fputs("  -w - correct the glyph widths (use only for buggy fonts)\n", stderr);
-	fputs("  -W <number> - set the level of permitted warnings (0 - disable)\n", stderr);
-	fputs("  -F - force use of Unicode encoding even if other MS encoding detected\n", stderr); 
 	fputs("The last '-' means 'use STDOUT'.\n", stderr);
 }
 
@@ -1817,7 +1837,14 @@ main(
 	int             oc;
 	int             subid;
 
-	while(( oc=getopt(argc, argv, "FaoebAsthHfwv:p:l:d:u:L:m:W:") )!= -1) {
+	/* initialize sub-options of -O */
+	for(i=0; i< (sizeof opotbl)/(sizeof opotbl[0]); i++) {
+		opotbl[i].disbl = tolower(opotbl[i].disbl);
+		opotbl[i].enbl = toupper(opotbl[i].disbl);
+		*(opotbl[i].valp) = opotbl[i].dflt;
+	}
+
+	while(( oc=getopt(argc, argv, "FaoebAsthHfwv:p:l:d:u:L:m:W:O:") )!= -1) {
 		switch(oc) {
 		case 'W':
 			if(sscanf(optarg, "%d", &warnlevel) < 1 || warnlevel < 0) {
@@ -1829,6 +1856,7 @@ main(
 			forceunicode = 1;
 			break;
 		case 'o':
+			fputs("Warning: option -o is obsolete, use -Oo instead\n", stderr);
 			optimize = 0;
 			break;
 		case 'e':
@@ -1844,9 +1872,11 @@ main(
 			allglyphs = 1;
 			break;
 		case 's':
+			fputs("Warning: option -s is obsolete, use -Os instead\n", stderr);
 			smooth = 0;
 			break;
 		case 't':
+			fputs("Warning: option -t is obsolete, use -Ot instead\n", stderr);
 			transform = 0;
 			break;
 		case 'd':
@@ -1869,7 +1899,7 @@ main(
 				};
 			break;
 		case 'm':
-			{
+		{
 			char subopt;
 			int val;
 
@@ -1893,18 +1923,63 @@ main(
 				exit(1);
 				break;
 			}
+			break;
+		}
+		case 'O':
+		{
+			char subopt;
+			char *p;
+			char dflt[20]; /* should be big enough */
+			for(p=optarg; (subopt = *p) != 0; p++) {
+				for(i=0; i< (sizeof opotbl)/(sizeof opotbl[0]); i++) {
+					if(subopt == opotbl[i].disbl) {
+						*(opotbl[i].valp) = 0;
+						break;
+					} else if(subopt == opotbl[i].enbl) {
+						*(opotbl[i].valp) = 1;
+						break;
+					} 
+				}
+				if( i == (sizeof opotbl)/(sizeof opotbl[0]) ) { /* found no match */
+					if (subopt != '?')
+						fprintf(stderr, "**** Unknown outline processing suboption '%c' ****\n", subopt);
+					fprintf(stderr,"The general form of the outline processing option is:\n");
+					fprintf(stderr,"   -O suboptions\n");
+					fprintf(stderr,"(To remember easily -O may be also thought of as \"optimization\").\n");
+					fprintf(stderr,"The lowercase suboptions disable features, corresponding\n");
+					fprintf(stderr,"uppercase suboptions enable them. The supported suboptions,\n");
+					fprintf(stderr,"their default states and the features they control are:\n");
+					p = dflt;
+					for(i=0; i< (sizeof opotbl)/(sizeof opotbl[0]); i++) {
+						fprintf(stderr,"   %c/%c - [%s] %s\n", opotbl[i].disbl, opotbl[i].enbl,
+							opotbl[i].dflt ? "enabled" : "disabled", opotbl[i].descr);
+						if(opotbl[i].dflt)
+							*p++ = opotbl[i].enbl;
+						else
+							*p++ = opotbl[i].disbl;
+					}
+					*p = 0;
+					fprintf(stderr, "The default state corresponds to the option -O %s\n", dflt);
+					exit(1);
+				}
 			}
 			break;
+		}
 		case 'h':
+			fputs("Warning: option -h is obsolete, use -Oh instead\n", stderr);
 			hints = 0;
 			break;
 		case 'H':
-			subhints = 1;
+			fputs("Warning: meaning of option -H has been changed to its opposite\n", stderr);
+			fputs("Warning: option -H is obsolete, use -Ou instead\n", stderr);
+			subhints = 0;
 			break;
 		case 'f':
+			fputs("Warning: option -f is obsolete, use -Ob instead\n", stderr);
 			trybold = 0;
 			break;
 		case 'w':
+			fputs("Warning: option -w is obsolete, use -OW instead\n", stderr);
 			correctwidth = 1;
 			break;
 		case 'u':
@@ -2329,7 +2404,7 @@ main(
     fprintf(afm_file, "EncodingScheme FontSpecific\n");
     fprintf(afm_file, "FamilyName %s\n", fontm.name_family);
     fprintf(afm_file, "Weight %s\n", fontm.name_style);
-    fprintf(afm_file, "Version (%s)\n", fontm.name_version);
+    fprintf(afm_file, "Version %s\n", fontm.name_version);
     fprintf(afm_file, "Characters %d\n", nchars);
     fprintf(afm_file, "ItalicAngle %.1f\n", italic_angle);
 

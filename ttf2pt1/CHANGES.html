@@ -28,16 +28,25 @@ Packaged by Sergey Babkin.
 - Started conversion of the outlines' processing to floating point
 arithmetic.
 <br>
-- Added splitting of curves which cross quadrant boundaries (no gross 
-damage is done any more on the Marvosym font and others like it).
+- Added splitting of curves crossing the quadrant boundaries (no gross 
+damage is done any more to the Marvosym font and others like it).
 <br>
 - Added modular interface for front-end font parsers and option to control
 their selection at run time.
+<br>
+- Grouped the outline processing control options into one to reduce the
+options namespace pollution.
 <p>
 
 <b>Bug fixes:</b>
 <br>
 - Fixed the VC++ batch file, added batch file for Cygnus GCC on Windows.
+<br>
+- Removed parentheses from the Version string in AFM files because it does
+not help StarOffice anyway. StarOffice 5.2 has been reported to have this
+bug fixed. Added paragraph on StarOffice in INSTALL.html.
+<br>
+- Made messages on the '?' option parameter more meaningful (by Johan Vromans).
 <p>
 
 <H4>

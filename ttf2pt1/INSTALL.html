@@ -53,6 +53,7 @@ fonts:
 - <A HREF="#netscape">Netscape Navigator/Communicator</A><br>
 - <A HREF="#rpm">Linux RPM package</A><br>
 - <A HREF="#framemaker">FrameMaker</A><br>
+- <A HREF="#soffice">StarOffice</A><br>
 </b><p>
 
 <A NAME="X11"></A>
@@ -502,6 +503,24 @@ that say to put a "serverdict begin 0 exitserver" line in the pfa files.
 Doing this caused both my printer and ghostscript to choke on the resulting
 output from FrameMaker, so I would not advise doing this (though your
 mileage may vary).
+<p>
+
+<A NAME="soffice"></a>
+<H3>
+StarOffice
+</H3>
+<!
+==========
+>
+
+StarOffice 5.1x has been reported to crash if the <tt>.afm</tt> file contains
+spaces in the values of such statements as <b>Version</b>, <b>Weight</b> etc.
+These spaces are permitted by the Adobe spec, so this is a problem of
+StarOffice. The easiest way to fix these <tt>.afm</tt> files for StarOffice
+is to remove spaces in these strings or remove these strings (in case if
+they are optional) at all. This can be done automatically with a <tt>sed</tt>
+script. It seems that StarOffice 5.2 has this problem fixed, so we decided to
+spend no efforts on providing workarounds for 5.1 with <tt>ttf2pt1</tt>.
 <p>
 
 </BODY>
