@@ -4918,10 +4918,10 @@ fcrossrayscv(
 	ray[0].y2 = curve[1][Y];
 	ray[0].maxp = max1;
 
-	ray[1].x1 = curve[2][X];
-	ray[1].y1 = curve[2][Y];
-	ray[1].x2 = curve[3][X];
-	ray[1].y2 = curve[3][Y];
+	ray[1].x1 = curve[3][X];
+	ray[1].y1 = curve[3][Y];
+	ray[1].x2 = curve[2][X];
+	ray[1].y2 = curve[2][Y];
 	ray[1].maxp = max2;
 
 	return fcrossraysxx(&curve[1]);
