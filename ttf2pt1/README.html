@@ -82,16 +82,16 @@ or
 
 <!-- =section t1 OPTIONS -->
 The first variant creates the file <tt>Fontname.pfa</tt> (or <tt>Fontname.pfb</tt> if the 
-option `<b>-b</b>' was used) with the converted font and <tt>Fontname.afm</tt> with the 
+option '<b>-b</b>' was used) with the converted font and <tt>Fontname.afm</tt> with the 
 font metrics, the second one prints the font or the font metrics (if the option
-`<b>-A</b>' was used) on the standard output from where it can be immediately
+'<b>-A</b>' was used) on the standard output from where it can be immediately
 piped through some filter. If no <tt>Fontname</tt> is specified for the first
 variant, the name is generated from <tt>ttffont</tt> by replacing the <tt>.ttf</tt>
 filename suffix.
 <p>
 
 Most of the time no options are neccessary (with a possible exception
-of `<b>-e</b>'). But if there are some troubles with the resulting font, they 
+of '<b>-e</b>'). But if there are some troubles with the resulting font, they 
 may be used to control the conversion.
 The <B>options</B> are:
 <p>
@@ -126,7 +126,7 @@ The <B>options</B> are:
 <blockquote>
    <TT><B>a</TT></B> - Print out the absolute coordinates of dots in outlines. Such
    a font can not be used by any program (that's why this option is
-   incompatible with `<b>-e</b>') but it has proven to be a valuable debuging 
+   incompatible with '<b>-e</b>') but it has proven to be a valuable debuging 
    information.
 <p>
 
@@ -231,7 +231,7 @@ The <B>options</B> are:
    It seems that many Eastern fonts use features of the TTF format that are 
    not supported by the ttf2pt1's built-in front-end parser. Because of
    this for now we recommend using the FreeType-based parser (option
-   `<b>-p ft</b>') with the "<tt>plane</tt>" language.
+   '<b>-p ft</b>') with the "<tt>plane</tt>" language.
 <p>
 <!-- =stop -->
 
@@ -261,37 +261,44 @@ The <B>options</B> are:
    <B>WARNING:</B>
    Some of the glyphs included into the AdobeStandard encoding are not
    included into the Unicode standard. The most typical examples of such
-   glyphs are ligatures like `fi', `fl' etc. Because of this the font 
+   glyphs are ligatures like 'fi', 'fl' etc. Because of this the font 
    designers may place them at various places. The converter tries to
    do its best, if the glyphs have honest Adobe names and/or are
    placed at the same codes as in the Microsoft fonts they will be
-   picked up. Otherwise a possible solution is to use the option `<b>-L</b>'
+   picked up. Otherwise a possible solution is to use the option '<b>-L</b>'
    with an external map. 
 <p>
 
 <!-- ==item * -->
-<TT><B>-L <I>file</I>[+<I>plane</I>]</TT></B> - Extract the fonts for the specified language from the
-   multi-language Unicode font using the map from this file. This is
-   rather like the option `<b>-l</b>' but the encoding map is not 
+<TT><B>-L <I>file</I>[+[pid=<I>&lt;pid&gt;</I>,eid=<I>&lt;eid&gt;</I>,][<I>plane</I>]]</TT></B> - Extract the fonts for the specified 
+   language from a multi-language font using the map from this file. This is
+   rather like the option '<b>-l</b>' but the encoding map is not 
    compiled into the program, it's taken from that file, so it's
    easy to edit. Examples of such files are provided in 
    <tt>maps/adobe-standard-encoding.map</tt>, <tt>CP1250.map</tt>. (<b>NOTE:</b>
-   <I>the `standard encoding' map does not include all the glyphs of the 
+   <I>the 'standard encoding' map does not include all the glyphs of the 
    AdobeStandard encoding, it's provided only as an example</I>.) The 
    description of the supported map formats is in the file 
    <tt>maps/unicode-sample.map</tt>.
 <p>
 
-   Likewise to `<b>-l</b>', an argument may be specified after the map file
+   Likewise to '<b>-l</b>', an argument may be specified after the map file
    name. But in this case the argument has fixed meaning: it selects the 
-   plane of the map file. The plane name also gets added after dash to the 
-   font name. The plane is a concept used in the Eastern fonts with big 
+   original TTF encoding table (the syntax is the same as in '<b>-l plane</b>')
+   and/or a plane of the map file. The plane name also gets added after dash 
+   to the font name. The plane is a concept used in the Eastern fonts with big 
    number of glyphs: one TTF font gets divided into multiple Type1 fonts, 
    each containing one plane of up to 256 glyphs. But with a little 
    creativity this concept may be used for other purposes of combining 
    multiple translation maps into one file.  To extract multiple planes 
    from a TTF font <tt>ttf2pt1</tt> must be run multiple times, each time with 
    a different plane name specified.
+<p>
+
+   The default original TTF encoding table used for the option '<b>-L</b>' is
+   Unicode. The map files may include directives to specify different original 
+   TTF encodings. However if the pid/eid pair is specified with
+   it overrides any original encoding specified in the map file.
 <p>
 
 <!-- ==item * -->
@@ -342,15 +349,15 @@ The <B>options</B> are:
    the font size. More detailed hints increase the file size and thus increase 
    the chance of hitting this limit (that does not mean that you shall hit it
    but you may if your fonts are particularly big). This is especially 
-   probable for Unicode fonts converted with option `<b>-a</b>', so you may want to 
-   use `<b>-a</b>' together with `<b>-Ou</b>'. See <A HREF="app/X11/README.html"><tt>app/X11/README</tt></A> for the description of 
+   probable for Unicode fonts converted with option '<b>-a</b>', so you may want to 
+   use '<b>-a</b>' together with '<b>-Ou</b>'. See <A HREF="app/X11/README.html"><tt>app/X11/README</tt></A> for the description of 
    a patch to X11 which fixes this problem. Second, some rasterizers (again,
    X11 is the typical example) have a limitation for total number of hints
    used when drawing a glyph (also known as the hint stack depth). If that
    stack overflows the glyph is ignored. Starting from version 3.22 <tt>ttf2pt1</tt>
    uses algorithms to minimizing this depth, with the trade-off of slightly
    bigger font files. The glyphs which still exceed the limit set by option
-   `<b>-mh</b>' have all the substituted hints removed and only base hints left.
+   '<b>-mh</b>' have all the substituted hints removed and only base hints left.
    The algorithms seem to have been refined far enough to make the fonts with
    substituted hints look better than the fonts without them or at least the 
    same. Still if the original fonts are not well-designed the detailed 
@@ -489,7 +496,7 @@ The <B>options</B> are:
    The algorithm that implemented the forced fixed width had major
    flaws, so it was disabled. The code is still in the program and
    some day it will be refined and returned back. Meanwhile the 
-   option name `<b>-f</b>' was reused for another option. The old version was:
+   option name '<b>-f</b>' was reused for another option. The old version was:
 <br>
 <TT><B>-f</TT></B> - Don't try to force the fixed width of font. Normally the converter
    considers the fonts in which the glyph width deviates by not more
@@ -500,7 +507,7 @@ The <B>options</B> are:
 
 The <tt>.pfa</tt> font format supposes that the description of the characters
 is binary encoded and encrypted. This converter does not encode or
-encrypt the data by default, you have to specify the option `<b>-e</b>'
+encrypt the data by default, you have to specify the option '<b>-e</b>'
 or use the <tt>t1asm</tt> program to assemble (that means, encode and
 encrypt) the font program. The <tt>t1asm</tt> program that is included with
 the converter is actually a part of the <tt>t1utils</tt> package, rather old
@@ -590,7 +597,7 @@ Other utilities
 >
 
 A few other small interesting programs that allow a cloase look at
-the fonts are located in the subdirectory `<tt>other</tt>'. They
+the fonts are located in the subdirectory '<tt>other</tt>'. They
 are described shortly in <A HREF="other/README.html">others/README</a>.
 <p>
 
@@ -672,7 +679,7 @@ troublehooting and report its result. This not only would help with
 the fix but may also give you a temporary work-around for the bug.
 <p>
 
-First, enable full warnings with option `<b>-W99</b>', save them to
+First, enable full warnings with option '<b>-W99</b>', save them to
 a file and read carefully. Sometimes the prolem is with a not implemented
 feature which is reported in the warnings. Still, reporting about such
 problems may be a good idea: some features were missed to cut corners,
@@ -686,8 +693,8 @@ seems to be the strongest moving force behind the Open Source software.
 The next step is playing with the options. This serves a dual purpose:
 on one hand, it helps to localize the bug, on the other hand you may be
 able to get a working version of the font for the meantime while the
-bug is being fixed. The typical options to try out are: first `<b>-Ou</b>', if
-it does not help then `<b>-Os</b>', then `<b>-Oh</b>', then `<b>-Oo</b>'.
+bug is being fixed. The typical options to try out are: first '<b>-Ou</b>', if
+it does not help then '<b>-Os</b>', then '<b>-Oh</b>', then '<b>-Oo</b>'.
 They are described in a bit more detail above. Try them one by one
 and in combinations. See if with them the resulting fonts look better.
 <p>

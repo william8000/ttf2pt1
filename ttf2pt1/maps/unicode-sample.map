@@ -15,6 +15,21 @@
 
 # comment lines start with '#' or '%' or '//'
 
+# The default source encoding table in the TTF file is Unicode (pid=3,eid=1).
+# However a map may specify another source encoding with the "id <pid> <eid>"
+# directive. If this directive is used at the beginning of the map file,
+# it applies to the whole file. If it is used after a "plane" directive,
+# then it sets the source encoding for this particular destination plane
+# (possibly overriding the file-wide id directive). The user can also
+# specify the source encoding explicitly at the comman line in the
+# argument to the option -L. This used-specified source encoding overrides
+# any id directives in the map file.
+
+# examples:
+
+# same as Unicode (default)
+id 3 1
+
 # One file may contain multiple actual translation tables. Each particular
 # table within a file is named a plane. The primary use of planes is
 # for multi-plane Eastern fonts with over 256 glyphs: for them one TTF

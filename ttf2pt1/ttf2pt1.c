@@ -577,14 +577,23 @@ unicode_init_user(
 	char            buffer[UNIBFSZ];
 	unsigned        code, unicode, curpos, unicode2;
 	char           *arg, *p;
-	int             enabled, found;
-	int             lineno, cnt, n;
+	int             enabled, found, sawplane;
+	int             lineno, cnt, n, nchars;
 	char            next;
+	int             pid, eid, overid=0;
 
 	/* check if we have an argument (plane name) */
 	arg = strrchr(path, LANG_ARG_SEP);
 	if(arg != 0) {
 		*arg++ = 0;
+		if( sscanf(arg, "pid=%d,eid=%d%n", &pid, &eid, &nchars) == 2 ) {
+			force_pid = pid; force_eid = eid; overid = 1;
+			WARNING_1 fprintf(stderr, "User override of the source encoding: pid=%d eid=%d\n", pid, eid);
+			forcemap = 1;
+			arg += nchars;
+			if(*arg == ',')
+				arg++;
+		}
 		if( *arg == 0 || strlen(arg) > UNI_MAX_SUFFIX_LEN-1) 
 			arg = NULL;
 		else {
@@ -599,6 +608,7 @@ unicode_init_user(
 		exit(1);
 	}
 
+	sawplane = 0;
 	if(arg==NULL)
 		enabled = found = 1;
 	else
@@ -611,10 +621,12 @@ unicode_init_user(
 		lineno++;
 
 		if(sscanf(buffer, "plane %s", name)==1) {
+			sawplane = 1;
 			if(arg == 0) {
 				fprintf(stderr, "**** map file '%s' requires plane name\n", path);
 				fprintf(stderr, "for example:\n");
-				fprintf(stderr, "  ttf2pt1 -L %s%c%s ...\n", path, LANG_ARG_SEP, name);
+				fprintf(stderr, "  ttf2pt1 -L %s%c[pid=N,eid=N,]%s ...\n", 
+					path, LANG_ARG_SEP, name);
 				fprintf(stderr, "to select plane '%s'\n", name);
 				exit(1);
 			}
@@ -629,8 +641,12 @@ unicode_init_user(
 			continue;
 		}
 
-		if(sscanf(buffer, "id %d %d", force_pid, force_eid)==2) {
-			forcemap = 1;
+		if(sscanf(buffer, "id %d %d", pid, eid)==2) {
+			if( !overid /* only if the user has not overriden */
+			&& (enabled || !sawplane) ) { 
+				force_pid = pid; force_eid = eid;
+				forcemap = 1;
+			}
 			continue;
 		}
 
