@@ -17,7 +17,7 @@ TTF2PT1 -  CHANGES history
 3.22 -- May 23, 2000
 </H4>
 <!
------------------------
+--------------------
 >
 
 Packaged by Sergey Babkin.
@@ -77,7 +77,7 @@ that would fix the problem with StarOffice.
 3.21 -- March 1, 2000
 </H4>
 <!
------------------------
+---------------------
 >
 
 Sergey Babkin: committed the changes by Petr Titera and
@@ -232,12 +232,314 @@ increase.
 <p>
 
 
+<H4>
+3.13 -- October 18, 1999
+</H4>
+<!
+------------------------
+>
+
+Packaged by Sergey Babkin.
+<p>
+
+<b>New features:</b>
+<br>
+- New option -v for automatic re-scaling based on the vertical size of the font 
+<br>
+- Changed the code to use getopt() instead of a home-made version of it.
+<br>
+- Latin2 language support by Szalay Tamas. 
+<p>
+
+<b>Bux fixes:</b>
+<br>
+- Fix for the bug that made possible calls of malloc(0). 
+<br>
+- Refinement of the option -w to prevent extra wide spacing 
+<p>
+
+<H4>
+3.12 -- October 2, 1999
+</H4>
+<!
+-----------------------
+>
+
+Packaged by Sergey Babkin.
+<p>
+
+<b>New features:</b>
+<br>
+- Added support for the Bulgarian language (actually, for now just an alias
+of Russian).                                                                    
+<br>
+- Added option -w that tries to make sure that the character widths are not
+too narrow.                                                                     
+<br>
+- Added the concept of aliased encodings.
+<br>
+- Now the conversion scripts create and install the .afm files too.
+<br>
+- The conversion script removes the intermediate files after installation.
+<br>
+- Added tunables to the conversion script.
+<br>
+- Installation of the Ghostscript fonts can now be done automatically
+together with the X11 fonts.
+<p>
+
+<b>Bux fixes:</b>
+<br>
+- (FINALLY!!!) A correct fix for the infamous Red Hat 6.0 stdio "feature".
+<br>
+- A number of little bugs discovered by a picky SGI compiler (well, maybe
+some day I'll try to run it through the UnixWare lint and see what happens).    
+<br>
+- A diagnostic message about the empty encodings in the convert script was
+made less cryptic and a bug in the awk sub-script was fixed.                    
+<br>
+- The .afm creation code now considers the option -t. 
+<p>
+
+<H4>
+3.11 -- May 24, 1999
+</H4>
+<!
+--------------------
+>
+
+Packaged by Sergey Babkin.
+<p>
+
+<b>New features:</b>
+<br>
+- It includes the Turkish (Latin5, ISO8859/9) 
+language support by Turgut Uyar and Baltic (ISO8859/4) languages support by
+Rihardas Hepas. 
+<br>
+- Also the installation script got updated: the configuration parameters 
+are moved to a separate file and the generated fonts.dir files should now be
+compatible with Xfsft.
+<p>
+
+<H4>
+3.1 -- March 28, 1999
+</H4>
+<!
+---------------------
+>
+
+Packaged by Sergey Babkin.
+<p>
+
+<b>New features:</b>
+<br>
+- Improved the interaction of the character-level hints and font-level hints
+<p>
+
+
+<H4>
+3.0 -- March 6, 1999
+</H4>
+<!
+--------------------
+>
+
+Packaged by Sergey Babkin.
+<p>
+
+<b>New features:</b>
+<br>
+- Added HTML documents.
+<p>
+
+<H4>
+3.0beta2 -- February 14, 1999
+</H4>
+<!
+-----------------------------
+>
+
+Packaged by Sergey Babkin.
+<p>
+
+<b>New features:</b>
+<br>
+- Added ability to print the .afm file instead of the font to STDOUT.
+<br>
+- Added the guessing of the /ForceBold parameter that proved to be useful.
+<p>
+
+<b>Bux fixes:</b>
+<br>
+- Removed the force-fixed option that proved to be troublesome.
+<p>
+
+<H4>
+3.0beta1 -- December 11, 1998
+</H4>
+<!
+-----------------------------
+>
+
+By Andrew Weeks.
+<p>
+
+<b>New features:</b>
+<br>
+- Added option (passed to t1asm) to create a compressed binary
+version of the font (A PFB file).
+<p>
+
+<b>Bux fixes:</b>
+<br>
+- Versions of handle_post and handle_cmap that deal with some
+problems with buggy fonts.
+<br>
+- Minor Bug Fixes.
+<p>
+
+<H4>
+3.0beta-afm -- December 5, 1998
+</H4>
+<!
+-------------------------------
+>
+
+By Thomas Henlich.
+<p>
+
+<b>New features:</b>
+<br>
+- Integration of AFM file creation.
+<p>
+
+<H4>
+3.0beta -- November 15, 1998
+</H4>
+<!
+----------------------------
+>
+
+By Sergey Babkin.
+<p>
+
+<b>New features:</b>
+<br>
+- Added the auto-calculation of the italic angle.
+<p>
+
+<b>Bux fixes:</b>
+<br>
+- Fixed a couple of bugs.
+<p>
+
+<H4>
+3.0alpha -- October 19, 1998
+</H4>
+<!
+----------------------------
+>
+
+By Sergey Babkin.
+<p>
+
+<b>New features:</b>
+<br>
+- Improved (although still not perfect) handling of
+scaling in composite glyphs
+<br>
+- Automatic correction of outlines to make them more
+smooth (to correct both rounding errors introduced
+during conversion and present in the original font)
+<br>
+- Automatic generation of hints (still has lots of
+space for improvement)
+<br>
+- Automatic generation of BlueValues etc.
+<p>
+
+<b>Bux fixes:</b>
+<br>
+- Scaling of fonts to 1000x1000 M-square required by
+Type1 standard
+<br>
+- Printing out the contours in reverse direction, because
+TTF directions are different from Type1 ones (that was
+the major reason why the fonts generated by
+version 2.2 were rendered so badly in small sizes)
+<p>
+
+<H4>
+June 22, 1998 (AKA 2.2)
+</H4>
+<!
+-------------
+>
+
+By Thomas Henlich.
+<p>
+
+<b>Bux fixes:</b>
+<br>
+- "width" should be "short int" because otherwise:
+characters with negative widths (e.g. -4) become *very* wide (65532)
+<br>
+- The number of /CharStrings is numglyphs and not numglyphs+1
+<p>
+
+<H4>
+February 13, 1998
+</H4>
+<!
+-----------------
+>
+
+By Mark Heath.
+<p>
+
+<b>Bux fixes:</b>
+<br>
+- An original Bug Reported by Frank, which was just incorrect syntax in the 
+Type 1 header, managed to creep back into the Feb 04 Version. This has been
+Fixed in the Feb 13 Version.
+<p>
+
+<H4>
+February 4, 1998
+</H4>
+<!
+----------------
+>
+
+By Mark Heath.
+<p>
+
+<b>Bux fixes:</b>
+<br>
+- A workaround was implemented in ttf2pfa by altering the matrix. I suspect 
+I will have to calculate the correct values, as matrix ops are probably not
+allowed in Type 1 format.
+<p>
+
 <!
 ---------------------------------------------
 >
 <H4>
-The older history will be added here some day.
+The older history seems to be lost.
 </H4>
+
+<I>
+(S.B.: The story how we got the version numbers is rather funny. Initially
+there were no version umbers, the releases were marked by dates. The version
+from June 22 1998 untarred itself into a directory "<tt>ttf2pt1-22</tt>". When I
+made my changes to it I assumed that this was the version number meaning
+version 2.2. Since Mark asked me to send him a complete archive I supposed 
+that I have to bump the version number. And I bumped it to 3.0 because the
+changes were rather extensive. Mark silently agreed and released the new
+version as 3.0. And that's the end of the story about how we got this
+Microsoft-like high version number.)
+</I>
 
 </BODY>
 </HTML>
