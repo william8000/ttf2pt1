@@ -164,7 +164,7 @@ static unsigned long numUID;	/* auto-generated UniqueID */
 static int      ps_fmt_3 = 0;
 static double   scale_factor, original_scale_factor;
 
-static char	*glyph_rename[256];
+static char	*glyph_rename[ENCTABSZ];
 
 /* the names assigned if the original font
  * does not specify any
@@ -542,7 +542,7 @@ extern int      runt1asm(int);
  */
 
 
-/* The idea begind buckets is to avoid comparing every code with all 256 codes int table.
+/* The idea begind buckets is to avoid comparing every code with all ENCTABSZ codes in table.
  * All the 16-bit unicode space is divided between a number of equal-sized buckets.
  * Initially all the buckets are marked with 0. Then if any code in the bucket is
  * used it's marked with 1. Later during translation we check the code's bucket first
@@ -556,7 +556,8 @@ extern int      runt1asm(int);
 
 static DEF_BITMAP(uni_user_buckets, 1<<BUCKET_ID_BITS);
 
-static unsigned int unicode_map[256]; /* font-encoding to unicode map */
+static unsigned int unicode_map[ENCTABSZ]; /* font-encoding to unicode map */
+static int enctabsz = 256; /* actual number of codes used */
 
 static void
 unicode_init_user(
@@ -633,15 +634,11 @@ unicode_init_user(
 		}
 
 		/* try the format of Roman Czyborra's files */
-		if (sscanf (buffer, " =%x U+%4x", &code, &unicode) == 2) {
-			if (code < 256) {
-				unicode_map[code] = unicode;
-				glyph_rename[code] = NULL;
-			}
-		}
+		if ( sscanf (buffer, " =%x U+%4x", &code, &unicode) == 2
 		/* try the format of Linux locale charmap file */
-		else if (sscanf (buffer, " <%*s /x%x <U%4x>", &code, &unicode) == 2) {
-			if (code < 256) {
+		|| sscanf (buffer, " <%*s /x%x <U%4x>", &code, &unicode) == 2 ) {
+			if (code < ENCTABSZ) {
+				if(code >= enctabsz) enctabsz=code+1;
 				unicode_map[code] = unicode;
 				glyph_rename[code] = NULL;
 			}
@@ -649,7 +646,8 @@ unicode_init_user(
 		/* try the format with glyph renaming */
 		else if (sscanf (buffer, " !%x U+%4x %128s", &code,
 			&unicode, name) == 3) {
-			if (code < 256) {
+			if (code < ENCTABSZ) {
+				if(code >= enctabsz) enctabsz=code+1;
 				unicode_map[code] = unicode;
 				glyph_rename[code] = strdup(name);
 			}
@@ -1083,7 +1081,7 @@ unicode_rev_lookup(
 	if( ! IS_UNI_BUCKET(unival) )
 		return -1;
 
-	for (res = 0; res < 256; res++)
+	for (res = 0; res < enctabsz; res++)
 		if (unicode_map[res] == unival)
 			return res;
 	return -1;
@@ -1099,54 +1097,11 @@ unicode_prepare_buckets(
 	int i;
 
 	memset(uni_user_buckets, 0, sizeof uni_user_buckets);
-	for(i=0; i<256; i++) {
+	for(i=0; i<enctabsz; i++) {
 		if(unicode_map[i] != (unsigned) -1)
 			MARK_UNI_BUCKET(unicode_map[i]);
 	}
 }
-
-#if 0 /* XXX */
-static int
-old_unicode_to_win31(
-		 int unival,
-		 char *name
-)
-{
-	int i, res;
-	static unsigned char used[256];
-
-	if(unival<0) {
-		fprintf(stderr,"**** Internal error: unicode value < 0 ****\n");
-		exit(1);
-	}
-
-	/* know the language */
-	if(uni_lang_converter!=0)
-		return (*uni_lang_converter)(unival, name, uni_lang_arg);
-
-	/* don't know the language, try all */
-	for(i=0; i < sizeof uni_lang/sizeof(struct uni_language); i++) {
-		res=(*uni_lang[i].conv)(unival, name, NULL);
-		if(res == -1)
-			continue;
-		if(res & ~0xff) {
-			fprintf(stderr,"**** Internal error: broken unicode conversion ****\n");
-			fprintf(stderr,"**** language '%s' code 0x%04x ****\n", 
-				uni_lang[i].name, unival);
-			exit(1);
-		}
-		/* make sure that the priority is in the order of the language list */
-		if(used[res]>i)
-			return -1;
-		else {
-			used[res]=250-i;
-			return res;
-		}
-	}
-
-	return -1;
-}
-#endif
 
 /*
  * Scale the values according to the scale_factor
@@ -1337,7 +1292,7 @@ handle_gnames(void)
 	}
 
 	/* start the encoding stuff */
-	for (i = 0; i < 256; i++) {
+	for (i = 0; i < ENCTABSZ; i++) {
 		encoding[i] = -1;
 	}
 
@@ -1346,7 +1301,7 @@ handle_gnames(void)
 		for (n = 0; n < numglyphs; n++) {
 			c = uni_lang_selected->convbyname(glyph_list[n].name, 
 				uni_lang_arg, UNICONV_BYNAME_BEFORE);
-			if(c>=0 && c<256 && encoding[n] == -1)
+			if(c>=0 && c<ENCTABSZ && encoding[n] == -1)
 				encoding[n] = n;
 		}
 	}
@@ -1354,7 +1309,7 @@ handle_gnames(void)
 	/* now do the encoding by table */
 	if(uni_lang_selected) {
 		for(i=0; i < MAXUNITABLES && uni_lang_selected->init[i]; i++) {
-			for (n = 0; n < 256; n++)
+			for (n = 0; n < ENCTABSZ; n++)
 				unicode_map[n] = -1;
 			uni_lang_selected->init[i](uni_lang_arg);
 			unicode_prepare_buckets();
@@ -1367,7 +1322,7 @@ handle_gnames(void)
 		for(i=0; i < sizeof uni_lang/(sizeof uni_lang[0]); i++) {
 			if(uni_lang[i].init[0] == NULL)
 				continue;
-			for (n = 0; n < 256; n++)
+			for (n = 0; n < ENCTABSZ; n++)
 				unicode_map[n] = -1;
 			uni_lang[i].init[0](uni_lang_arg);
 			unicode_prepare_buckets();
@@ -1378,7 +1333,7 @@ handle_gnames(void)
 	}
 
 	if (ps_fmt_3) {
-		for (i = 0; i < 256; i++) {
+		for (i = 0; i < 256; i++) { /* here 256, not ENCTABSZ */
 			if (encoding[i] > 0) {
 				glyph_list[encoding[i]].name = Fmt3Encoding[i];
 			}
@@ -1390,17 +1345,18 @@ handle_gnames(void)
 		for (n = 0; n < numglyphs; n++) {
 			c = uni_lang_selected->convbyname(glyph_list[n].name, 
 				uni_lang_arg, UNICONV_BYNAME_AFTER);
-			if(c>=0 && c<256 && encoding[n] == -1)
+			if(c>=0 && c<ENCTABSZ && encoding[n] == -1)
 				encoding[n] = n;
 		}
 	}
 	/* all the encoding things are done */
 
-	for (i = 0; i < 256; i++) {
+	for (i = 0; i < ENCTABSZ; i++)
 		if(encoding[i] == -1) /* defaults to .notdef */
 			encoding[i] = 0;
+
+	for (i = 0; i < 256; i++) /* here 256, not ENCTABSZ */
 		glyph_list[encoding[i]].char_no = i;
-	}
 
 	/* enforce two special cases defined in TTF manual */
 	if(numglyphs > 0)
@@ -1408,7 +1364,7 @@ handle_gnames(void)
 	if(numglyphs > 1)
 		glyph_list[1].name = ".null";
 
- 	for (i = 0; i < 256; i++) {
+ 	for (i = 0; i < ENCTABSZ; i++) {
  		if ((encoding[i] != 0) && glyph_rename[i]) {
  		    glyph_list[encoding[i]].name = glyph_rename[i];
  		}
@@ -1998,7 +1954,7 @@ main(
 			glyph_list[i].flags |= GF_USED;
 		}
 	} else {
-		for (i = 0; i < 256; i++) {
+		for (i = 0; i < ENCTABSZ; i++) {
 			glyph_list[encoding[i]].flags |= GF_USED;
 		}
 
@@ -2175,7 +2131,7 @@ main(
 	}
 	fprintf(afm_file, "StartCharMetrics %d\n", nmetrics);
 
- 	for (i = 0; i < 256; i++) {
+ 	for (i = 0; i < 256; i++) { /* here 256, not ENCTABSZ */
 		fprintf(pfa_file,
 			"dup %d /%s put\n", i, glyph_list[encoding[i]].name);
 		if( glyph_list[encoding[i]].flags & GF_USED )  {

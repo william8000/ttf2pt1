@@ -38,7 +38,7 @@ int      bbox[4];	/* the FontBBox array */
 double   italic_angle;
 
 GLYPH   *glyph_list;
-int    encoding[256];	/* inverse of glyph[].char_no */
+int    encoding[ENCTABSZ];	/* inverse of glyph[].char_no */
 int    kerning_pairs = 0;
 
 /* prototypes */

@@ -184,7 +184,7 @@ extern int      bbox[4];	/* the FontBBox array */
 extern double   italic_angle;
 
 extern GLYPH   *glyph_list;
-extern int    encoding[256];	/* inverse of glyph[].char_no */
+extern int    encoding[];	/* inverse of glyph[].char_no */
 
 /* prototypes of functions */
 void rmoveto( int dx, int dy);

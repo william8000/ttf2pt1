@@ -1175,7 +1175,7 @@ handle_ms_encoding(
 					glyph_list[n].orig_code = k;
 					/* glyph_list[n].char_no = kk; */
 				}
-				if ((kk & ~0xff) == 0 && encoding[kk] == -1)
+				if (kk >= 0 && kk < ENCTABSZ && encoding[kk] == -1)
 					encoding[kk] = n;
 			} else {
 				if ((k & 0xff00) == 0xf000) {
@@ -1227,7 +1227,7 @@ handle_mac_encoding(
 				  glyph_list[n].char_no,
 				j);
 		} else {
-			if (j < 256) {
+			if (j < ENCTABSZ) {
 				if(encoding[j] == -1) {
 					glyph_list[n].char_no = j;
 					encoding[j] = n;

@@ -318,7 +318,7 @@ glenc(
 
 populate_map:
 	enc_found = 1;
-	for(i=0; i<256; i++) {
+	for(i=0; i<ENCTABSZ; i++) {
 		if(encoding[i] != -1)
 			continue;
 		if(enc_type == 1 || forceunicode) {

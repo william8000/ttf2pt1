@@ -136,6 +136,10 @@ struct font_metrics {
 	int		force_bold;
 };
 
+/* size of the encoding table - glyphs beyond 255 are actually unnumbered */
+
+#define ENCTABSZ	1024
+
 /* switch table structure for front-ends */
 
 #define MAXSUFFIX	10
