@@ -216,7 +216,7 @@ assertpath(
 	for (ge = from; ge != 0; pe = ge, ge = ge->next) {
 		if( (ge->flags & GEF_FLOAT) ^ isfloat ) {
 			fprintf(stderr, "**! assertpath: called from %s line %d (%s) ****\n", file, line, name);
-			fprintf(stderr, "float flag changes from %s to %s at 0x%x (type %c, prev type %c)\n",
+			fprintf(stderr, "float flag changes from %s to %s at 0x%p (type %c, prev type %c)\n",
 				(isfloat ? "TRUE" : "FALSE"), (isfloat ? "FALSE" : "TRUE"), ge, ge->type, pe->type);
 			abort();
 		}
@@ -1112,7 +1112,6 @@ dumppaths(
 )
 {
 	GENTRY *ge;
-	int x[3], y[3];
 	int i;
 	char mark=' ';
 
@@ -1254,8 +1253,6 @@ fcheckcv(
 	double dy
 )
 {
-	double             xdep, ydep;
-
 	if( !(ge->flags & GEF_FLOAT) ) {
 		fprintf(stderr, "**! fcheckcv(0x%x) on int entry, ABORT\n", ge);
 		abort(); /* dump core */
@@ -1311,7 +1308,7 @@ fclosepaths(
 )
 {
 	GENTRY         *ge, *fge, *xge, *nge;
-	int             i, j;
+	int             i;
 
 	assertisfloat(g, "fclosepaths float\n");
 
@@ -2050,11 +2047,12 @@ joinmainstems(
 				pri=0;
 				/* try to find a match, don't cross blue zones */
 				for(; i<nold && (s[i].flags & ST_BLUE)==0; i++) {
-					if(s[i].flags & ST_UP)
+					if(s[i].flags & ST_UP) {
 						if(s[i].flags & ST_TOPZONE)
 							break;
 						else
 							continue;
+					}
 					for(j=a; j<b; j++) {
 						if(!stemoverlap(&s[j], &s[i]) )
 							continue;
@@ -2120,11 +2118,12 @@ joinmainstems(
 			pri=0;
 			/* try to find a match */
 			for (i = nstack - 1; i >= 0; i--) {
-				if( (stack[i].flags & ST_UP)==0 )
+				if( (stack[i].flags & ST_UP)==0 ) {
 					if( (stack[i].flags & (ST_ZONE|ST_TOPZONE))==ST_ZONE )
 						break;
 					else
 						continue;
+				}
 				for(j=a; j<b; j++) {
 					if(!stemoverlap(&s[j], &stack[i]) )
 						continue;
@@ -3185,7 +3184,7 @@ groupsubstems(
 )
 {
 	GENTRY *ge;
-	int i, j, x, y;
+	int i, j;
 
 	/* temporary storage */
 	STEMBOUNDS s[MAX_STEMS*2];
@@ -3292,7 +3291,7 @@ buildstems(
 	GENTRY         *ge, *nge, *pge;
 	int             nx, ny;
 	int ovalue;
-	int totals, i, grp, lastgrp;
+	int totals, grp, lastgrp;
 
 	assertisint(g, "buildstems int");
 
@@ -4522,7 +4521,7 @@ iiszigzag(
 ) 
 {
 	double          k, k1, k2;
-	double          a, b, c, d;
+	double          a, b;
 
 	if (ge->type != GE_CURVE)
 		return 0;
@@ -4552,7 +4551,7 @@ fiszigzag(
 ) 
 {
 	double          k, k1, k2;
-	double          a, b, c, d;
+	double          a, b;
 
 	if (ge->type != GE_CURVE)
 		return 0;
@@ -4667,7 +4666,6 @@ fsplitzigzags(
 )
 {
 	GENTRY         *ge, *nge;
-	double          k, k1, k2;
 	double          a, b, c, d;
 
 	assertisfloat(g, "splitting zigzags");
@@ -4985,9 +4983,9 @@ fdelsmall(
 )
 {
 	GENTRY  *ge, *nge, *pge, *xge, *next;
-	int i, j, k;
+	int i, k;
 	double dx, dy, d2, d2m;
-	double times, minlen2;
+	double minlen2;
 #define TIMESLARGER 10.	/* how much larger must be a curve to not change too much */
 
 	minlen2 = minlen*minlen;
@@ -6087,7 +6085,6 @@ findblues(void)
 	short           zuhyst[MAXHYST];
 	short           zlhyst[MAXHYST];
 	int             nchars;
-	int             ns;
 	int             i, j, k, w, max;
 	GENTRY         *ge;
 	GLYPH          *g;
@@ -6328,7 +6325,6 @@ stemstatistics(void)
 	int             nchars;
 	int             ns;
 	STEM           *s;
-	GENTRY         *ge;
 	GLYPH          *g;
 
 	/* start with typical stem width */

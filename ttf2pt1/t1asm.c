@@ -543,7 +543,6 @@ int main(int argc, char **argv)
 int runt1asm(int pfbflag)
 {
   char *p, *q, *r;
-  int c;
 
   pfb = pfbflag;
 #endif

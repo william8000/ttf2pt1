@@ -28,8 +28,8 @@ extern int      trybold;	/* try to guess whether the font is bold */
 extern int      correctwidth;	/* try to correct the character width */
 
 /* other globals */
-extern FILE    *pfa_file, *afm_file, *ttf_file;
-extern int      numglyphs, long_offsets, ncurves;
+extern FILE    *pfa_file, *afm_file;
+extern int      numglyphs;
 
 /* warnings */
 

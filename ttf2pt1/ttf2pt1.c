@@ -72,11 +72,12 @@
 #ifndef WINDOWS
 #	include <unistd.h>
 #	include <netinet/in.h>
-#       define BITBUCKET "/dev/null"
+#	define BITBUCKET "/dev/null"
+#	include <sys/wait.h>
 #else
 #	define WINDOWS_FUNCTIONS /* ask to define functions - in one file only */
 #	include "windows.h"
-#       define BITBUCKET "NUL"
+#	define BITBUCKET "NUL"
 #endif
 
 #include "pt1.h"
@@ -140,7 +141,7 @@ static struct {
 int      debug = DEBUG;	/* debugging flag */
 
 FILE    *pfa_file, *afm_file;
-int      numglyphs, long_offsets, ncurves;
+int      numglyphs;
 struct font_metrics fontm;
 
 /* non-globals */
@@ -578,7 +579,7 @@ unicode_init_user(
 
 		lineno++;
 
-		if(sscanf(buffer, "plane %s",&name)==1) {
+		if(sscanf(buffer, "plane %s", name)==1) {
 			if(arg == 0) {
 				fprintf(stderr, "**** map file '%s' requires plane name\n", path);
 				fprintf(stderr, "for example:\n");
@@ -752,8 +753,6 @@ unicode_latin1(
 		 char *arg
 )
 {
-	int i, res;
-
 	if (unival <= 0x007f) {
 		return unival;
 	} else if (unival >= 0x00a0 && unival <= 0x00ff) {
@@ -845,7 +844,7 @@ unicode_adobestd(
 		 char *arg
 )
 {
-	int i, res;
+	int i;
 	static unsigned short cvttab[][2]={
 		{ 0x2019,  39 }, /* quoteright */
 		{ 0x00a1, 161 }, /* exclamdown */
@@ -932,8 +931,6 @@ unicode_latin2(
 		 char *arg
 )
 {
-	int i, res;
-
 	if (unival <= 0x007E) {
 		return unival;
 	} else {
@@ -1143,8 +1140,6 @@ unicode_latin4(
 		 char *arg
 )
 {
-	int i, res;
-
 	if (unival <= 0x0081) {
 		return unival;
 	} else {
@@ -1409,8 +1404,6 @@ unicode_latin5(
 		 char *arg
 )
 {
-	int i, res;
-
 	if (unival <= 0x0081) {
 		return unival;
 	} else if (unival >= 0x00a0 && unival <= 0x00ff) {
@@ -1658,6 +1651,7 @@ convert_glyf(
 )
 {
 	GLYPH          *g;
+	int ncurves;
 
 	g = &glyph_list[glyphno];
 
@@ -1797,7 +1791,6 @@ handle_gnames(void)
 static void
 usage(void)
 {
-	int i;
 
 #ifdef _GNU_SOURCE
 #	define fplop(txt)	fputs(txt, stderr);
@@ -1868,6 +1861,7 @@ printversion(void)
   fprintf(stderr, "ttf2pt1 %s\n", TTF2PT1_VERSION);
 }
   
+int
 main(
      int argc,
      char **argv
@@ -2702,4 +2696,6 @@ main(
 			WARNING_1 fprintf(stderr, "Unable to remove file %s\n", filename);
 	}
 #endif /* WINDOWS */
+
+	return 0;
 }

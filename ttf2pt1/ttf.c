@@ -62,7 +62,7 @@ struct frontsw ttf_sw = {
 /* statics */
 
 static FILE    *ttf_file;
-static int      numglyphs, long_offsets, ncurves;
+static int      ttf_nglyphs, long_offsets, ncurves;
 
 static TTF_DIRECTORY *directory;
 static TTF_DIR_ENTRY *dir_entry;
@@ -213,7 +213,7 @@ static void
 handle_name(void)
 {
 	int             j, k, lang, len, platform;
-	char           *p, *ptr, *string_area;
+	char           *p, *string_area;
 	char           *nbp = name_buffer;
 	int             found3 = 0;
 
@@ -348,8 +348,7 @@ draw_composite_glyf(
 {
 	int len;
 	short           ncontours;
-	USHORT          flagbyte, glyphindex, xscale, yscale, scale01,
-	                scale10;
+	USHORT          flagbyte, glyphindex;
 	double          arg1, arg2;
 	BYTE           *ptr;
 	char           *bptr;
@@ -945,7 +944,7 @@ openfont(
 
 	handle_head();
 
-	numglyphs = ntohs(maxp_table->numGlyphs);
+	ttf_nglyphs = ntohs(maxp_table->numGlyphs);
 }
 
 /*
@@ -970,7 +969,7 @@ getnglyphs (
 	void
 )
 {
-	return numglyphs;
+	return ttf_nglyphs;
 }
 
 /*
@@ -984,26 +983,26 @@ glnames(
 	GLYPH *glyph_list
 )
 {
-	int             i, len, n, found, npost;
+	int             i, len, n, npost;
 	unsigned int    format;
 	USHORT         *name_index;
 	char           *ptr, *p;
-	char          **ps_name_ptr = (char **) malloc(numglyphs * sizeof(char *));
+	char          **ps_name_ptr = (char **) malloc(ttf_nglyphs * sizeof(char *));
 	int             n_ps_names;
 	int             ps_fmt_3 = 0;
 
 	format = ntohl(post_table->formatType);
 
 	if (format == 0x00010000) {
-		for (i = 0; i < 258 && i < numglyphs; i++) {
+		for (i = 0; i < 258 && i < ttf_nglyphs; i++) {
 			glyph_list[i].name = mac_glyph_names[i];
 		}
 	} else if (format == 0x00020000) {
                 npost = ntohs(post_table->numGlyphs);
-                if (numglyphs != npost) {
+                if (ttf_nglyphs != npost) {
                         /* This is an error in the font, but we can now cope */
                         WARNING_1 fprintf(stderr, "**** Postscript table size mismatch %d/%d ****\n",
-                                npost, numglyphs);
+                                npost, ttf_nglyphs);
                 }
                 n_ps_names = 0;
                 name_index = &(post_table->glyphNameIndex);
@@ -1016,7 +1015,7 @@ glnames(
                     }
                 }
 
-                ptr = (char *) post_table + 34 + (numglyphs << 1);
+                ptr = (char *) post_table + 34 + (ttf_nglyphs << 1);
                 i = 0;
                 while (*ptr > 0 && i < n_ps_names) {
                         len = *ptr;
@@ -1063,8 +1062,8 @@ glnames(
                         }
                 }
                 /* Now fake postscript names for all those beyond the end of the table */
-                if (npost < numglyphs) {
-                    for (i=npost; i<numglyphs; i++) {
+                if (npost < ttf_nglyphs) {
+                    for (i=npost; i<ttf_nglyphs; i++) {
                         if ((glyph_list[i].name = malloc(10)) == NULL)
                         {
                             fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
@@ -1081,7 +1080,7 @@ glnames(
 		ps_fmt_3 = 1;
 	} else if (format == 0x00028000) {
 		ptr = (char *) &(post_table->numGlyphs);
-		for (i = 0; i < numglyphs; i++) {
+		for (i = 0; i < ttf_nglyphs; i++) {
 			glyph_list[i].name = mac_glyph_names[i + ptr[i]];
 		}
 	} else {
@@ -1119,13 +1118,13 @@ glmetrics(
 	lsblist = (FWORD *) hmtx_entry;
 	hmtx_entry--;
 
-	for (i = n_hmetrics; i < numglyphs; i++) {
+	for (i = n_hmetrics; i < ttf_nglyphs; i++) {
 		g = &(glyph_list[i]);
 		g->width = ntohs(hmtx_entry->advanceWidth);
 		g->lsb = ntohs(lsblist[i - n_hmetrics]);
 	}
 
-	for (i = 0; i < numglyphs; i++) {
+	for (i = 0; i < ttf_nglyphs; i++) {
 		g = &(glyph_list[i]);
 		get_glyf_table(i, &glyf_table, &g->ttf_pathlen);
 
@@ -1229,7 +1228,7 @@ glenc(
 								 ro, delta);
 						}
  					}
- 					if(n<0 || n>=numglyphs) {
+ 					if(n<0 || n>=ttf_nglyphs) {
  						WARNING_1 fprintf(stderr, "Font contains a broken glyph code mapping, ignored\n");
  						continue;
 					}
