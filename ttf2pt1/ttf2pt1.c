@@ -2437,6 +2437,8 @@ main(
 	WARNING_1 fprintf(stderr, "Finished - font files created\n");
 
     fclose(pfa_file);
+	cursw->close();
+
 #ifndef WINDOWS
 	while (wait(&ws) > 0) {
 	}
