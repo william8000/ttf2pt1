@@ -2562,6 +2562,61 @@ joinsubstems(
 	}
 }
 
+/*
+ * Make all the stems originating at the same value get the
+ * same width. Without this the rasterizer may move the dots
+ * randomly up or down by one pixel, and that looks bad.
+ * The prioritisation is the same as in findstemat().
+ */
+static void
+uniformstems(
+	  STEM * s,
+	  short *pairs,
+	  int ns
+)
+{
+	int i, j, from, to, val, dir;
+	int pri, prevpri[2], wd, prevwd[2], prevbest[2];
+
+	for(from=0; from<ns; from=to) {
+		prevpri[0] = prevpri[1] = 0;
+		prevwd[0] = prevwd[1] = 0;
+		prevbest[0] = prevbest[1] = -1;
+		val = s[from].value;
+
+		for(to = from; to<ns && s[to].value == val; to++) {
+			dir = ((s[to].flags & ST_UP)!=0);
+
+			i=pairs[to]; /* the other side of this stem */
+			if(i<0 || i==to)
+				continue; /* oops, no other side */
+			wd=abs(s[i].value-val);
+			if(wd == 0)
+				continue;
+			pri=1;
+			if( (s[to].flags | s[i].flags) & ST_END )
+				pri=0;
+			if( prevbest[dir] == -1 || pri > prevpri[dir] || wd<prevwd[dir] ) {
+				prevbest[dir]=i;
+				prevpri[dir]=pri;
+				prevwd[dir]=wd;
+			}
+		}
+
+		for(i=from; i<to; i++) {
+			dir = ((s[i].flags & ST_UP)!=0);
+			if(prevbest[dir] >= 0) {
+				if(ISDBG(SUBSTEMS)) {
+					fprintf(stderr, "at %d (%s %d) pair %d->%d(%d)\n", i, 
+						(dir ? "UP":"DOWN"), s[i].value, pairs[i], prevbest[dir],
+						s[prevbest[dir]].value);
+				}
+				pairs[i] = prevbest[dir];
+			}
+		}
+	}
+}
+
 /* 
  * Find the best stem in the array at the specified (value, origin),
  * related to the entry ge.
@@ -3444,6 +3499,8 @@ buildstems(
 		if (ISDBG(SUBSTEMS))
 			fprintf(pfa_file, "%% %s: joining subst horizontal stems\n", g->name);
 		joinsubstems(hs, hs_pairs, g->nhs, 1);
+		uniformstems(hs, hs_pairs, g->nhs);
+
 		if (ISDBG(SUBSTEMS))
 			fprintf(pfa_file, "%% %s: joining subst vertical stems\n", g->name);
 		joinsubstems(vs, vs_pairs, g->nvs, 0);
