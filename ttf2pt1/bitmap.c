@@ -531,9 +531,9 @@ dosubfrag(
 		/* make it go close to the round shape */
 		switch(f->sublen) {
 		case 2:
+		case 4:
 			maxlen = fscale;
 			break;
-		case 4:
 		case 6:
 			maxlen = fscale * 2.;
 			break;
@@ -1447,6 +1447,7 @@ fprintf(stderr, "k1=%d k2=%d pge=%p count=%d %s good=%d rev=%d\n", \
 /*
  * the short (3-gentry) curve frags must have one of the ends
  * coinciding with another curve frag of the same type
+ * (or be discarded)
  */
 
 static void
@@ -1525,6 +1526,47 @@ prefer_serifs(
 			frag_subtract(g, age, clen, ge->bkwd, len+2, d);
 		}
 	} while( (ge = ge->frwd) != cge->next);
+}
+
+
+/* 
+ * Find all kinds of stems: horizontal, vertical and diagonal.
+ * Basically, as long as two line fragments keep the same distance 
+ * between them (except possibly for an occasional +1 pixel),
+ * they constitute a stem. There may be more than 2 lines in a stem,
+ * for example is a long line on one side is matched by a number
+ * of short lines on the other side.
+ *
+ * The bitmap representation is used to quickly find a match.
+ */
+
+static void
+find_stems(
+	GLYPH *g,
+	struct bmpcontour *contours,
+	int xsz,
+	int ysx,
+	char *hlm, 
+	char *vlm /* arrays of the limits of outlines */
+)
+{
+	struct bmpcontour *cctr = contours;
+	GENTRY *cge = cctr->cge;
+	GENTRY **age = cctr->age;
+	int clen = cctr->clen;
+
+	GENTRY *ge, *pge;
+	int d, len;
+	GEX_FRAG *f;
+
+	ge = cge->next;
+	do {
+		f = X_FRAG(ge);
+
+		/* XXXXX */
+
+		ge = ge->frwd;
+	} while(ge != cge->next);
 }
 
 /*
