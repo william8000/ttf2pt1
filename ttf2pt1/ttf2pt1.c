@@ -1294,7 +1294,7 @@ handle_gnames(void)
 	for (n = 0; n < numglyphs; n++) {
 		int             c;
 		for (i = 0; (c = glyph_list[n].name[i]) != 0; i++) {
-			if (!(isalnum(c) || c == '.' || c == '_' ) 
+			if (!(isalnum(c) || c == '.' || c == '_' || c == '-') 
 			|| i==0 && isdigit(c)) { /* must not start with a digit */
 				WARNING_3 fprintf(stderr, "Glyph %d %s (%s), ",
 					n, isdigit(c) ? "name starts with a digit" : 
