@@ -25,6 +25,43 @@
 </th></tr></table> </td></tr></table>
 
 <table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>Nov 20th 2000 v 3.3.2</font>
+</th></tr><tr><td>
+Packaged by
+Sergey Babkin
+<h2><font face=helvetica>New Features</font></h2>
+<ul>
+<li> Added generation of man pages.
+<li> Added "make install" and "make uninstall".
+<li> Added language option "-l plane".
+<li> In <tt>other/showg</tt> added better support of comparison files:
+<ul>
+  <li> printing of the comparison file legend;
+  <li> guessing of missing glyph names in a comparison file by code;
+  <li> bounding boxes of all comparison files are used for page layout.
+</ul>
+<li> Added ability to use external t1asm instead of compiling it in.
+<li> Renamed the fonts installation guide from INSTALL*html to FONTS*html
+  to avoid confusion with installation of ttf2pt1 itself.
+</ul>
+<h2><font face=helvetica>Bug fixes:</font></h2>
+<ul>
+<li> Removed erroneous extra fclose(pfa_file).
+<li> Fixed random memory corruption that manifested with crash on Linux
+  when converting fonts not containing glyph names.
+<li> Removed from the output file the comments that confused dvips. Changed 
+  <tt>other/showg</tt> to work without them.
+<li> In <tt>other/showg</tt> added better checks for missing glyphs, now it
+  gives warnings about them and the output file does not crash PostScript.
+</ul>
+<h2><font face=helvetica>Other:</font></h2>
+<ul>
+<li> <tt>ttf2pfa</tt> is no longer included, people interested in history 
+  should look for it in the older versions. 
+</ul>
+</th></tr></table> </td></tr></table>
+
+<table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
 <font face=helvetica>Oct 22nd 2000 v 3.3.1</font>
 </th></tr><tr><td>
 Packaged by
@@ -39,7 +76,7 @@ Changed the handling of encodings to accomodate the FreeType model.
 <li>
 Further cleaned up the front-end parser interface.
 </ul>
-<h2><font face=helvetica> Bux fixes:</font></h2>
+<h2><font face=helvetica>Bug fixes:</font></h2>
 <ul>
 <li>
 Fixed a bug that caused core dump on Alpha machines.
@@ -88,7 +125,7 @@ with suffix replaced.
 <li>
 In <tt>other/showg</tt> added more ways to specify glyphs and the comparison option.
 </ul>
-<h2><font face=helvetica> Bux fixes:</font></h2>
+<h2><font face=helvetica>Bug fixes:</font></h2>
 <ul>
 <li>
 Fixed the VC++ batch file, added batch file for Cygnus GCC on Windows.
@@ -146,7 +183,7 @@ Changed the testing HTML generator <tt>other/lst.pl</tt> to use tables.
 Added debugging script <tt>other/cntstems.pl</tt> to count required hint
 stack depth for the glyphs.
 </ul>
-<h2><font face=helvetica> Bux fixes:</font></h2>
+<h2><font face=helvetica>Bug fixes:</font></h2>
 <ul>
 <li>
 Fixed printing of UID in script/trans. Changed the auto-generated UID to
@@ -179,7 +216,7 @@ Sergey Babkin
 changed it to work on any MS encoding, not only Symbol). 
 <li> Slightly tweaked the calculation of hints, should be better now. 
 </ul>
-<h2><font face=helvetica> Bux fixes:</font></h2>
+<h2><font face=helvetica>Bug fixes:</font></h2>
 <ul>
 <li> The unicode-sample.map with description of the map formats 
 was lost in the release process, restored and enhanced. 
@@ -249,7 +286,7 @@ increase.
 <li> Added a link to T1LIB in README.
 <li> A few new options in convert.cfg.
 </ul>
-<h2><font face=helvetica> Bux fixes:</font></h2>
+<h2><font face=helvetica>Bug fixes:</font></h2>
 <ul>
 <li> A bug in the outline smoothing code that corrupted some
   of the fonts (for example, Microsoft Verdana).
