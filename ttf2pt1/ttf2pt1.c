@@ -729,7 +729,7 @@ unicode_latin1(
 {
 	int i, res;
 
-	if (unival <= 0x0081) {
+	if (unival <= 0x007f) {
 		return unival;
 	} else if (unival >= 0x00a0 && unival <= 0x00ff) {
 		return unival;
@@ -737,7 +737,7 @@ unicode_latin1(
 		switch (unival) {
 		case 0x008d:
 			return 0x8d;
-		case 0x008e:
+		case 0x017d:
 			return 0x8e;
 		case 0x008f:
 			return 0x8f;
@@ -745,7 +745,7 @@ unicode_latin1(
 			return 0x90;
 		case 0x009d:
 			return 0x9d;
-		case 0x009e:
+		case 0x017e:
 			return 0x9e;
 		case 0x0152:
 			return 0x8c;
@@ -795,6 +795,8 @@ unicode_latin1(
 			return 0x9b;
 		case 0x2122:
 			return 0x99;
+		case 0x20ac:
+			return 0x80;
 		default:
 			return -1;
 		}
