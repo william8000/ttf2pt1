@@ -1687,7 +1687,7 @@ handle_name(void)
 	name_record = &(name_table->nameRecords);
 
 	for (j = 0; j < 8; j++) {
-		name_fields[j] = NULL;
+		name_fields[j] = ""; 
 	}
 
 	for (j = 0; j < ntohs(name_table->numberOfNameRecords); j++) {
@@ -3412,7 +3412,7 @@ main(
     fprintf(afm_file, "FontBBox %d %d %d %d\n",
 		bbox[0], bbox[1], bbox[2], bbox[3]);
 
-	fprintf(pfa_file, "/FontName %s%s\n", name_fields[6], uni_font_name_suffix);
+	fprintf(pfa_file, "/FontName /%s%s def\n", name_fields[6], uni_font_name_suffix);
 	fprintf(pfa_file, "/PaintType 0 def\n/StrokeWidth 0 def\n");
 	/* I'm not sure if these are fixed */
 	fprintf(pfa_file, "/FontType 1 def\n");
