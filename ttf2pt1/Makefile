@@ -26,6 +26,10 @@ CFLAGS= -O
 #
 #CFLAGS= -O2
 #
+# For GNU C with long options support library (Linux etc.)
+#
+#CFLAGS= -O2 -D_GNU_SOURCE
+#
 # For GNU C on HP-UX/PA-RISC 1.1
 #
 #CFLAGS= -O2 -Wa,-w
@@ -61,7 +65,7 @@ all:	t1asm ttf2pfa ttf2pt1 docs rpm
 docs: $(DOCS)
 
 clean:
-	rm -f t1asm ttf2pfa ttf2pt1 *.o app/RPM/Makefile
+	rm -f t1asm ttf2pfa ttf2pt1 *.o app/RPM/Makefile *.core core.* core
 	( cd other && make clean; )
 
 veryclean: clean
@@ -70,7 +74,7 @@ veryclean: clean
 rpm: app/RPM/Makefile
 
 app/RPM/Makefile: Makefile
-	sed 's/^CFLAGS.*=.*$$/CFLAGS= -O2/;/warning:/,/^$$/s/^/#/' <Makefile >app/RPM/Makefile
+	sed 's/^CFLAGS.*=.*$$/CFLAGS= -O2 -D_GNU_SOURCE/;/warning:/,/^$$/s/^/#/' <Makefile >app/RPM/Makefile
 
 t1asm: t1asm.c
 	$(CC) $(CFLAGS) -o t1asm -DSTANDALONE t1asm.c $(LIBS)

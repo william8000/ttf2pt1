@@ -65,6 +65,10 @@
 #include <ctype.h>
 #include <math.h>
 
+#ifdef _GNU_SOURCE
+#include <getopt.h>
+#endif
+
 #ifndef WINDOWS
 #	include <unistd.h>
 #	include <netinet/in.h>
@@ -1791,28 +1795,54 @@ usage(void)
 {
 	int i;
 
+#ifdef _GNU_SOURCE
+#	define fplop(txt)	fputs(txt, stderr);
+#else
+#	define fplop(txt)
+#endif
+
 	fputs("Use:\n", stderr);
 	fputs("ttf2pt1 [-<opts>] [-l language | -L file] <ttf-file> <fontname>\n", stderr);
 	fputs("  or\n", stderr);
 	fputs("ttf2pt1 [-<opts>] [-l language | -L file] <ttf-file> -\n", stderr);
 	fputs("  or\n", stderr);
 	fputs("ttf2pt1 [-<opts>] [-l language | -L file] <ttf-file> - | t1asm > <pfa-file>\n", stderr);
+
+	fplop("\n");
+	fplop("This build supports both short and long option names,\n");
+	fplop("the long options are listed before corresponding short ones\n");
+
+	fplop(" --afm\n");
 	fputs("  -A - write the .afm file to STDOUT instead of the font itself\n", stderr);
+	fplop(" --allglyphs\n");
 	fputs("  -a - include all glyphs, even those  not in the encoding table\n", stderr);
+	fplop(" --pfb\n");
 	fputs("  -b - produce a compressed .pfb file\n", stderr);
+	fplop(" --debug dbg_suboptions\n");
 	fputs("  -d dbg_suboptions - debugging options, run ttf2pt1 -d? for help\n", stderr);
+	fplop(" --encode\n");
 	fputs("  -e - produce a fully encoded .pfa file\n", stderr);
+	fplop(" --forceunicode\n");
 	fputs("  -F - force use of Unicode encoding even if other MS encoding detected\n", stderr); 
+	fplop(" --language language\n");
 	fputs("  -l language - convert Unicode to specified language, run ttf2pt1 -l? for list\n", stderr);
+	fplop(" --languagemap file\n");
 	fputs("  -L file - convert Unicode according to encoding description file\n", stderr);
+	fplop(" --limit <type>=<value>\n");
 	fputs("  -m <type>=<value> - set maximal limit of given type to value, types:\n", stderr);
 	fputs("      h - maximal hint stack depth in the PostScript interpreter\n", stderr);
+	fplop(" --processing suboptions\n");
 	fputs("  -O suboptions - control outline processing, run ttf2pt1 -O? for help\n", stderr);
+	fplop(" --parser name\n");
 	fputs("  -p name - use specific front-end parser, run ttf2pt1 -p? for list\n", stderr);
+	fplop(" --uid id\n");
 	fputs("  -u id - use this UniqueID, -u A means autogeneration\n", stderr);
+	fplop(" --vscale size\n");
 	fputs("  -v size - scale the font to make uppercase letters >size/1000 high\n", stderr);
+	fplop(" --version\n");
 	fputs("  -V - print ttf2pt1 version number\n", stderr);
-	fputs("  -W <number> - set the level of permitted warnings (0 - disable)\n", stderr);
+	fplop(" --warning number\n");
+	fputs("  -W number - set the level of permitted warnings (0 - disable)\n", stderr);
 	fputs("Obsolete options (will be removed in future releases, use -O? instead):\n", stderr);
 	fputs("  -f - don't try to guess the value of the ForceBold hint\n", stderr);
 	fputs("  -h - disable autogeneration of hints\n", stderr);
@@ -1822,6 +1852,9 @@ usage(void)
 	fputs("  -t - disable auto-scaling to 1000x1000 standard matrix\n", stderr);
 	fputs("  -w - correct the glyph widths (use only for buggy fonts)\n", stderr);
 	fputs("The last '-' means 'use STDOUT'.\n", stderr);
+
+#undef fplop
+
 }
 
 static void
@@ -1844,6 +1877,29 @@ main(
 	char           *lang;
 	int             oc;
 	int             subid;
+#ifdef _GNU_SOURCE
+#	define ttf2pt1_getopt(a, b, c, d, e)	getopt_long(a, b, c, d, e)
+	static struct option longopts[] = {
+		{ "afm", 0, NULL, 'A' },
+		{ "allglyphs", 0, NULL, 'a' },
+		{ "pfb", 0, NULL, 'b' },
+		{ "debug", 1, NULL, 'd' },
+		{ "encode", 0, NULL, 'e' },
+		{ "forceunicode", 0, NULL, 'F' },
+		{ "language", 1, NULL, 'l' },
+		{ "languagemap", 1, NULL, 'L' },
+		{ "limit", 1, NULL, 'm' },
+		{ "processing", 1, NULL, 'O' },
+		{ "parser", 1, NULL, 'p' },
+		{ "uid", 1, NULL, 'u' },
+		{ "vscale", 1, NULL, 'v' },
+		{ "version", 0, NULL, 'V' },
+		{ "warning", 1, NULL, 'W' },
+		{ NULL, 0, NULL, 0 }
+	};
+#else
+#	define ttf2pt1_getopt(a, b, c, d, e)	getopt(a, b, c)
+#endif
 
 	/* initialize sub-options of -O */
 	for(i=0; i< (sizeof opotbl)/(sizeof opotbl[0]); i++) {
@@ -1852,7 +1908,8 @@ main(
 		*(opotbl[i].valp) = opotbl[i].dflt;
 	}
 
-	while(( oc=getopt(argc, argv, "FaoebAsthHfwVv:p:l:d:u:L:m:W:O:") )!= -1) {
+	while(( oc=ttf2pt1_getopt(argc, argv, "FaoebAsthHfwVv:p:l:d:u:L:m:W:O:",
+			longopts, NULL) )!= -1) {
 		switch(oc) {
 		case 'W':
 			if(sscanf(optarg, "%d", &warnlevel) < 1 || warnlevel < 0) {

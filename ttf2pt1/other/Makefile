@@ -8,7 +8,7 @@ CFLAGS= -g
 all: $(PROGS)
 
 clean:
-	rm -f $(PROGS) *.o *.core
+	rm -f $(PROGS) *.o *.core core.* core
 
 bz: $(BZOBJS)
 	$(CC) $(CFLAGS) -o bz $(BZOBJS)

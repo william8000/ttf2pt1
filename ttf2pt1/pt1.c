@@ -983,7 +983,7 @@ testfixcvdir(
 #endif
 
 static int
-round(
+iround(
 	double val
 )
 {
@@ -1030,8 +1030,8 @@ pathtoint(
 		case GE_LINE:
 			if(ISDBG(TOINT))
 				fprintf(stderr," %c float x=%g y=%g\n", ge->type, ge->fx3, ge->fy3);
-			x[0] = round(ge->fx3);
-			y[0] = round(ge->fy3);
+			x[0] = iround(ge->fx3);
+			y[0] = iround(ge->fy3);
 			ge->ix3 = x[0]; ge->iy3 = y[0];
 			if(ISDBG(TOINT))
 				fprintf(stderr,"   int   x=%d y=%d\n", ge->ix3, ge->iy3);
@@ -1043,8 +1043,8 @@ pathtoint(
 			for(i=0; i<3; i++) {
 				if(ISDBG(TOINT))
 					fprintf(stderr,"(%g, %g) ", ge->fxn[i], ge->fyn[i]);
-				x[i] = round(ge->fxn[i]);
-				y[i] = round(ge->fyn[i]);
+				x[i] = iround(ge->fxn[i]);
+				y[i] = iround(ge->fyn[i]);
 			}
 
 			if(ISDBG(TOINT))

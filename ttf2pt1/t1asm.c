@@ -305,7 +305,7 @@ static void file_end()
    the newline is put into line[].  When terminated by '{', the '{' is not put
    into line[], and the flag start_charstring is set to 1. */
 
-static void getline()
+static void t1asm_getline()
 {
   int c;
   char *p = line;
@@ -561,7 +561,7 @@ int runt1asm(int pfbflag)
      charstring start command which has `...string currentfile...' in it. */
 
   while (!feof(ifp) && !ferror(ifp)) {
-    getline();
+    t1asm_getline();
     if (strcmp(line, "currentfile eexec\n") == 0) {
       eexec_start();
       continue;
