@@ -21,4 +21,4 @@ do {
 
 } done
 
-grep -v "^	/Encoding isolatin1encoding def$"
+grep -v "^	/Encoding isolatin1encoding def$" | egrep -v '^newpath .* closepath clip newpath$'
