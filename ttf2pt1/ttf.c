@@ -790,7 +790,7 @@ draw_simple_glyf(
 		y[2] = matrix[1] * 300 + matrix[3] * 0;
 
 		/* then find the topmost point */
-		for (i = 0; i < 4; i++)
+		for (i = 0; i < 3; i++)
 			if (y[i] > y[max])
 				max = i;
 		from = (max + 3 - 1) % 3;
