@@ -2526,16 +2526,24 @@ main(
  	for (i = 0; i < 256; i++) {
 		fprintf(pfa_file,
 			"dup %d /%s put\n", i, glyph_list[encoding[i]].name);
-		if( glyph_list[encoding[i]].flags & GF_USED ) 
-			print_glyph_metrics(i, encoding[i]);
+		if( glyph_list[encoding[i]].flags & GF_USED )  {
+			short bbox[4];
+
+			cursw->glbbox(i, bbox);
+			print_glyph_metrics(i, i, bbox);
+		}
 	}
 
 	/* print the metrics for glyphs not in encoding table */
 	if(allglyphs) {
 		for(i=0; i<numglyphs; i++) {
 			if( (glyph_list[i].flags & GF_USED)
-			&& glyph_list[i].char_no == -1 )
-				print_glyph_metrics(-1, i);
+			&& glyph_list[i].char_no == -1 ) {
+				short bbox[4];
+
+				cursw->glbbox(i, bbox);
+				print_glyph_metrics(-1, i, bbox);
+			}
 		}
 	}
 

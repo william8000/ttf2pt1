@@ -207,5 +207,5 @@ void reversepathsfromto( GENTRY * from, GENTRY * to);
 void reversepaths( GLYPH * g);
 void print_glyph( int glyphno);
 int print_glyph_subs( int glyphno, int startid);
-void print_glyph_metrics( int code, int glyphno);
+void print_glyph_metrics( int code, int glyphno, short *bbox);
 

@@ -38,6 +38,7 @@ static int glenc( GLYPH *glyph_list, int *encoding);
 static void fnmetrics( struct font_metrics *fm);
 static int glpath( int glyphno, GLYPH *glyph_list);
 static void prkern( GLYPH *glyph_list, FILE *afm_file);
+static void glbbox(int glyphno, short *bboxres);
 
 /* globals */
 
@@ -55,6 +56,7 @@ struct frontsw ttf_sw = {
 	/*fnmetrics*/  fnmetrics,
 	/*glpath*/     glpath,
 	/*prkern*/     prkern,
+	/*glbbox*/     glbbox,
 };
 
 /* statics */
@@ -168,7 +170,7 @@ static double f2dot14( short x);
 
 /* get the TTF description table address and length for this index */
 
-void
+static void
 get_glyf_table(
 	int glyphno,
 	TTF_GLYF **tab,
@@ -189,6 +191,22 @@ get_glyf_table(
 			*len = (ntohs(short_loca_table[glyphno + 1]) - ntohs(short_loca_table[glyphno])) << 1;
 		}
 	}
+}
+
+/* returns the glyph's bounding box in the array pointed by bboxres */
+static void glbbox(
+	int glyphno, 
+	short *bboxres
+)
+{
+	TTF_GLYF *glyf_table;
+
+	get_glyf_table(glyphno, &glyf_table, NULL);
+
+	bboxres[0] = (short)ntohs(glyf_table->xMin);
+	bboxres[1] = (short)ntohs(glyf_table->yMin);
+	bboxres[2] = (short)ntohs(glyf_table->xMax);
+	bboxres[3] = (short)ntohs(glyf_table->yMax);
 }
 
 static void
@@ -813,50 +831,6 @@ f2dot14(
 {
 	short           y = ntohs(x);
 	return (y >> 14) + ((y & 0x3fff) / 16384.0);
-}
-
-/*
- * Try to force fixed width of characters
- */
-
-void
-alignwidths(void)
-{
-	int             i;
-	int             n = 0, avg, max = 0, min = 3000, sum = 0, x;
-
-	for (i = 0; i < numglyphs; i++) {
-		if (glyph_list[i].flags & GF_USED) {
-			x = glyph_list[i].width;
-
-			if (x != 0) {
-				if (x < min)
-					min = x;
-				if (x > max)
-					max = x;
-
-				sum += x;
-				n++;
-			}
-		}
-	}
-
-	if (n == 0)
-		return;
-
-	avg = sum / n;
-
-	WARNING_3 fprintf(stderr, "widths: max=%d avg=%d min=%d\n", max, avg, min);
-
-	/* if less than 5% variation from average */
-	/* force fixed width */
-	if (20 * (avg - min) < avg && 20 * (max - avg) < avg) {
-		for (i = 0; i < numglyphs; i++) {
-			if (glyph_list[i].flags & GF_USED)
-				glyph_list[i].width = avg;
-		}
-		post_table->isFixedPitch = htonl(1);
-	}
 }
 
 
