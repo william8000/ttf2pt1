@@ -349,6 +349,11 @@ draw_composite_glyf(
 		return;
 	}
 
+	if(ISDBG(COMPOSITE) && level ==0)
+		fprintf(stderr, "* %s [ %.2f %.2f %.2f %.2f %.2f %.2f ]\n", g->name,
+			orgmatrix[0], orgmatrix[1], orgmatrix[2], orgmatrix[3],
+			orgmatrix[4], orgmatrix[5]);
+
 	/* complex case */
 	if(level >= MAX_COMPOSITE_LEVEL) {
 		WARNING_1 fprintf(stderr, 
@@ -458,9 +463,19 @@ draw_composite_glyf(
 		newmatrix[2] = matrix[1]*orgmatrix[0] + matrix[3]*orgmatrix[1];
 		newmatrix[3] = matrix[1]*orgmatrix[2] + matrix[3]*orgmatrix[3];
 
-		newmatrix[4] = matrix[0]*orgmatrix[4] + matrix[2]*orgmatrix[5]; + matrix[4];
-		newmatrix[5] = matrix[1]*orgmatrix[4] + matrix[3]*orgmatrix[5]; + matrix[5];
+		newmatrix[4] = matrix[0]*orgmatrix[4] + matrix[2]*orgmatrix[5] + matrix[4];
+		newmatrix[5] = matrix[1]*orgmatrix[4] + matrix[3]*orgmatrix[5] + matrix[5];
 
+		if(ISDBG(COMPOSITE)) {
+			fprintf(stderr, "%*c+-> %2d %s [ %.2f %.2f %.2f %.2f %.2f %.2f ]\n",
+				level+1, ' ', level, glyph_list[glyphindex].name,
+				matrix[0], matrix[1], matrix[2], matrix[3],
+				matrix[4], matrix[5]);
+			fprintf(stderr, "%*c        = [ %.2f %.2f %.2f %.2f %.2f %.2f ]\n",
+				level+1, ' ',
+				newmatrix[0], newmatrix[1], newmatrix[2], newmatrix[3],
+				newmatrix[4], newmatrix[5]);
+		}
 		draw_composite_glyf(g, glyph_list, glyphindex, newmatrix, level+1);
 
 	} while (flagbyte & MORE_COMPONENTS);

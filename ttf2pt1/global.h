@@ -55,6 +55,7 @@ extern int      numglyphs, long_offsets, ncurves;
 #define DEBUG_BUILDG	0x00000400 /* building of glyph path */
 #define DEBUG_QUAD	0x00000800 /* splitting curves by quadrants */
 #define DEBUG_SQEQ	0x00001000 /* square equation solver */
+#define DEBUG_COMPOSITE	0x00002000 /* handling of composite glyphs */
 #define DEBUG_DISABLED	0x80000000 /* special flag: temporary disable debugging */
 
 /* at what we want to look now */
