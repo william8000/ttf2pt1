@@ -4992,7 +4992,9 @@ print_glyph_subs(
 
 	g->firstsubr=startid;
 
+#if 0
 	fprintf(pfa_file, "%% %s %d\n", g->name, g->nsg);
+#endif
 	for(grp=0; grp<g->nsg; grp++) {
 		fprintf(pfa_file, "dup %d {\n", startid++);
 		for(i= (grp==0)? 0 : g->nsbs[grp-1]; i<g->nsbs[grp]; i++)
