@@ -159,6 +159,7 @@ mans: $(MANS)
 clean:
 	rm -f t1asm ttf2pt1 *.o app/RPM/Makefile app/RPM/*.spec *.core core.* core
 	( cd other && make clean; )
+	( cd app/netscape && make clean; )
 
 veryclean: clean
 	rm -f $(DOCS) $(MANS)
