@@ -29,6 +29,12 @@ current
 <li> New option <b>-G</b> to select the file types to generate.
 <li> Creation of the dvips encoding files (by Rigel).
 <li> More glyphs in the Chinese maps (by Rigel).
+<li> Made the assignment of ISO8859/1 glyph names to the glyphs in the
+  fonts without PostScript names in them dependent on the original
+  encoding: no change for the 8-bit encodings, for the Unicode encoding
+  the names are assigned to the glyph with the codes 0-255 in Unicode,
+  and for the other 16-bit encodings the 8859/1 names are not assigned
+  at all.
 </ul>
 
 <b>Bug fixes:</b>
@@ -42,6 +48,8 @@ current
 <li> Fixed the handling and printing of bad glyph names.
 <li> Fixed the bug with duplicated glyph names when more than 256 glyphs are 
   extracted from a font that has no PostScript glyph names defined.
+<li> Added ability to map a glyph to more than one code when unisng the
+  native parser (-pttf).
 </ul>
 
 <H4>

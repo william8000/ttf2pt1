@@ -1386,7 +1386,8 @@ handle_gnames(void)
 				unicode_map[n] = -1;
 			uni_lang_selected->init[i](uni_lang_arg);
 			unicode_prepare_buckets();
-			if( cursw->glenc(glyph_list, encoding, unicode_map) == 0 )
+			type = cursw->glenc(glyph_list, encoding, unicode_map);
+			if( type == 0 )
 				/* if we have an 8-bit encoding we don't need more tries */
 				break;
 		}
@@ -1399,7 +1400,8 @@ handle_gnames(void)
 				unicode_map[n] = -1;
 			uni_lang[i].init[0](uni_lang_arg);
 			unicode_prepare_buckets();
-			if( cursw->glenc(glyph_list, encoding, unicode_map) == 0 )
+			type = cursw->glenc(glyph_list, encoding, unicode_map);
+			if( type == 0 )
 				/* if we have an 8-bit encoding we don't need more tries */
 				break;
 		}
@@ -1410,11 +1412,22 @@ handle_gnames(void)
 		for (i = 0; i < numglyphs; i++) {
 			glyph_list[i].name = 0;
 		}
-		for (i = 0; i < 256; i++) { /* here 256, not ENCTABSZ */
-			if (encoding[i] > 0) {
-				glyph_list[encoding[i]].name = Fmt3Encoding[i];
+		if(type == 0) { 
+			/* 8-bit - give 8859/1 names to the first 256 glyphs */
+			for (i = 0; i < 256; i++) { /* here 256, not ENCTABSZ */
+				if (encoding[i] > 0) {
+					glyph_list[encoding[i]].name = Fmt3Encoding[i];
+				}
 			}
-		}
+		} else if(type == 1) {
+			/* Unicode - give 8859/1 names to the first 256 glyphs of Unicode */
+			for (n = 0; n < 256; n++) { /* here 256, not ENCTABSZ */
+				i = unicode_rev_lookup(n);
+				if (encoding[i] > 0) {
+					glyph_list[encoding[i]].name = Fmt3Encoding[i];
+				}
+			}
+		} /* for other types of encodings just give generated names */
 		/* assign unique names to the rest of the glyphs */
 		for (i = 0; i < numglyphs; i++) {
 			if (glyph_list[i].name == 0) {
@@ -1439,8 +1452,21 @@ handle_gnames(void)
 	/* all the encoding things are done */
 
 	for (i = 0; i < ENCTABSZ; i++)
-		if(encoding[i] == -1) /* defaults to .notdef */
-			encoding[i] = 0;
+		if(encoding[i] == -1) {
+			/* check whether this character might be a duplicate 
+			 * (in which case it would be missed by unicode_rev_lookup())
+			 */
+			c = unicode_map[i];
+			if((type != 0 || forcemap) && c != -1) {
+				for(n = 0; n < i; n++) {
+					if(unicode_map[n] == c) {
+						encoding[i] = encoding[n];
+					}
+				}
+			}
+			if(encoding[i] == -1) /* still not found, defaults to .notdef */
+				encoding[i] = 0;
+		}
 
 	for (i = 0; i < 256; i++) /* here 256, not ENCTABSZ */
 		glyph_list[encoding[i]].char_no = i;
