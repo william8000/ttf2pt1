@@ -85,7 +85,7 @@ in PostScript. It works only with un-encoded font files generated
 by <tt>ttf2pt1</tt>. The intended use is like:
 <p>
 
-&nbsp;&nbsp;<tt>showg <i>&lt;fontfile.t1a&gt; &lt;glyph-to-draw&gt;</i>... &gt;file.ps</tt><br>
+&nbsp;&nbsp;<tt>showg [-c <i>&lt;fontfile.t1a&gt;</i>]...  <i>&lt;fontfile.t1a&gt; &lt;glyph-to-draw&gt;</i>... &gt;file.ps</tt><br>
 &nbsp;&nbsp;<tt>gv file.ps # start the Ghostscript viewer</tt>
 <p>
 
@@ -109,6 +109,22 @@ parenthesis" three times:
 Don't forget that some characters have to be protected from the shell
 by backslash as shown above, or else the shell would try to interpret
 them before passing to the program.
+<p>
+
+One file (given as the first argument) is considered the main file
+but multiple files can be specified with option <b>-c</b> for visual comparison
+of the outlines. The glyphs from the main file are drawn in black
+and supplemented with coordinate grid and sidebars for hints. The
+glyphs from the comparison files are drawn in light colors and no
+supplemental information is provided for them. Each use of option
+<b>-c</b> adds one comparison file, this option may be used multiple times.
+<p>
+
+So for example the following command would draw the same glyph "left
+parenthesis" from three files on the same page:
+<p>
+
+&nbsp;&nbsp;<tt>showg -c fileA.t1a -c fileB.t1a file.t1a .\( >/file.ps</tt>
 <p>
 
 This program is quite valuable it you want to take a close-up view at 

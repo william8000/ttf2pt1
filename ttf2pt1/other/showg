@@ -1,16 +1,32 @@
 #!/usr/bin/perl
 
-if( $#ARGV < 1) {
-	die("Usage: $0 file glyph-code...\n");
+my @cmpfiles;
+
+while($ARGV[0] eq "-c") {
+	shift(@ARGV);
+	push(@cmpfiles, shift(@ARGV));
 }
 
-open(FILE, "<$ARGV[0]") or die("no such file $ARGV[0]");
+if( $#ARGV < 1) {
+	die("Usage: $0 [-c file]... file glyph-code...\n");
+}
+
+$mainf = $ARGV[0];
 
 print("%%!PS-Adobe-1.0
 %%DocumentNeededResources: font Courier
 %%Pages: (atend)
 %%EndComments
 %%BeginProlog
+/cmpfcolorarray [ 
+	[ 1 0.6 0.6 ] % light red
+	[ 0 0.7 0.7 ] % cyan
+	[ 0.7 0.7 0 ] % brown-yellow
+] def
+/cmpfcolor { % number -> .
+	cmpfcolorarray length mod % get the subarray number
+	cmpfcolorarray exch get aload pop setrgbcolor
+} bind def
 /contourcolor { 0 0 0 setrgbcolor } bind def % black
 /bluezonecolor { 0.95 0.95 1 setrgbcolor } bind def % very light blue
 /coordcolor { 0 1 0 setrgbcolor } bind def % green
@@ -183,12 +199,10 @@ sub substems # number
 	print("\n");
 }
 
-sub drawchar
+sub drawcharwstems
 {
 	my($x,$y)=(0,0);
 	my @vals, $cmd, $i;
-	my %xv=();
-	my %yv=();
 
 	print("\nmainstemcolor\n");
 	&nextstemgrp();
@@ -219,18 +233,31 @@ sub drawchar
 			last;
 		}
 	}
-	printf("\n/drawchar {\n");
+	&drawchar("drawchar", 1, "contourcolor");
+}
+
+sub drawchar #procname wantgrid color
+{
+	my($procname, $wantgrid, $color) = @_;
+	my($x,$y)=(0,0);
+	my @vals, $cmd, $i;
+	my %xv=();
+	my %yv=();
+
+	printf("\n/%s {\n",$procname);
 	printf("\ngsave 72 72 translate fnt2pt fnt2pt scale %d %d translate\n", $xorg, $yorg);
-	printf("contourcolor 1 setlinewidth newpath\n");
+	printf("%s 1 setlinewidth newpath\n", $color);
 	do {
 		if(/endchar/) {
 			printf("grestore } bind def\n");
-			printf("coordcolor\n");
-			for $x (keys %xv) {
-				&linevert($x);
-			}
-			for $y (keys %yv) {
-				&linehor($y);
+			if($wantgrid) {
+				printf("coordcolor\n");
+				for $x (keys %xv) {
+					&linevert($x);
+				}
+				for $y (keys %yv) {
+					&linehor($y);
+				}
 			}
 			return;
 		}
@@ -343,6 +370,7 @@ for $arg (@ARGV) {
 		$code=$arg;
 		$name="";
 	}
+	$ccode=$code; $cname=$name; # for comparisons
 
 	$pages++;
 
@@ -383,7 +411,7 @@ grestore
 
 ");
 
-	seek(FILE, 0, 0);
+	open(FILE, "<$fname") or die("no such file $fname");
 	while(<FILE>) {
 		if(/FontBBox\s+\{\s*(.*)\s*}/) {
 			@bbox=split(/\s+/, $1);
@@ -412,13 +440,36 @@ grestore
 		} elsif( /^\%\s*$name\s/ && /\s(\d+)\s*$/ ) {
 			&substems($1);
 		} elsif( /^\/$name\s+\{/ ) {
-			&drawchar();
+			&drawcharwstems();
 		} elsif( /^\/FontName\s+(\S+)/ ) {
 			$fontname=$1;
 		}
 	}
+	close(FILE);
 
 	printf(STDERR "glyph name:%s code:%s\n", $name, $code);
+
+	$cmpfidx = 0;
+	for $cmpf(@cmpfiles) {
+		my $name = $cname;
+		my $code = $ccode;
+
+		open(FILE, "<$cmpf") or die("no such file $cmpf");
+		while(<FILE>) {
+			if( /^dup\s+$code\s+\/(\S+)\s+put/ ) {
+				$name=$1;
+			} elsif( /^dup\s+(\d+)\s+\/$name\s+put/ ) {
+				$code=$1;
+			} elsif( /^\/$name\s+\{/ ) {
+				&drawchar("drawcmpchar", 0, sprintf("%d cmpfcolor", $cmpfidx));
+			}
+		}
+		close(FILE);
+		printf(STDERR "in %s glyph name:%s code:%s\n", $cmpf, $name, $code);
+		printf("drawcmpchar\n\n");
+		$cmpfidx++;
+	}
+
 	printf("drawchar\n\n");
 
 	&nextstemgrp();
