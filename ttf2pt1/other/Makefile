@@ -1,5 +1,5 @@
 
-PROGS= bz cmpf
+PROGS= bz cmpf dmpf
 
 BZOBJS= bz.o bzscreen.o
 
@@ -13,5 +13,8 @@ clean:
 bz: $(BZOBJS)
 	$(CC) $(CFLAGS) -o bz $(BZOBJS)
 
-cmpf: cmpf.c
+cmpf: cmpf.c bmpfont.h
 	$(CC) $(CFLAGS) -o cmpf -I/usr/local/include -L/usr/local/lib cmpf.c -lt1 -lm
+
+dmpf: dmpf.c bmpfont.h
+	$(CC) $(CFLAGS) -o dmpf -I/usr/local/include -L/usr/local/lib dmpf.c -lt1 -lm
