@@ -192,7 +192,7 @@ install: all
 	scripts/inst_dir $(SHAREDIR)
 	scripts/inst_dir $(MANDIR)/man1
 	scripts/inst_dir $(MANDIR)/man5
-	cp -R $(SUBDIRS) $(SHAREDIR)
+	cp -R [A-Z][A-Z]* $(SUBDIRS) $(SHAREDIR)
 	chown -R $(OWNER) $(SHAREDIR)
 	chgrp -R $(GROUP) $(SHAREDIR)
 	chmod -R go-w $(SHAREDIR)
