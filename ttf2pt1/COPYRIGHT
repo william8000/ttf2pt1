@@ -60,6 +60,10 @@ Johan Vromans <jvromans@squirrel.nl>
 Petr Titera <P.Titera@sh.cvut.cz>
  The Unicode map format with names, the forced Unicode option.
 
+
+Frank M. Siegert <frank@this.net>
+ Port to Windows
+
 I. Lee Hetherington <ilh@lcs.mit.edu>
  The Type1 assembler (from the package 't1utils'), its full copyright
  notice:

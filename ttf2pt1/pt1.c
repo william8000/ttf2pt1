@@ -9,10 +9,15 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <time.h>
-#include <netinet/in.h>
 #include <ctype.h>
 #include <math.h>
-#include <unistd.h>
+
+#ifndef WINDOWS
+#	include <netinet/in.h>
+#	include <unistd.h>
+#else
+#	define M_PI  3.14159265359
+#endif
 
 #include "ttf.h"
 #include "pt1.h"

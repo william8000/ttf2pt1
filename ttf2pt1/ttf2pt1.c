@@ -62,10 +62,15 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <time.h>
-#include <netinet/in.h>
 #include <ctype.h>
 #include <math.h>
-#include <unistd.h>
+
+#ifndef WINDOWS
+#	include <unistd.h>
+#	include <netinet/in.h>
+#else
+#	include "windows.h"
+#endif
 
 #include "ttf.h"
 #include "pt1.h"
@@ -97,8 +102,8 @@ int	 forceunicode = 0;
 
 int      debug = DEBUG;	/* debugging flag */
 
-FILE    *pfa_file, *afm_file;
-int      ttf_file, numglyphs, long_offsets, ncurves;
+FILE    *pfa_file, *afm_file, *ttf_file;
+int      numglyphs, long_offsets, ncurves;
 
 /* non-globals */
 static char    *strUID = 0;	/* user-supplied UniqueID */
@@ -1768,7 +1773,7 @@ handle_name(void)
 		fprintf(stderr, "**** Cannot decode font name fields ****\n");
 		exit(1);
 	}
-	if (name_fields[6] == NULL) {
+	if (name_fields[6][0] == 0) { /* if empty */
 		name_fields[6] = name_fields[4];
 	}
 	p = name_fields[6];
@@ -2826,7 +2831,7 @@ main(
 	int             i;
 	time_t          now;
 	struct stat     statbuf;
-	char            filename[100];
+	char            filename[256];
 	int             c,nchars,nmetrics;
 	int             ws;
 	int             forcebold= -1; /* -1 means "don't know" */
@@ -3035,17 +3040,19 @@ main(
 		fprintf(stderr, "**** Cannot malloc space for file ****\n");
 		exit(1);
 	}
-	if ((ttf_file = open(argv[1], O_RDONLY, 0)) == -1) {
+	if ((ttf_file = fopen(argv[1], "rb")) == NULL) {
 		fprintf(stderr, "**** Cannot open %s ****\n", argv[1]);
 		exit(1);
 	} else {
 		WARNING_2 fprintf(stderr, "Processing file %s\n", argv[1]);
 	}
 
-	if (read(ttf_file, filebuffer, statbuf.st_size) != statbuf.st_size) {
+	if (fread(filebuffer, 1, statbuf.st_size, ttf_file) != statbuf.st_size) {
 		fprintf(stderr, "**** Could not read whole file ****\n");
 		exit(1);
 	}
+	fclose(ttf_file);
+
 	directory = (TTF_DIRECTORY *) filebuffer;
 
 	if (ntohl(directory->sfntVersion) != 0x00010000) {
@@ -3054,9 +3061,18 @@ main(
 			directory->sfntVersion);
 		exit(1);
 	}
+
 	if (argv[2][0] == '-' && argv[2][1] == 0) {
 		pfa_file = stdout;
+#ifndef WINDOWS
 		if ((afm_file = fopen("/dev/null", "w+")) == NULL) {
+#else /* WINDOWS */
+		if(encode) {
+			fprintf(stderr, "**** can't write encoded file to stdout ***\n");
+			exit(1);
+		}
+		if ((afm_file = fopen("NUL", "w+")) == NULL) {
+#endif /* WINDOWS */
 			fprintf(stderr, "**** Cannot open /dev/null ****\n");
 			exit(1);
 		}
@@ -3067,8 +3083,12 @@ main(
 			afm_file=n;
 		}
 	} else {
+#ifndef WINDOWS
 		sprintf(filename, "%s.%s", argv[2], encode ? (pfbflag ? "pfb" : "pfa") : "t1a" );
-		if ((pfa_file = fopen(filename, "w+")) == NULL) {
+#else /* WINDOWS */
+		sprintf(filename, "%s.t1a", argv[2]);
+#endif /* WINDOWS */
+		if ((pfa_file = fopen(filename, "w+b")) == NULL) {
 			fprintf(stderr, "**** Cannot create %s ****\n", filename);
 			exit(1);
 		} else {
@@ -3085,6 +3105,7 @@ main(
 	/*
 	 * Now check whether we want a fully encoded .pfa file
 	 */
+#ifndef WINDOWS
 	if (encode) {
 		int             p[2];
 		extern FILE    *ifp, *ofp;	/* from t1asm.c */
@@ -3116,6 +3137,8 @@ main(
 			exit(runt1asm(pfbflag));
 		}
 	}
+#endif /* WINDOWS */
+
 	dir_entry = &(directory->list);
 
 	for (i = 0; i < ntohs(directory->numTables); i++) {
@@ -3559,7 +3582,37 @@ main(
 
 	WARNING_1 fprintf(stderr, "Finished - font files created\n");
 
-	fclose(pfa_file);
+    fclose(pfa_file);
+#ifndef WINDOWS
 	while (wait(&ws) > 0) {
 	}
+#else 
+	if (encode) {
+		extern FILE    *ifp, *ofp;	/* from t1asm.c */
+
+		sprintf(filename, "%s.%s", argv[2], pfbflag ? "pfb" : "pfa" );
+
+		if ((ofp = fopen(filename, "w+b")) == NULL) {
+			fprintf(stderr, "**** Cannot create %s ****\n", filename);
+			exit(1);
+		} else {
+			WARNING_2 fprintf(stderr, "Creating file %s\n", filename);
+		}
+
+		sprintf(filename, "%s.t1a", argv[2]);
+
+		if ((ifp = fopen(filename, "rb")) == NULL) {
+			fprintf(stderr, "**** Cannot read %s ****\n", filename);
+			exit(1);
+		} else {
+			WARNING_2 fprintf(stderr, "Converting file %s\n", filename);
+		}
+
+		runt1asm(pfbflag);
+
+		WARNING_2 fprintf(stderr, "Removing file %s\n", filename);
+		if(unlink(filename) < 0) 
+			WARNING_1 fprintf(stderr, "Unable to remove file %s\n", filename);
+	}
+#endif /* WINDOWS */
 }

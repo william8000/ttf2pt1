@@ -54,6 +54,12 @@ static char portnotice[] =
 #include <ctype.h>
 #include <limits.h>
 
+#ifdef WINDOWS
+#	ifdef STANDALONE
+#		include "windows.h"
+#	endif
+#endif
+
 /* int32 must be at least 32-bit and uint16 must be at least 16-bit */
 #if INT_MAX >= 0x7FFFFFFFUL
 typedef int int32;

@@ -25,8 +25,8 @@ extern int      warnlevel;	/* the level of permitted warnings */
 extern int      max_stemdepth;	/* maximal depth of stem stack in interpreter */
 
 /* other globals */
-extern FILE    *pfa_file, *afm_file;
-extern int      ttf_file, numglyphs, long_offsets, ncurves;
+extern FILE    *pfa_file, *afm_file, *ttf_file;
+extern int      numglyphs, long_offsets, ncurves;
 
 /* warnings */
 
