@@ -6042,6 +6042,9 @@ next:
 		}
 
 		pge = pge->frwd;  /* now the limits are pge...nge inclusive */
+		if(pge == nge) /* a deeply perversive contour */
+			break;
+
 		if(ISDBG(FCONCISE)) {
 			fprintf(stderr, "\nin %s joined LINE %p-%p from\n", g->name, pge, nge);
 			dumppaths(g, pge, nge);
@@ -6053,6 +6056,7 @@ next:
 		fnormalizege(pge);
 		X_CON_F(pge) &= ~GEXF_JLINE;
 
+		ge = pge;
 		for(ige = pge->frwd; ; ige = pge->frwd) {
 			if(startge == ige)
 				startge = pge;
