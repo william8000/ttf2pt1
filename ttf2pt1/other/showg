@@ -332,7 +332,18 @@ sub drawchar
 $pages=0;
 
 $fname=shift @ARGV;
-for $code (@ARGV) {
+for $arg (@ARGV) {
+	if( $arg =~ /^\/(.*)/ ) {
+		$name=$1;
+		$code="none";
+	} elsif( $arg =~ /^\.(.)/ ) {
+		$code=ord($1);
+		$name="";
+	} else {
+		$code=$arg;
+		$name="";
+	}
+
 	$pages++;
 
 	$stemhgrp=0;
@@ -340,7 +351,6 @@ for $code (@ARGV) {
 	$stemvgrp=0;
 	$stemvused=0;
 	$stemwd=10;
-	$name="";
 	$fontname="unknown";
 	undef %xcoord;
 	undef %ycoord;
@@ -397,7 +407,8 @@ grestore
 			}
 		} elsif( /^dup\s+$code\s+\/(\S+)\s+put/ ) {
 			$name=$1;
-			printf(STDERR "glyph name:%s\n", $name);
+		} elsif( /^dup\s+(\d+)\s+\/$name\s+put/ ) {
+			$code=$1;
 		} elsif( /^\%\s*$name\s/ && /\s(\d+)\s*$/ ) {
 			&substems($1);
 		} elsif( /^\/$name\s+\{/ ) {
@@ -407,6 +418,7 @@ grestore
 		}
 	}
 
+	printf(STDERR "glyph name:%s code:%s\n", $name, $code);
 	printf("drawchar\n\n");
 
 	&nextstemgrp();

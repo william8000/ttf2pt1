@@ -85,13 +85,34 @@ in PostScript. It works only with un-encoded font files generated
 by <tt>ttf2pt1</tt>. The intended use is like:
 <p>
 
-&nbsp;&nbsp;<tt>showg <i>&lt;fontfile.t1a&gt; &lt;glyph-code&gt;</i>... &gt;file.ps</tt><br>
+&nbsp;&nbsp;<tt>showg <i>&lt;fontfile.t1a&gt; &lt;glyph-to-draw&gt;</i>... &gt;file.ps</tt><br>
 &nbsp;&nbsp;<tt>gv file.ps # start the Ghostscript viewer</tt>
 <p>
 
-As you can see, multiple glyph codes may be specified. The
-glyph codes are decimal. This program is quite valuable it you 
-want to take a close-up view at the font.
+As you can see, multiple glyphs may be specified. The glyphs may be
+specified in one of three ways:
+<br>
+&nbsp;&nbsp;- as a decimal code (for example, <tt>43</tt> )
+<br>
+&nbsp;&nbsp;- as a glyph name preceded by a slash (for example, <tt>/plus</tt> )
+<br>
+&nbsp;&nbsp;- as a literal character preceded by a dot (for example, <tt>.+</tt> )
+<p>
+
+So for example the following command would draw the same glyph "left
+parenthesis" three times:
+<p>
+
+&nbsp;&nbsp;<tt>showg file.t1a 40 /parenleft .\( >/file.ps</tt>
+<p>
+
+Don't forget that some characters have to be protected from the shell
+by backslash as shown above, or else the shell would try to interpret
+them before passing to the program.
+<p>
+
+This program is quite valuable it you want to take a close-up view at 
+the font.
 <p>
 
 The outlines are drawn in black, the ends of the curves and
