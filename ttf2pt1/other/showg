@@ -1,0 +1,450 @@
+#!/usr/bin/perl
+
+if( $#ARGV < 1) {
+	die("Usage: $0 file glyph-code...\n");
+}
+
+open(FILE, "<$ARGV[0]") or die("no such file $ARGV[0]");
+
+print("%%!PS-Adobe-1.0
+%%DocumentNeededResources: font Courier
+%%Pages: (atend)
+%%EndComments
+%%BeginProlog
+/contourcolor { 0 0 0 setrgbcolor } bind def % black
+/bluezonecolor { 0.95 0.95 1 setrgbcolor } bind def % very light blue
+/coordcolor { 0 1 0 setrgbcolor } bind def % green
+/textcolor { 0 0 0 setrgbcolor } bind def % black
+/stemcolor { 1 0 0 setrgbcolor } bind def % red
+/mainstemcolor { 0 0 1 setrgbcolor } bind def % blue
+
+% /fnt2pt { 72 5 mul 1000 div } bind def
+
+/linehor { % . font_y -> .
+	gsave
+	0 72 translate
+	72 fnt2pt scale
+	newpath
+	0 exch moveto
+	7 0 rlineto
+	stroke
+	grestore
+} bind def
+
+/linevert { % . font_x -> .
+	gsave
+	72 0 translate
+	fnt2pt 72 scale
+	newpath
+	0 moveto
+	0 7 rlineto
+	stroke
+	grestore
+} bind def
+
+/bluezone { % . font_y_1 font_y_2 -> .
+	gsave
+	bluezonecolor
+	0 72 translate
+	72 fnt2pt scale
+	newpath
+	0 exch moveto
+	7 0 rlineto
+	7 exch lineto
+	-7 0 rlineto
+	closepath
+	fill
+	grestore
+} bind def
+
+/drawstem { %  . xwidth ywidth x0 y0 -> .
+	gsave
+	72 72 translate fnt2pt fnt2pt scale xorg yorg translate
+	newpath
+	moveto
+	dup 0 exch rlineto
+	exch 0 rlineto
+	neg 0 exch rlineto
+	closepath fill
+	grestore
+} bind def
+	
+/getlen {
+	dup stringwidth pop
+} bind def
+
+/compressfont 0.8 def
+
+/label { % . string stringwd y -> .
+	dup lasty lt {
+		dup lasty fontsz sub le
+	} { 
+		dup lasty fontsz add ge
+	} ifelse {
+		/curx 0 store
+	} if
+	dup /lasty exch store
+	0 exch moveto
+	compressfont mul dup curx add maxx gt {
+		/curx 0 store
+	} if
+	curx 0 rmoveto
+	dup 0 rlineto
+	stroke
+	gsave
+	curx lasty moveto
+	curx add /curx exch store
+	compressfont 1 scale
+	show
+	grestore
+} bind def
+%%EndProlog
+");
+
+sub bluezone # from to
+{
+	my ($a, $b)=@_;
+	printf("%d %d bluezone\n",$a+$yorg, $b+$yorg);
+	$ycoord{$a+0}=1;
+	$ycoord{$b+0}=1;
+}
+
+sub linehor # x
+{
+	my $a=$_[0];
+	printf("%d linehor\n",$a+$yorg);
+	$ycoord{$a+0}=1;
+}
+
+sub linevert # x
+{
+	my $a=$_[0];
+	printf("%d linevert\n",$a+$xorg);
+	$xcoord{$a+0}=1;
+}
+
+sub hstem # from width
+{
+	my ($from, $width)=@_;
+	$stemhused=1;
+	printf("%d %d %d %d drawstem %% %d %d h \n", -$stemwd, $width,
+		$bbox[0]-2-$stemhgrp*$stemwd, $from,
+		$from, $width);
+	printf("%d %d %d %d drawstem %% %d %d h \n", $stemwd, $width,
+		$bbox[2]+2+$stemhgrp*$stemwd, $from,
+		$from, $width);
+}
+
+sub vstem # from width
+{
+	my ($from, $width)=@_;
+	$stemvused=1;
+	printf("%d %d %d %d drawstem %% %d %d v \n", $width, -$stemwd,
+		$from, $bbox[1]-2-$stemhgrp*$stemwd,
+		$from, $width);
+	printf("%d %d %d %d drawstem %% %d %d v \n", $width, $stemwd,
+		$from, $bbox[3]+2+$stemhgrp*$stemwd,
+		$from, $width);
+}
+
+sub nextstemgrp
+{
+	if($stemhused || $stemvused) {
+		$stemhgrp++;
+		$stemhused=0;
+		$stemvgrp++;
+		$stemvused=0;
+	}
+}
+
+sub substems # number
+{
+	my $count=$_[0];
+	my $i, $cmd, @vals;
+
+	printf(STDERR "%d substituted stem groups\n", $count);
+	print("\nstemcolor\n");
+	for($i=0; $i<$count; $i++) {
+		&nextstemgrp();
+		while(<FILE>) {
+			if(/NP/) {
+				last;
+			}
+			s/^\s+//;
+			@vals=split(/\s+/, $_);
+			$cmd=$vals[$#vals];
+			if($cmd eq "hstem") {
+				&hstem($vals[0], $vals[1]);
+			} elsif($cmd eq "vstem") {
+				&vstem($vals[0], $vals[1]);
+			}
+		}
+	}
+	print("\n");
+}
+
+sub drawchar
+{
+	my($x,$y)=(0,0);
+	my @vals, $cmd, $i;
+	my %xv=();
+	my %yv=();
+
+	print("\nmainstemcolor\n");
+	&nextstemgrp();
+	while(<FILE>) {
+		if(/endchar/) {
+			printf("\n/drawchar { } bind def\n");
+			return;
+		}
+		s/^\s+//;
+		@vals=split(/\s+/, $_);
+		$cmd=$vals[$#vals];
+
+		if($cmd eq "hsbw") {
+			$x=$vals[0]+0;
+		} elsif($cmd eq "hstem") {
+			&hstem($vals[0], $vals[1]);
+		} elsif($cmd eq "hstem3") {
+			&hstem($vals[0], $vals[1]);
+			&hstem($vals[2], $vals[3]);
+			&hstem($vals[4], $vals[5]);
+		} elsif($cmd eq "vstem") {
+			&vstem($vals[0], $vals[1]);
+		} elsif($cmd eq "vstem3") {
+			&vstem($vals[0], $vals[1]);
+			&vstem($vals[2], $vals[3]);
+			&vstem($vals[4], $vals[5]);
+		} else {
+			last;
+		}
+	}
+	printf("\n/drawchar {\n");
+	printf("\ngsave 72 72 translate fnt2pt fnt2pt scale %d %d translate\n", $xorg, $yorg);
+	printf("contourcolor 1 setlinewidth newpath\n");
+	do {
+		if(/endchar/) {
+			printf("grestore } bind def\n");
+			printf("coordcolor\n");
+			for $x (keys %xv) {
+				&linevert($x);
+			}
+			for $y (keys %yv) {
+				&linehor($y);
+			}
+			return;
+		}
+		s/^\s+//;
+		@vals=split(/\s+/, $_);
+		$cmd=$vals[$#vals];
+
+		if($cmd eq "amoveto") {
+			$x=$vals[0]+0;
+			$y=$vals[1]+0;
+			$xv{$x+0}=1; $yv{$y+0}=1; 
+			printf("%d %d moveto\n", $x, $y);
+			printf("%d %d 5 0 360 arc %d %d moveto\n", $x, $y, $x, $y);
+		} elsif($cmd eq "rmoveto") {
+			$x+=$vals[0];
+			$y+=$vals[1];
+			$xv{$x+0}=1; $yv{$y+0}=1; 
+			printf("%d %d moveto\n", $x, $y);
+			printf("%d %d 5 0 360 arc %d %d moveto\n", $x, $y, $x, $y);
+		} elsif($cmd eq "hmoveto") {
+			$x+=$vals[0];
+			$xv{$x+0}=1; $yv{$y+0}=1; 
+			printf("%d %d moveto\n", $x, $y);
+			printf("%d %d 5 0 360 arc %d %d moveto\n", $x, $y, $x, $y);
+		} elsif($cmd eq "vmoveto") {
+			$y+=$vals[0];
+			$xv{$x+0}=1; $yv{$y+0}=1; 
+			printf("%d %d moveto\n", $x, $y);
+			printf("%d %d 5 0 360 arc %d %d moveto\n", $x, $y, $x, $y);
+		} elsif($cmd eq "alineto") {
+			$x=$vals[0]+0;
+			$y=$vals[1]+0;
+			$xv{$x+0}=1; $yv{$y+0}=1; 
+			printf("%d %d lineto\n", $x, $y);
+			printf("%d %d 3 0 360 arc %d %d moveto\n", $x, $y, $x, $y);
+		} elsif($cmd eq "rlineto") {
+			$x+=$vals[0];
+			$y+=$vals[1];
+			$xv{$x+0}=1; $yv{$y+0}=1; 
+			printf("%d %d lineto\n", $x, $y);
+			printf("%d %d 3 0 360 arc %d %d moveto\n", $x, $y, $x, $y);
+		} elsif($cmd eq "hlineto") {
+			$x+=$vals[0];
+			$xv{$x+0}=1; $yv{$y+0}=1; 
+			printf("%d %d lineto\n", $x, $y);
+			printf("%d %d 3 0 360 arc %d %d moveto\n", $x, $y, $x, $y);
+		} elsif($cmd eq "vlineto") {
+			$y+=$vals[0];
+			$xv{$x+0}=1; $yv{$y+0}=1; 
+			printf("%d %d lineto\n", $x, $y);
+			printf("%d %d 3 0 360 arc %d %d moveto\n", $x, $y, $x, $y);
+		} elsif($cmd eq "arcurveto") {
+			for $i (0,2,4) {
+				$x=$vals[$i]+0;
+				$y=$vals[$i+1]+0;
+				printf("%d %d ", $x, $y);
+			}
+			$xv{$x+0}=1; $yv{$y+0}=1; 
+			printf("curveto\n");
+			printf("%d %d 3 0 360 arc %d %d moveto\n", $x, $y, $x, $y);
+		} elsif($cmd eq "rrcurveto") {
+			for $i (0,2,4) {
+				$x+=$vals[$i];
+				$y+=$vals[$i+1];
+				printf("%d %d \n", $x, $y);
+			}
+			$xv{$x+0}=1; $yv{$y+0}=1; 
+			printf("curveto\n");
+			printf("%d %d 3 0 360 arc %d %d moveto\n", $x, $y, $x, $y);
+		} elsif($cmd eq "hvcurveto") {
+			$x+=$vals[0];
+			printf("%d %d \n", $x, $y);
+			$x+=$vals[1];
+			$y+=$vals[2];
+			printf("%d %d \n", $x, $y);
+			$y+=$vals[3];
+			printf("%d %d \n", $x, $y);
+			$xv{$x+0}=1; $yv{$y+0}=1; 
+			printf("curveto\n");
+			printf("%d %d 3 0 360 arc %d %d moveto\n", $x, $y, $x, $y);
+		} elsif($cmd eq "vhcurveto") {
+			$y+=$vals[0];
+			printf("%d %d \n", $x, $y);
+			$x+=$vals[1];
+			$y+=$vals[2];
+			printf("%d %d \n", $x, $y);
+			$x+=$vals[3];
+			printf("%d %d \n", $x, $y);
+			$xv{$x+0}=1; $yv{$y+0}=1; 
+			printf("curveto\n");
+			printf("%d %d 3 0 360 arc %d %d moveto\n", $x, $y, $x, $y);
+		} elsif($cmd eq "closepath") {
+			printf("closepath stroke newpath\n");
+		}
+	} while(<FILE>);
+
+}
+
+$pages=0;
+
+$fname=shift @ARGV;
+for $code (@ARGV) {
+	$pages++;
+
+	$stemhgrp=0;
+	$stemhused=0;
+	$stemvgrp=0;
+	$stemvused=0;
+	$stemwd=10;
+	$name="";
+	$fontname="unknown";
+	undef %xcoord;
+	undef %ycoord;
+
+	printf("%%%%Page: %d %d\n", $code, $code);
+	printf("gsave
+
+0 setlinewidth
+36 72 translate
+
+gsave
+contourcolor
+72 72 scale
+newpath
+0 0 moveto
+7 0 rlineto
+0 7 rlineto
+-7 0 rlineto
+closepath
+stroke
+1 1 translate
+newpath
+0 0 moveto
+5 0 rlineto
+0 5 rlineto
+-5 0 rlineto
+closepath
+stroke
+grestore
+
+");
+
+	seek(FILE, 0, 0);
+	while(<FILE>) {
+		if(/FontBBox\s+\{\s*(.*)\s*}/) {
+			@bbox=split(/\s+/, $1);
+
+			$nx=$bbox[2]-$bbox[0];
+			$ny=$bbox[3]-$bbox[1];
+			$maxsz= ($nx>$ny) ? $nx : $ny;
+			$fnt2pt= 72*5/$maxsz;
+			printf("/fnt2pt 72 5 mul %d div def\n", $maxsz);
+			$xorg= -($bbox[0]-($maxsz-$nx)/2); 
+			$yorg= -($bbox[1]-($maxsz-$ny)/2);
+			print("coordcolor\n");
+			printf("/xorg %d def /yorg %d def\n", $xorg, $yorg);
+			print("coordcolor\n");
+			printf("0 linehor %d linehor %d linehor\n", $bbox[1]+$yorg, $bbox[3]+$yorg);
+			printf("%d linevert %d linevert\n", $bbox[0]+$xorg, $bbox[2]+$xorg);
+		} elsif( /BlueValues\s+\[\s*(.*)\s*\]/ || /OtherBlues\s+\[\s*(.*)\s*\]/ ) {
+			%vals=split(/\s+/, $1);
+			for $i (keys %vals) {
+				&bluezone($i, $vals{$i});
+			}
+		} elsif( /^dup\s+$code\s+\/(\S+)\s+put/ ) {
+			$name=$1;
+			printf(STDERR "glyph name:%s\n", $name);
+		} elsif( /^\%\s*$name\s/ && /\s(\d+)\s*$/ ) {
+			&substems($1);
+		} elsif( /^\/$name\s+\{/ ) {
+			&drawchar();
+		} elsif( /^\/FontName\s+(\S+)/ ) {
+			$fontname=$1;
+		}
+	}
+
+	printf("drawchar\n\n");
+
+	&nextstemgrp();
+
+	# the values of coordinates
+	printf("/fontsz 8 fnt2pt div def\n");
+	printf("/Myfont /Courier findfont fontsz scalefont def\n\n");
+	printf("contourcolor Myfont setfont\n");
+
+	for $org (0, $xorg+$bbox[2]+$stemwd*$stemhgrp+72/$fnt2pt) {
+		printf("gsave\n");
+		printf("/maxx 72 fnt2pt div %d sub def /curx 0 def /lasty -10000 def\n",
+				2+$stemhgrp*$stemwd-$xorg-$bbox[0]);
+		printf("0 72 translate fnt2pt fnt2pt scale %f yorg translate 1 setlinewidth\n", $org);
+		for $y (sort {$a <=> $b} keys %ycoord) {
+			printf("(%d) getlen %d label\n", $y, $y);
+		}
+		printf("grestore\n");
+	}
+
+	for $org (0, $yorg+$bbox[3]+$stemwd*$stemvgrp+72/$fnt2pt) {
+		printf("gsave\n");
+		printf("/maxx 72 fnt2pt div %d sub def /curx 0 def /lasty -10000 def\n",
+				2+$stemvgrp*$stemwd-$yorg-$bbox[1]);
+		printf("72 0 translate fnt2pt fnt2pt scale xorg %f translate 90 rotate 1 setlinewidth\n", $org);
+		for $x (sort {$a <=> $b} keys %xcoord) {
+			printf("(%d) getlen %d label\n", $x, -$x);
+		}
+		printf("grestore\n");
+	}
+
+	printf("gsave 0 %d translate\n", 7.5*72 );
+	printf("contourcolor /Courier findfont 12 scalefont setfont\n");
+	printf("0 0 moveto (code: %d  name: %s) show\n", $code, $name);
+	printf("0 15 moveto (%s) show\n", $fname);
+	printf("0 30 moveto (%s) show\n", $fontname);
+	printf("grestore\n\n");
+
+	printf("showpage grestore\n\n");
+}
+printf("%%%%Pages: %d\n", $pages);

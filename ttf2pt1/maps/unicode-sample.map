@@ -1,0 +1,97 @@
+# this file is a sample Unicode map description.
+# It describes which glyphs are to be included in the font
+# and at which character position they are to be put.
+
+# If the character position is greater than 255, the glyph is included, but
+# does not appear in the encoding table (you must then use font reencoding
+# to use this glyph).
+# That makes it possible to have more than 256 glyphs in a font.
+# Currently the maximum supported number of glyphs is 1024.
+
+# Use this file as the argument to ttf2pt1's -L option.
+
+# 1999-11-24 Thomas.Henlich@mailbox.tu-dresden.de
+# 2000-03-01 Sergey Babkin: added 3rd format
+
+# comment lines start with '#' or '%' or '//'
+
+% There is one code assignment per line.
+// Three formats are recognized:
+# 1. optional whitespace, followed by '=', followed by a hex number
+# (character position), followed by optional whitespace, followed by
+# 'U+', followed by a four-digit hex number (the Unicode of the glyph we want
+# here), followed by any number of characters.
+
+// example:
+
+=20	U+0020	SPACE
+=48	U+0021	EXCLAMATION MARK
+=22	U+0022	QUOTATION MARK
+=23	U+0023	NUMBER SIGN
+=24	U+0024	DOLLAR SIGN
+=25	U+0025	PERCENT SIGN
+=26	U+0026	AMPERSAND
+=27	U+0027	APOSTROPHE
+
+=E0	U+042E	CYRILLIC CAPITAL LETTER YU
+=E1	U+0410	CYRILLIC CAPITAL LETTER A
+=E2	U+0411	CYRILLIC CAPITAL LETTER BE
+=E3	U+0426	CYRILLIC CAPITAL LETTER TSE
+=E4	U+0414	CYRILLIC CAPITAL LETTER DE
+=E5	U+0415	CYRILLIC CAPITAL LETTER IE
+=E6	U+0424	CYRILLIC CAPITAL LETTER EF
+=E7	U+0413	CYRILLIC CAPITAL LETTER GHE
+
+% 2. optional whitespace, followed by '<', followed by one or more
+% non-whitespace characters,
+% followed by optional whitespace, followed by '/x',  followed by
+% a hex number (character position), followed by optional
+% whitespace, followed by '<U', followed by a four-digit hex number
+% (the Unicode of the glyph we want here), followed by '>' and any number
+% of characters.
+
+# example:
+
+<I>                    /x40     <U0049> LATIN CAPITAL LETTER I
+<t>                    /x41     <U0074> LATIN SMALL LETTER T
+<r>                    /x43     <U0072> LATIN SMALL LETTER R
+<o>                    /x44     <U006F> LATIN SMALL LETTER O
+<c>                    /x45     <U0063> LATIN SMALL LETTER C
+<k>                    /x46     <U006B> LATIN SMALL LETTER K
+<s>                    /x47     <U0073> LATIN SMALL LETTER S
+
+<Eu>                   /xA4     <U20AC> EURO SIGN
+
+# 3. optional whitespace, followed by '!', followed by a hex number
+# (character position), followed by optional whitespace, followed by
+# 'U+', followed by a four-digit hex number (the Unicode of the glyph we want
+# here), followed by the name of the glyph that will be used in the
+# output file.
+
+# example:
+
+!20 U+0020 space
+!21 U+0021 exclam
+!22 U+0022 quotedbl
+!23 U+0023 numbersign
+!24 U+0024 dollar
+!25 U+0025 percent
+
+# the first format is used by Roman Czyborra on his fine WWW pages:
+# http://czyborra.com/charsets/iso8859.html
+
+# the second format is used in the Linux locale charmaps files:
+# /usr/share/i18n/charmaps/*
+
+# we don't need those glyphs in the encoding table
+=100     U+0030  DIGIT ZERO
+=101     U+0031  DIGIT ONE
+=102     U+0032  DIGIT TWO
+=103     U+0033  DIGIT THREE
+=104     U+0034  DIGIT FOUR
+=105     U+0035  DIGIT FIVE
+=106     U+0036  DIGIT SIX
+=107     U+0037  DIGIT SEVEN
+=108     U+0039  DIGIT NINE
+=109     U+0038  DIGIT EIGHT
+
