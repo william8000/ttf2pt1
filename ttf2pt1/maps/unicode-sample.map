@@ -10,7 +10,7 @@
 
 # Use this file as the argument to ttf2pt1's -L option.
 
-# 1999-11-24 Thomas.Henlich@mailbox.tu-dresden.de
+# 1999-11-24 Thomas Henlich
 # 2000-03-01 Sergey Babkin: added 3rd format
 
 # comment lines start with '#' or '%' or '//'

@@ -22,7 +22,7 @@
  *
 ***********************************************************************
  *
- * Thomas Henlich <thenlich@rcs.urz.tu-dresden.de>
+ * Thomas Henlich
  *
  * Added generation of .afm file (font metrics)
  * Read encoding information from encoding description file
@@ -32,7 +32,7 @@
  *
 ***********************************************************************
  *
- * Thomas Henlich <thenlich@rcs.urz.tu-dresden.de>
+ * Thomas Henlich
  *
  * Added generation of .afm file (font metrics)
  *
@@ -41,7 +41,7 @@
  * Bug Fixes: 
 ************************************************************************
  *
- * Sun, 21 Jun 1998 Thomas Henlich <thenlich@Rcs1.urz.tu-dresden.de> 
+ * Sun, 21 Jun 1998 Thomas Henlich
  * 1. "width" should be "short int" because otherwise: 
  *     characters with negative widths (e.g. -4) become *very* wide (65532) 
  * 2. the number of /CharStrings is numglyphs and not numglyphs+1 
