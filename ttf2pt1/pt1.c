@@ -5335,6 +5335,7 @@ fapproxcurve(
 #endif
 		}
 		bestres = FBIGVAL;
+		best[B] = best[C] = 0;
 		/* i iterates by ncoef[B], j iterates by ncoef[C] */
 		for(i=0; i<ncoef[B]; i++) {
 			for(j=0; j<ncoef[C]; j++) {
