@@ -117,7 +117,7 @@ DOCS=CHANGES README INSTALL INSTALL.hpux encodings/README other/README \
 
 SUBDIRS = app encodings maps scripts other
 
-MANS1=ttf2pt1.1
+MANS1=ttf2pt1.1 ttf2pt1_convert.1 ttf2pt1_x2gs.1
 MANS=$(MANS1) $(MANS5)
 
 all:	t1asm ttf2pt1 docs mans rpm
@@ -137,6 +137,9 @@ rpm: app/RPM/Makefile app/RPM/ttf2pt1.spec
 
 ttf2pt1.1: README.html
 	scripts/html2man . . <README.html
+
+ttf2pt1_convert.1 ttf2pt1_x2gs.1: INSTALL.html
+	scripts/html2man . . <INSTALL.html
 
 app/RPM/Makefile: Makefile
 	sed 's/^CFLAGS_SYS.*=.*$$/CFLAGS_SYS= -O2 -D_GNU_SOURCE/;/warning:/,/^$$/s/^/#/' <Makefile >app/RPM/Makefile
