@@ -5810,7 +5810,8 @@ fconcisecontour(
 	double avsd2, maxd2, eps2;
 	double apcv[4][2];
 
-	if(startge->type != GE_CURVE && startge->type != GE_LINE)
+	if(startge == 0 /* XXX this should not happen but it does */
+	|| startge->type != GE_CURVE && startge->type != GE_LINE)
 		return; /* probably a degenerate contour */
 
 	if(ISDBG(FCONCISE))
