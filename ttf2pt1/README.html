@@ -153,10 +153,10 @@ The <B>options</B> are:
 
 <!-- ==item * >
 <TT><B>-F</TT></B> - Force the Unicode encoding: any type of MS encoding specified
-  in the font is ignored and the font is treated like it has Unicode
-  encoding. <B>WARNING:</B> <I>this option is intended for buggy fonts
-  which actually are in Unicode but are marked as something else. The
-  effect on the other fonts is unpredictable.</I>
+   in the font is ignored and the font is treated like it has Unicode
+   encoding. <B>WARNING:</B> <I>this option is intended for buggy fonts
+   which actually are in Unicode but are marked as something else. The
+   effect on the other fonts is unpredictable.</I>
 <p>
 
 <!-- ==item * >
@@ -198,11 +198,11 @@ The <B>options</B> are:
 
    The argument of the "<tt>plane</tt>" language may be in one of three forms:
 <p>
-   <tt>plane+<b>pid=</b><i>&lt;pid&gt;</i><b>,eid=</b><i>&lt;eid&gt;</i></tt>
+   &nbsp;&nbsp;<tt>plane+<b>pid=</b><i>&lt;pid&gt;</i><b>,eid=</b><i>&lt;eid&gt;</i></tt>
 <br>
-   <tt>plane+<b>pid=</b><i>&lt;pid&gt;</i><b>,eid=</b><i>&lt;eid&gt;</i><b>,</b><i>&lt;plane_number&gt;</i></tt>
+   &nbsp;&nbsp;<tt>plane+<b>pid=</b><i>&lt;pid&gt;</i><b>,eid=</b><i>&lt;eid&gt;</i><b>,</b><i>&lt;plane_number&gt;</i></tt>
 <br>
-   <tt>plane+<i>&lt;plane_number&gt;</i></tt>
+   &nbsp;&nbsp;<tt>plane+<i>&lt;plane_number&gt;</i></tt>
 <p>
 
    Pid (TTF platform id) and eid (TTF encoding id) select a particular 
@@ -299,9 +299,9 @@ The <B>options</B> are:
 
 <!-- ==item * >
 <TT><B>-O <i>suboptions</i></TT></B> - Outline processing options. The suboptions
-may be lowercase or uppercase, the lowercase ones disable the features,
-the corresponding uppercase suboptions enable the same features.
-The suboptions to disable/enable features are:
+   may be lowercase or uppercase, the lowercase ones disable the features,
+   the corresponding uppercase suboptions enable the same features.
+   The suboptions to disable/enable features are:
 <p>
 
 <blockquote>
@@ -397,9 +397,9 @@ The suboptions to disable/enable features are:
 
 <!-- ==item * >
 <TT><B>-p <I>parser_name</I></TT></B> - Use the specified front-end parser to read the font file.
-  If this option is not used, ttf2pt1 selects the parser automatically based
-  on the suffix of the font file name, it uses the first parser in its
-  list that supports this font type. Now two parsers are supported:
+   If this option is not used, ttf2pt1 selects the parser automatically based
+   on the suffix of the font file name, it uses the first parser in its
+   list that supports this font type. Now two parsers are supported:
 <p>
 
    &nbsp;&nbsp;<TT>ttf</TT> - built-in parser for the ttf files (suffix <tt>.ttf</tt>)
@@ -531,6 +531,29 @@ is that other filters may be applied to the font between the converter
 and assembler.
 <p>
 <!-- =stop >
+
+<H4>
+Installation and deinstallation of the converter
+</H4>
+<!
+------------------------------------------------
+>
+
+The converter may be easily installed systemwide with
+
+<blockquote>
+	<tt>make install</tt>
+</blockquote>
+
+and uninstalled with
+
+<blockquote>
+	<tt>make uninstall</tt>
+</blockquote>
+
+By default the <tt>Makefile</tt> is configured to install in the hierarchy
+of directory <tt>/usr/local</tt>. This destination directory as well as
+the structure of the hierarchy may be changed by editing the <tt>Makefile</tt>.
 
 <H4>
 Installation of the fonts
