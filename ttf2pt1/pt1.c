@@ -62,6 +62,10 @@ static int joinmainstems( STEM * s, int nold, int useblues);
 static void joinsubstems( STEM * s, short *pairs, int nold, int useblues);
 static void fixendpath( GENTRY *ge);
 static void fdelsmall( GLYPH *g, double minlen);
+static double fcvarea( GENTRY *ge);
+static int fckjoinedcv( GLYPH *g, double t, GENTRY *nge, 
+	GENTRY *old1, GENTRY *old2, double k);
+static double fcvval( GENTRY *ge, int axis, double t);
 
 static int
 isign(
@@ -4869,12 +4873,46 @@ fdelsmall(
 
 		/* check if the whole sequence is small */
 		dx = ge->fx3 - ge->prev->fx3;
-		dx = ge->fy3 - ge->prev->fy3;
-		d2 = dx*dx + dx*dx;
+		dy = ge->fy3 - ge->prev->fy3;
+		d2 = dx*dx + dy*dy;
 
 		if( d2 > minlen2 ) { /* no, it is not */
+			double b, d;
+
 			WARNING_3 fprintf(stderr, "glyph %s had a sequence of fragments < %g points each, reduced to one curve\n",
 				g->name, minlen);
+
+			/* check that we did not create a monstrosity spanning quadrants */
+			if(fsign(ge->fx1 - ge->prev->fx1) * fsign(ge->fx3 - ge->fx1) < 0
+			|| fsign(ge->fy1 - ge->prev->fy1) * fsign(ge->fy3 - ge->fy1) < 0 ) { 
+				/* yes, we did; are both parts of this thing big enough ? */
+				dx = ge->fx1 - ge->prev->fx3;
+				dy = ge->fy1 - ge->prev->fy3;
+				d2 = dx*dx + dy*dy;
+
+				dx = ge->fx3 - ge->fx1;
+				dy = ge->fy3 - ge->fy1;
+				d2m = dx*dx + dy*dy;
+
+				if(d2 > minlen2 && d2m > minlen2) { /* make two straights */
+					nge = newgentry(GEF_FLOAT);
+					*nge = *ge;
+					
+					for(i=0; i<2; i++) {
+						ge->fpoints[i][2] = ge->fpoints[i][0];
+						b = nge->fpoints[i][0];
+						d = nge->fpoints[i][2] - b;
+						nge->fpoints[i][0] = b + 0.1*d;
+						nge->fpoints[i][1] = b + 0.9*d;
+					}
+				}
+				for(i=0; i<2; i++) { /* make one straight or first of two straights */
+					b = ge->prev->fpoints[i][2];
+					d = ge->fpoints[i][2] - b;
+					ge->fpoints[i][0] = b + 0.1*d;
+					ge->fpoints[i][1] = b + 0.9*d;
+				}
+			}
 			continue; 
 		}
 
@@ -5022,7 +5060,7 @@ fnormalizec(
 				b = ge->prev->fpoints[i][2];
 				d = ge->fpoints[i][2] - b;
 				ge->fpoints[i][0] = b + 0.1*d;
-				ge->fpoints[i][1] = b + 0.2*d;
+				ge->fpoints[i][1] = b + 0.9*d;
 			}
 		} else if(frontsame) {
 			for(i=0; i<2; i++) {
@@ -5089,8 +5127,10 @@ fcrossrays(
 		}
 	}
 
-	if(ray[0].isvert && ray[1].isvert)
+	if(ray[0].isvert && ray[1].isvert) {
+		if(ISDBG(FCONCISE)) fprintf(stderr, "crossrays: both vertical\n");
 		return 0; /* both vertical, don't cross */
+	}
 
 	if(ray[1].isvert) {
 		ray[2] = ray[0]; /* exchange them */
@@ -5101,8 +5141,11 @@ fcrossrays(
 	if(ray[0].isvert) {
 		x = ray[0].x1;
 	} else {
-		if( fabs(ray[0].k - ray[1].k) < FEPS) 
+		if( fabs(ray[0].k - ray[1].k) < FEPS) {
+			if(ISDBG(FCONCISE)) fprintf(stderr, "crossrays: parallel lines, k = %g, %g\n",
+				ray[0].k, ray[1].k);
 			return 0; /* parallel lines */
+		}
 		x = (ray[1].b - ray[0].b) / (ray[0].k - ray[1].k) ;
 	}
 	y = ray[1].k * x + ray[1].b;
@@ -5113,10 +5156,130 @@ fcrossrays(
 		else
 			*ray[i].maxp = (x - ray[i].x1) / (ray[i].x2 - ray[i].x1);
 		/* check if wrong sides of rays cross */
-		if( *ray[i].maxp < 0 )
+		if( *ray[i].maxp < 0 ) {
+			if(ISDBG(FCONCISE)) fprintf(stderr, "crossrays: scale=%g @(%g,%g) (%g,%g)<-(%g,%g)\n",
+				*ray[i].maxp, x, y, ray[i].x2, ray[i].y2, ray[i].x1, ray[i].y1);
 			return 0;
+		}
 	}
 	return 1;
+}
+
+/* find the area covered by the curve
+ * (limited by the projections to the X axis)
+ */
+
+static double
+fcvarea(
+	GENTRY *ge
+)
+{
+	double Ly, My, Ny, Py, Qx, Rx, Sx;
+	double area;
+
+	/* y = Ly*t^3 + My*t^2 + Ny*t + Py */
+	Ly = -ge->prev->fy3 + 3*(ge->fy1 - ge->fy2) + ge->fy3;
+	My = 3*ge->prev->fy3 - 6*ge->fy1 + 3*ge->fy2;
+	Ny = 3*(-ge->prev->fy3 + ge->fy1);
+	Py = ge->prev->fy3;
+
+	/* dx/dt = Qx*t^2 + Rx*t + Sx */
+	Qx = 3*(-ge->prev->fx3 + 3*(ge->fx1 - ge->fx2) + ge->fx3);
+	Rx = 6*(ge->prev->fx3 - 2*ge->fx1 + ge->fx2);
+	Sx = 3*(-ge->prev->fx3 + ge->fx1);
+
+	/* area is integral[from 0 to 1]( y(t) * dx(t)/dt *dt) */
+	area = 1./6.*(Ly*Qx) + 1./5.*(Ly*Rx + My*Qx) 
+		+ 1./4.*(Ly*Sx + My*Rx + Ny*Qx) + 1./3.*(My*Sx + Ny*Rx + Py*Qx)
+		+ 1./2.*(Ny*Sx + Py*Rx) + Py*Sx;
+
+	return area;
+}
+
+/* find the value of point on the curve at the given parameter t,
+ * along the given axis (0 - X, 1 - Y).
+ */
+
+static double
+fcvval(
+	GENTRY *ge,
+	int axis,
+	double t
+)
+{
+	double t2, mt, mt2;
+
+	/* val = A*(1-t)^3 + 3*B*(1-t)^2*t + 3*C*(1-t)*t^2 + D*t^3 */
+	t2 = t*t;
+	mt = 1-t;
+	mt2 = mt*mt;
+	
+	return ge->prev->fpoints[axis][2]*mt2*mt 
+		+ 3*(ge->fpoints[axis][0]*mt2*t + ge->fpoints[axis][1]*mt*t2)
+		+ ge->fpoints[axis][2]*t*t2;
+}
+
+/* Check that the new curve has the point identified by the 
+ * parameter t reasonably close to the corresponding point
+ * in the old pair of curves which were joined in proportion k.
+ * If old2 is NULL then just compare nge and old1 at the point t.
+ * Returns 0 if OK, 1 if it's too far.
+ */
+
+static int
+fckjoinedcv(
+	GLYPH *g,
+	double t,
+	GENTRY *nge,
+	GENTRY *old1,
+	GENTRY *old2,
+	double k
+)
+{
+	GENTRY *oge;
+	double ot;
+	double off;
+	double lim;
+	int i;
+
+	if(old2 == 0) {
+		oge = old1;
+		ot = t;
+	} else if(t <= k && k!=0.) {
+		oge = old1;
+		ot = t/k;
+	} else {
+		oge = old2;
+		ot = (t-k) / (1.-k);
+	}
+
+	if(ISDBG(FCONCISE))
+		fprintf(stderr, "%s: t=%g ot=%g (%x) ", g->name, t, ot, oge);
+
+	for(i=0; i<2; i++) {
+		/* permitted tolerance is 5% */
+		lim = fabs(nge->fpoints[i][2] - nge->prev->fpoints[i][2])*0.05;
+
+		if(lim < 3.)
+			lim = 3.; /* for small curves the tolerance is higher */
+		if(lim > 10.)
+			lim = 10.; /* for big curves the tolerance is limited anyway */
+
+		off = fabs(fcvval(nge, i, t) - fcvval(oge, i, ot));
+
+		if(off > lim) {
+			if(ISDBG(FCONCISE))
+				fprintf(stderr, "out of range d%c=%.2f(%.2f)\n", 
+					(i==0 ? 'X' : 'Y'), off, lim);
+			return 1;
+		}
+
+		if(ISDBG(FCONCISE))
+			fprintf(stderr, "valid d%c=%.2f(%.2f)  ", (i==0 ? 'X' : 'Y'), off, lim);
+	}
+	if(ISDBG(FCONCISE))
+		fprintf(stderr, "\n");
+	return 0;
 }
 
 /* force conciseness: substitute 2 or more curves going in the
@@ -5144,6 +5307,7 @@ fforceconcise(
 	assertpath(g->entries, __FILE__, __LINE__, g->name);
 	fnormalizec(g);
 
+
 	for (ge = g->entries; ge != 0; ge = ge->next) {
 		if (ge->type != GE_CURVE)
 			continue;
@@ -5163,13 +5327,6 @@ fforceconcise(
 			dxe1 = ge->fx3 - ge->fx2;
 			dye1 = ge->fy3 - ge->fy2;
 
-#if 0 /* quadrants are taken care of, and horiz/vert don't bother us any more */
-			/* if this curve ends horizontally or vertically */
-			/* or crosses quadrant boundaries */
-			if (dxe1 == 0 || dye1 == 0 || dxb1 * dxe1 < 0 || dyb1 * dye1 < 0)
-				break;
-#endif
-
 			nge = ge->forw;
 
 			if (nge->type != GE_CURVE)
@@ -5187,35 +5344,29 @@ fforceconcise(
 			if (fsign(dxw1) != fsign(dxw2) || fsign(dyw1) != fsign(dyw2))
 				break;
 
-#if 0 /* quadrants are taken care of, and horiz/vert don't bother us any more */
-			/* if the next curve crosses quadrant boundaries */
-			/* or joints very abruptly */
-			if (dxb2 * dxe2 < 0 || dyb2 * dye2 < 0
-			    || fsign(dxb2) != fsign(dxe1) || fsign(dyb2) != fsign(dye1))
-				break;
-#endif
-
 			/* if the arch is going in other direction */
 			if (fsign(fabs(dxb1 * dyw1) - fabs(dyb1 * dxw1))
 			    * fsign(fabs(dxe2 * dyw2) - fabs(dye2 * dxw2)) > 0)
 				break;
 
-#if 0
-			/* if the next curve is not continuing the trend set */
-			/* by the end of the first curve, i.e. could make a zigzag */
-			/* note, the previous one has ">=", this one has ">" */
-
-			if( fsign(fabs(dye1 * dxw2) - fabs(dyw2 * dxe1))
-				* fsign(fabs(dye1 * dxw1) - fabs(dyw1 * dxe1)) > 0 )
-				break;
-#endif
-
 			/* get possible scale limits within which we won't cross quadrants */
 			if( fcrossrays(ge, nge, &maxsc1, &maxsc2) == 0 ) {
-				/* they MUST cross, so if they don't there is something weird */
-				WARNING_1 fprintf(stderr, "glyph %s has curves with strange ends\n", g->name);
+				if(ISDBG(FCONCISE)) {
+					fprintf(stderr, "glyph %s has curves with strange ends\n", g->name);
+					dumppaths(g, ge, nge);
+				}
 				break;
 			}
+
+			if(maxsc1 < 1. || maxsc2 < 1. ) /* would create a zigzag */
+				break;
+
+			ge->dir = fgetcvdir(ge);
+			nge->dir = fgetcvdir(nge);
+
+			if( ((ge->dir&CVDIR_FRONT)-CVDIR_FEQUAL) * ((nge->dir&CVDIR_REAR)-CVDIR_REQUAL) < 0 )
+				/* would create a zigzag */
+				break;
 
 			firstlen = sqrt( dxe1*dxe1 + dye1*dye1 );
 			lastlen = sqrt( dxb2*dxb2 + dyb2*dyb2 );
@@ -5224,7 +5375,8 @@ fforceconcise(
 			/* check the scale limits */
 			if( sumlen/firstlen > maxsc1 || sumlen/lastlen > maxsc2 ) {
 				if(ISDBG(FCONCISE)) 
-					fprintf(stderr, "%s: would be crossing in forceconcise\n", g->name);
+					fprintf(stderr, "%s: %x, %x would be crossing in forceconcise\n", 
+					g->name, ge, nge);
 				break;
 			}
 
@@ -5255,57 +5407,27 @@ fforceconcise(
 
 			/* now check if we got something sensible */
 
-			if( fiszigzag(&tge) ) /* have a zigzag ? */
-				break;
-
-			/* check if the joint point is too far from original */
+			/* check if some important points is too far from original */
+			scale = firstlen / sumlen;
 			{
-				double k1, a, b, c;
-				double p1e[2][3], p2b[2][2];
+				double pts[4] = { 0./*will be replaced*/, 0.5, 0.25, 0.75 };
+				int i, bad;
 
-				k1 = firstlen / sumlen; 
-#define SPLIT(pt1, pt2)	( (pt1) + k1*((pt2)-(pt1)) ) /* order is important! */
-				for(i=0; i<2; i++) { /* for x and y */
-					a = tge.fpoints[i][0]; /* get the middle points */
-					b = tge.fpoints[i][1];
+				pts[0] = scale;
+				bad = 0;
 
-					/* calculate new internal points */
-					c = SPLIT(a, b);
-
-					p1e[i][0] = SPLIT(tge.prev->fpoints[i][2], a);
-					p1e[i][1] = SPLIT(p1e[i][0], c);
-
-					p2b[i][1] = SPLIT(b, tge.fpoints[i][2]);
-					p2b[i][0] = SPLIT(c, p2b[i][1]);
-
-					p1e[i][2] = SPLIT(p1e[i][1], p2b[i][0]);
-				}
-#undef SPLIT
-
-				a = p1e[0][2] - ge->fx3;
-				b = p1e[1][2] - ge->fy3;
-				c = a*a + b*b; /* square of offset distance */
-
-				a = tge.fx3 - tge.prev->fx3;
-				b = tge.fy3 - tge.prev->fy3;
-				a = (0.05 * 0.05) * (a*a + b*b); /* square of 5% permitted relative tolerance */
-				if(a < 9.)
-					a = 9.; /* for small curves the tolerance is higher */
-				if(a > 100.)
-					a = 100.; /* for big curves the tolerance is limited anyway */
-
-				if( c > a ) { /* not within tolerance ? */
-					if(ISDBG(FCONCISE)) 
-						fprintf(stderr, "%s: out of order by d=%.2f t=%.2f\n", 
-						g->name, c, a);
+				for(i=0; i<sizeof(pts)/sizeof(pts[0]); i++)
+					if(fckjoinedcv(g, pts[i], &tge, ge, nge, scale)) {
+						bad = 1;
+						break;
+					}
+				if(bad)
 					break;
-				} 
-				else
-					if(ISDBG(FCONCISE)) 
-						fprintf(stderr, "%s: in range d=%.2f t=%.2f\n", g->name, c, a);
 			}
 
 			/* OK, it looks reasonably, let's apply it */
+			if(ISDBG(FCONCISE)) 
+				dumppaths(g, ge, nge);
 
 			for(i=0; i<3; i++) {
 				ge->fxn[i] = tge.fxn[i];
