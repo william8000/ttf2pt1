@@ -344,6 +344,7 @@ dupcnstring(
 {
 	char *res, *out;
 	int i, c;
+	static int warned=0;
 
 	if(( res = malloc(len+1) )==NULL) {
 		fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
@@ -354,6 +355,10 @@ dupcnstring(
 	for(i=0; i<len; i++) {
 		if(( c=s[i] )>=' ' && c!=127)
 			*out++ = c;
+		else if(!warned) {
+			warned=1;
+			WARNING_1 fprintf(stderr, "Some font name strings are in Unicode, may not show properly\n");
+		}
 	}
 	*out = 0;
 	return res;
