@@ -457,14 +457,14 @@ draw_composite_glyf(
 
 		/* combine matrices */
 
-		newmatrix[0] = matrix[0]*orgmatrix[0] + matrix[2]*orgmatrix[1];
-		newmatrix[1] = matrix[0]*orgmatrix[2] + matrix[2]*orgmatrix[3];
+		newmatrix[0] = orgmatrix[0]*matrix[0] + orgmatrix[2]*matrix[1];
+		newmatrix[1] = orgmatrix[0]*matrix[2] + orgmatrix[2]*matrix[3];
 
-		newmatrix[2] = matrix[1]*orgmatrix[0] + matrix[3]*orgmatrix[1];
-		newmatrix[3] = matrix[1]*orgmatrix[2] + matrix[3]*orgmatrix[3];
+		newmatrix[2] = orgmatrix[1]*matrix[0] + orgmatrix[3]*matrix[1];
+		newmatrix[3] = orgmatrix[1]*matrix[2] + orgmatrix[3]*matrix[3];
 
-		newmatrix[4] = matrix[0]*orgmatrix[4] + matrix[2]*orgmatrix[5] + matrix[4];
-		newmatrix[5] = matrix[1]*orgmatrix[4] + matrix[3]*orgmatrix[5] + matrix[5];
+		newmatrix[4] = orgmatrix[0]*matrix[4] + orgmatrix[2]*matrix[5] + orgmatrix[4];
+		newmatrix[5] = orgmatrix[1]*matrix[4] + orgmatrix[3]*matrix[5] + orgmatrix[5];
 
 		if(ISDBG(COMPOSITE)) {
 			fprintf(stderr, "%*c+-> %2d %s [ %.2f %.2f %.2f %.2f %.2f %.2f ]\n",
