@@ -252,7 +252,7 @@ glenc(
 			&& face->charmaps[e]->encoding_id == force_eid) {
 				WARNING_1 fprintf(stderr, "Found Encoding PID=%d/EID=%d\n", 
 					force_pid, force_eid);
-				if( FT_Set_Charmap(face, face->charmaps[e]) ) {
+				if( !face->charmaps || FT_Set_Charmap(face, face->charmaps[e]) ) {
 					fprintf(stderr, "**** Cannot set charmap in FreeType ****\n");
 					exit(1);
 				}
@@ -376,7 +376,7 @@ fnmetrics(
 #ifdef ENABLE_SFNT
 	FT_SfntName sn;
 #endif /* ENABLE_SFNT */
-	int i;
+	int i, j, len;
 
 	fm->italic_angle = 0.0; /* FreeType hides the angle */
 	fm->underline_position = face->underline_position;
@@ -463,13 +463,14 @@ fnmetrics(
 
 	for(i=0; !fm->force_bold && i<sizeof fieldstocheck /sizeof(fieldstocheck[0]); i++) {
 		str=fieldstocheck[i];
-		for(i=0; str[i]!=0; i++) {
-			if( (str[i]=='B'
-				|| str[i]=='b' 
-					&& ( i==0 || !isalpha(str[i-1]) )
+		len = strlen(str);
+		for(j=0; j<len; j++) {
+			if( (str[j]=='B'
+				|| str[j]=='b' 
+					&& ( j==0 || !isalpha(str[j-1]) )
 				)
-			&& !strncmp("old",&str[i+1],3)
-			&& !islower(str[i+4])
+			&& !strncmp("old",&str[j+1],3)
+			&& (j+4 >= len || !islower(str[j+4]))
 			) {
 				fm->force_bold=1;
 				break;
