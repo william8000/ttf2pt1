@@ -17,103 +17,90 @@ TTF2PT1 -  CHANGES history
 current
 </H4>
 <!
---------------------
+-------
 >
+
+<b>Bug fixes:</b>
+<ul>
+<li> Removed erroneous extra fclose(pfa_file)
+</ul>
 
 <b>Other:</b>
-<br>
-- ttf2pfa is no longer included, people interested in history should
+<ul>
+<li> <tt>ttf2pfa</tt> is no longer included, people interested in history should
 look for it in the older versions.
-<p>
+</ul>
 
 <H4>
-3.3.1 -- Oct 22, 2000
+3.3.1 -- October 22, 2000
 </H4>
 <!
---------------------
+-------------------------
 >
 
 Packaged by Sergey Babkin.
 <p>
 
 <b>New features:</b>
-<br>
-- Added front-end parser based on the FreeType-2 library. See Makefile
+<ul>
+<li> Added front-end parser based on the FreeType-2 library. See Makefile
 for build instructions.
-<br>
-- Changed the handling of encodings to accomodate the FreeType model.
-<br>
-- Further cleaned up the front-end parser interface.
-<p>
+<li> Changed the handling of encodings to accomodate the FreeType model.
+<li> Further cleaned up the front-end parser interface.
+</ul>
 
 <b>Bug fixes:</b>
-<br>
-- Fixed a bug that caused core dump on Alpha machines.
-<br>
-- Fixed a bug in the outline smoothing that occasionally caused core dump.
-<br>
-- Cleaned up warnings from picky compilers
-<br>
-- Fixed more bugs in the Windows port (by Stefan Bauer).
-<br>
-- Fixed the RPM spec file (suggested by Brian Armstrong).
+<ul>
+<li> Fixed a bug that caused core dump on Alpha machines.
+<li> Fixed a bug in the outline smoothing that occasionally caused core dump.
+<li> Cleaned up warnings from picky compilers
+<li> Fixed more bugs in the Windows port (by Stefan Bauer).
+<li> Fixed the RPM spec file (suggested by Brian Armstrong).
+</ul>
 <p>
 
 <H4>
-3.3.0 -- Sep 22, 2000
+3.3.0 -- September 22, 2000
 </H4>
 <!
---------------------
+---------------------------
 >
 
 Packaged by Sergey Babkin.
 <p>
 
 <b>New features:</b>
-<br>
-- Converted most of the outlines' processing to floating point
+<ul>
+<li> Converted most of the outlines' processing to floating point
 arithmetic.
-<br>
-- Added splitting of curves crossing the quadrant boundaries (no gross 
+<li> Added splitting of curves crossing the quadrant boundaries (no gross 
 damage is done any more to the Marvosym font and others like it).
-<br>
-- Added modular interface for front-end font parsers and option to control
+<li> Added modular interface for front-end font parsers and option to control
 their selection at run time.
-<br>
-- Grouped the outline processing control options into one to reduce the
+<li> Grouped the outline processing control options into one to reduce the
 options namespace pollution.
-<br>
-- Thomas moved the Chinese maps into a separate module, chinese-maps.
-<br>
-- Thomas added option -V to print version number. In addition, the version
+<li> Thomas moved the Chinese maps into a separate module, chinese-maps.
+<li> Thomas added option -V to print version number. In addition, the version
 number is put in the header of the font file.
-<br>
-- Added long option names (suggested by Thomas).
-<br>
-- Added support for multi-level composite glyphs.
-<br>
-- TH: Made &lt;fontname&gt; command-line argument optional; default to &lt;ttf-file&gt;
+<li> Added long option names (suggested by Thomas).
+<li> Added support for multi-level composite glyphs.
+<li> TH: Made &lt;fontname&gt; command-line argument optional; default to &lt;ttf-file&gt;
 with suffix replaced.
-<br>
-- In <tt>other/showg</tt> added more ways to specify glyphs and the comparison option.
-<p>
+<li> In <tt>other/showg</tt> added more ways to specify glyphs and the comparison option.
+</ul>
 
 <b>Bug fixes:</b>
-<br>
-- Fixed the VC++ batch file, added batch file for Cygnus GCC on Windows.
-<br>
-- Removed parentheses from the Version string in AFM files because it does
+<ul>
+<li> Fixed the VC++ batch file, added batch file for Cygnus GCC on Windows.
+<li> Removed parentheses from the Version string in AFM files because it does
 not help StarOffice anyway. StarOffice 5.2 has been reported to have this
 bug fixed. Added paragraph on StarOffice in INSTALL.html.
-<br>
-- Made messages on the '?' option parameter more meaningful (by Johan Vromans).
-<br>
-- Changed the latin1 encoding table to include the Euro sign, Z and z with
+<li> Made messages on the '?' option parameter more meaningful (by Johan Vromans).
+<li> Changed the latin1 encoding table to include the Euro sign, Z and z with
 caron (by Thomas Henlich).
-<br>
-- Improved the smoothing code which occasionally had problems with
+<li> Improved the smoothing code which occasionally had problems with
 joining curves. Also fixed a few minor bugs in it.
-<p>
+</ul>
 
 <H4>
 3.22 -- May 23, 2000
@@ -126,57 +113,41 @@ Packaged by Sergey Babkin.
 <p>
 
 <b>New features:</b>
-<br>
-- Included windows support by Frank Siegert (somewhat amended)
-<br>
-- Added control over verbosity of warnings.
-<br>
-- Added arguments and initialization functions to the language
+<ul>
+<li> Included windows support by Frank Siegert (somewhat amended)
+<li> Added control over verbosity of warnings.
+<li> Added arguments and initialization functions to the language
 translation routines.
-<br>
-- Added support of planes determined by arguments to the external
+<li> Added support of planes determined by arguments to the external
 maps.
-<br>
-- Added compact external maps format (primarily for Eastern fonts).
-<br>
-- Added external maps for Chinese GBK and Big5 encodings (converted
+<li> Added compact external maps format (primarily for Eastern fonts).
+<li> Added external maps for Chinese GBK and Big5 encodings (converted
 from ttf2pfb) as well as maps for other Chinese encodings by Wang Lei.
-<br>
-- Added the idea of buckets to speed up the search in external maps.
-<br>
-- Changed the grouping algorithm for substituted hints: now it creates
+<li> Added the idea of buckets to speed up the search in external maps.
+<li> Changed the grouping algorithm for substituted hints: now it creates
 a bit bigger files but requires smaller hint stack when being rendered.
-<br>
-- Added maximal limit of hint stack depth, glyphs requiring bigger 
+<li> Added maximal limit of hint stack depth, glyphs requiring bigger 
 stack get generation of substituted hints disabled. This makes substituted 
 hints safe to use, no more lost glyphs due to hint stack overflow.
-<br>
-- Added the font dump program <tt>other/dumpf</tt>.
-<br>
-- Changed the testing HTML generator <tt>other/lst.pl</tt> to use tables.
-<br>
-- Added debugging script <tt>other/cntstems.pl</tt> to count required hint
+<li> Added the font dump program <tt>other/dumpf</tt>.
+<li> Changed the testing HTML generator <tt>other/lst.pl</tt> to use tables.
+<li> Added debugging script <tt>other/cntstems.pl</tt> to count required hint
 stack depth for the glyphs.
-<p>
+</ul>
 
 <b>Bug fixes:</b>
-<br>
-- Fixed printing of UID in script/trans. Changed the auto-generated UID to
+<ul>
+<li> Fixed printing of UID in script/trans. Changed the auto-generated UID to
 be in range 4000000-4999999 which is reserved by Adobe for private use.
-<br>
-- Fixed handling of "cleartomark" in built-in t1asm.
-<br>
-- Added handling of "can't happen" case in straighten() routine
+<li> Fixed handling of "cleartomark" in built-in t1asm.
+<li> Added handling of "can't happen" case in straighten() routine
 which actually happened on strange fonts and caused failure on assertion.
-<br>
-- Made it always include the glyph .notdef in the resulting font.
-<br>
-- Placed the version string in AFM file in parentheses, hopefully
+<li> Made it always include the glyph .notdef in the resulting font.
+<li> Placed the version string in AFM file in parentheses, hopefully
 that would fix the problem with StarOffice.
-<br>
-- Improved the smoothing code which occasionally had problems with
+<li> Improved the smoothing code which occasionally had problems with
 joining curves.
-<p>
+</ul>
 
 <H4>
 3.21 -- March 1, 2000
@@ -190,38 +161,32 @@ my bugfixes.
 <p>
 
 <b>New features:</b>
-<br>
-- New Unicode map format with glyph names, by Petr Titera.
-<br>
-- Option to force the Unicode encoding by Petr Titera
+<ul>
+<li> New Unicode map format with glyph names, by Petr Titera.
+<li> Option to force the Unicode encoding by Petr Titera
  (I changed it to work on any MS encoding, not only Symbol).
-<br>
-- Slightly tweaked the calculation of hints, should be better now.
-<p>
+<li> Slightly tweaked the calculation of hints, should be better now.
+</ul>
 
 <b>Bug fixes:</b>
-<br>
-- The unicode-sample.map with description of the map formats
+<ul>
+<li> The unicode-sample.map with description of the map formats
  was lost in the release process, restored and enhanced.
-<br>
-- Renamed the table ISOLatin1Encoding to Fmt3Encoding to reflect
+<li> Renamed the table ISOLatin1Encoding to Fmt3Encoding to reflect
  the way it is used. Saved the original one for reference
  purposes. In the new table renamed "quoteright" to "quotesingle"
  as Thomas Henlich suggested (and he were right).
-<br>
-- In the ISOLatinEncoding table renamed the glyph "grave"
+<li> In the ISOLatinEncoding table renamed the glyph "grave"
  at octal 0140 to "quoteleft", "quotesingle" at octal 047 to
  "quoteright" to conform to the standard as suggested by 
  Martin Trautner).
-<br>
-- Fixed bug in scripts/trans that corrupted the UniqueID record
+<li> Fixed bug in scripts/trans that corrupted the UniqueID record
  in the translated fonts.
-<br>
-- Fixed bug in interaction of substituted hints with BlueZones.
+<li> Fixed bug in interaction of substituted hints with BlueZones.
  Now the fonts with hint substitution seem to be always at least
  not worse than without it (well, when they fit in the X11
  file size limit).
-<p>
+</ul>
 
 
 <H4>
@@ -237,104 +202,75 @@ increase.
 <p>
 
 <b>New features:</b>
-<br>
-- Support of the external Unicode re-encoding maps
+<ul>
+<li> Support of the external Unicode re-encoding maps
   (by Thomas).
-<br>
-- Support for inclusion of all the glyphs from the
+<li> Support for inclusion of all the glyphs from the
   source file into the resulting file (inspired by
   Thomas but I re-implemented it to remove the limitation
   of his implementation: not more than 1024 glyphs).
-<br>
-- The hints substitution. It's an experimental feature
+<li> The hints substitution. It's an experimental feature
   yet and needs further work.
-<br>
-- Support for UniqueID and its auto-generation.
-<br>
-- Support for the name-based conversions from Unicode
+<li> Support for UniqueID and its auto-generation.
+<li> Support for the name-based conversions from Unicode
   in general and the adobestd "language" in particular.
-<br>
-- Started the split of the source code into multiple
+<li> Started the split of the source code into multiple
   files. This needs more work to do it in a cleaner
   way.
-<br>
-- Better framework for the debugging printout
+<li> Better framework for the debugging printout
   in the converter.
-<br>
-- Utilities to install the fonts in Netscape 
+<li> Utilities to install the fonts in Netscape 
   Navigator/Communicator 4.x.
-<br>
-- Patches for bigger font files in the X11 rasterizer.
-<br> 
-- Linux RPM spec-file (by Johan Vromans).
-<br> 
-- Added the COPYRIGHT file (BSD-style, as we discussed
+<li> Patches for bigger font files in the X11 rasterizer.
+<li> Linux RPM spec-file (by Johan Vromans).
+<li> Added the COPYRIGHT file (BSD-style, as we discussed
   on the mailing list earlier) and the CHANGES file.
-<br> 
-- Creation of the <tt>.pfb</tt> files from the <tt>convert</tt>
+<li> Creation of the <tt>.pfb</tt> files from the <tt>convert</tt>
   script.
-<br>
-- Changed the <tt>.notdef</tt>-s in the built-in
+<li> Changed the <tt>.notdef</tt>-s in the built-in
   ISOLatin1Encoding table to some valid names (by Thomas).
   Thomas also suggested replacing `<tt>quoteright</tt>' by
   `<tt>quotesingle</tt>' but this seems to be against the
   Adobe ISOLatin1 table.
-<br>
-- New aliases <tt>windows-1251</tt> and <tt>cp-866</tt> for
+<li> New aliases <tt>windows-1251</tt> and <tt>cp-866</tt> for
   the Russian encodings: those are expected by Netscape
   navigator.
-<br>
-- The font comparison program <tt>other/cmpf</tt>.
-<br>
-- The "magnifying glass" program for glyph outlines:
+<li> The font comparison program <tt>other/cmpf</tt>.
+<li> The "magnifying glass" program for glyph outlines:
   <tt>other/showg</tt>.
-<br>
-- Other updates of the tools in the `<tt>other</tt>' subdirectory.
-<br>
-- Added a link to T1LIB in README.
-<br>
-- A few new options in <tt>convert.cfg</tt>.
-<p>
+<li> Other updates of the tools in the `<tt>other</tt>' subdirectory.
+<li> Added a link to T1LIB in README.
+<li> A few new options in <tt>convert.cfg</tt>.
+</ul>
 
 <b>Bux fixes:</b>
-<br>
-- A bug in the outline smoothing code that corrupted some
+<ul>
+<li> A bug in the outline smoothing code that corrupted some
   of the fonts (for example, Microsoft Verdana).
-<br>
-- Added explicit `<tt>cleartomark</tt>' to the end of file,
+<li> Added explicit `<tt>cleartomark</tt>' to the end of file,
   this seems to be compatible with both old and new version
   of <tt>t1asm</tt> (suggested by Thomas).
-<br>
-- Added the <tt>FontEncoding</tt> statement to the AFM files
+<li> Added the <tt>FontEncoding</tt> statement to the AFM files
   (techincally this was not a bug because this statement
   is optional but some programs want it).
-<br>
-- A coredump when the converter tried to print a warning
+<li> A coredump when the converter tried to print a warning
   (rather ironically) about a weird glyph width.
-<br>
-- Changed the underscores in the font names to dashes (this
+<li> Changed the underscores in the font names to dashes (this
   has been proposed long time ago by Johan Vromans).
-<br>
-- No more glyph names of font names staring with a digit.
-<br>
-- The names of the fonts in font and AFM files are now the
+<li> No more glyph names of font names staring with a digit.
+<li> The names of the fonts in font and AFM files are now the
   same as in the generated Ghostscript <tt>Fontmap</tt> file.<br>
   <b>Warning:</b> the names in <tt>Fontmap</tt> have been
   changed.
-<br>
-- The <tt>forceiso</tt> script does not corrupt the character
+<li> The <tt>forceiso</tt> script does not corrupt the character
   and kerning pairs counts any more, and is optional at all.
-<br>
-- Fix for a loop going to 254 instead of 255 (by Thomas).
-<br>
-- Added ':' in the font header (by Thomas).
-<br>
-- A coredump when wrong language name is given (this was
+<li> Fix for a loop going to 254 instead of 255 (by Thomas).
+<li> Added ':' in the font header (by Thomas).
+<li> A coredump when wrong language name is given (this was
   also fixed by Thomas but I noticed it too late, after
   I already fixed it by myself).
-<br>
-- Fixed the links to the Adobe documents in README.
-<p>
+<li> Fixed the links to the Adobe documents in README.
+</ul>
 
 
 <H4>
@@ -348,20 +284,17 @@ Packaged by Sergey Babkin.
 <p>
 
 <b>New features:</b>
-<br>
-- New option -v for automatic re-scaling based on the vertical size of the font 
-<br>
-- Changed the code to use getopt() instead of a home-made version of it.
-<br>
-- Latin2 language support by Szalay Tamas. 
-<p>
+<ul>
+<li> New option -v for automatic re-scaling based on the vertical size of the font 
+<li> Changed the code to use getopt() instead of a home-made version of it.
+<li> Latin2 language support by Szalay Tamas. 
+</ul>
 
 <b>Bux fixes:</b>
-<br>
-- Fix for the bug that made possible calls of malloc(0). 
-<br>
-- Refinement of the option -w to prevent extra wide spacing 
-<p>
+<ul>
+<li> Fix for the bug that made possible calls of malloc(0). 
+<li> Refinement of the option -w to prevent extra wide spacing 
+</ul>
 
 <H4>
 3.12 -- October 2, 1999
@@ -374,37 +307,28 @@ Packaged by Sergey Babkin.
 <p>
 
 <b>New features:</b>
-<br>
-- Added support for the Bulgarian language (actually, for now just an alias
+<ul>
+<li> Added support for the Bulgarian language (actually, for now just an alias
 of Russian).                                                                    
-<br>
-- Added option -w that tries to make sure that the character widths are not
+<li> Added option -w that tries to make sure that the character widths are not
 too narrow.                                                                     
-<br>
-- Added the concept of aliased encodings.
-<br>
-- Now the conversion scripts create and install the .afm files too.
-<br>
-- The conversion script removes the intermediate files after installation.
-<br>
-- Added tunables to the conversion script.
-<br>
-- Installation of the Ghostscript fonts can now be done automatically
+<li> Added the concept of aliased encodings.
+<li> Now the conversion scripts create and install the .afm files too.
+<li> The conversion script removes the intermediate files after installation.
+<li> Added tunables to the conversion script.
+<li> Installation of the Ghostscript fonts can now be done automatically
 together with the X11 fonts.
-<p>
+</ul>
 
 <b>Bux fixes:</b>
-<br>
-- (FINALLY!!!) A correct fix for the infamous Red Hat 6.0 stdio "feature".
-<br>
-- A number of little bugs discovered by a picky SGI compiler (well, maybe
+<ul>
+<li> (FINALLY!!!) A correct fix for the infamous Red Hat 6.0 stdio "feature".
+<li> A number of little bugs discovered by a picky SGI compiler (well, maybe
 some day I'll try to run it through the UnixWare lint and see what happens).    
-<br>
-- A diagnostic message about the empty encodings in the convert script was
+<li> A diagnostic message about the empty encodings in the convert script was
 made less cryptic and a bug in the awk sub-script was fixed.                    
-<br>
-- The .afm creation code now considers the option -t. 
-<p>
+<li> The .afm creation code now considers the option -t. 
+</ul>
 
 <H4>
 3.11 -- May 24, 1999
@@ -417,15 +341,14 @@ Packaged by Sergey Babkin.
 <p>
 
 <b>New features:</b>
-<br>
-- It includes the Turkish (Latin5, ISO8859/9) 
+<ul>
+<li> It includes the Turkish (Latin5, ISO8859/9) 
 language support by Turgut Uyar and Baltic (ISO8859/4) languages support by
 Rihardas Hepas. 
-<br>
-- Also the installation script got updated: the configuration parameters 
+<li> Also the installation script got updated: the configuration parameters 
 are moved to a separate file and the generated fonts.dir files should now be
 compatible with Xfsft.
-<p>
+</ul>
 
 <H4>
 3.1 -- March 28, 1999
@@ -438,9 +361,9 @@ Packaged by Sergey Babkin.
 <p>
 
 <b>New features:</b>
-<br>
-- Improved the interaction of the character-level hints and font-level hints
-<p>
+<ul>
+<li> Improved the interaction of the character-level hints and font-level hints
+</ul>
 
 
 <H4>
@@ -454,9 +377,9 @@ Packaged by Sergey Babkin.
 <p>
 
 <b>New features:</b>
-<br>
-- Added HTML documents.
-<p>
+<ul>
+<li> Added HTML documents.
+</ul>
 
 <H4>
 3.0beta2 -- February 14, 1999
@@ -469,16 +392,15 @@ Packaged by Sergey Babkin.
 <p>
 
 <b>New features:</b>
-<br>
-- Added ability to print the .afm file instead of the font to STDOUT.
-<br>
-- Added the guessing of the /ForceBold parameter that proved to be useful.
-<p>
+<ul>
+<li> Added ability to print the .afm file instead of the font to STDOUT.
+<li> Added the guessing of the /ForceBold parameter that proved to be useful.
+</ul>
 
 <b>Bux fixes:</b>
-<br>
-- Removed the force-fixed option that proved to be troublesome.
-<p>
+<ul>
+<li> Removed the force-fixed option that proved to be troublesome.
+</ul>
 
 <H4>
 3.0beta1 -- December 11, 1998
@@ -491,18 +413,17 @@ By Andrew Weeks.
 <p>
 
 <b>New features:</b>
-<br>
-- Added option (passed to t1asm) to create a compressed binary
+<ul>
+<li> Added option (passed to t1asm) to create a compressed binary
 version of the font (A PFB file).
-<p>
+</ul>
 
 <b>Bux fixes:</b>
-<br>
-- Versions of handle_post and handle_cmap that deal with some
+<ul>
+<li> Versions of handle_post and handle_cmap that deal with some
 problems with buggy fonts.
-<br>
-- Minor Bug Fixes.
-<p>
+<li> Minor Bug Fixes.
+</ul>
 
 <H4>
 3.0beta-afm -- December 5, 1998
@@ -515,9 +436,9 @@ By Thomas Henlich.
 <p>
 
 <b>New features:</b>
-<br>
-- Integration of AFM file creation.
-<p>
+<ul>
+<li> Integration of AFM file creation.
+</ul>
 
 <H4>
 3.0beta -- November 15, 1998
@@ -530,14 +451,14 @@ By Sergey Babkin.
 <p>
 
 <b>New features:</b>
-<br>
-- Added the auto-calculation of the italic angle.
-<p>
+<ul>
+<li> Added the auto-calculation of the italic angle.
+</ul>
 
 <b>Bux fixes:</b>
-<br>
-- Fixed a couple of bugs.
-<p>
+<ul>
+<li> Fixed a couple of bugs.
+</ul>
 
 <H4>
 3.0alpha -- October 19, 1998
@@ -550,30 +471,26 @@ By Sergey Babkin.
 <p>
 
 <b>New features:</b>
-<br>
-- Improved (although still not perfect) handling of
+<ul>
+<li> Improved (although still not perfect) handling of
 scaling in composite glyphs
-<br>
-- Automatic correction of outlines to make them more
+<li> Automatic correction of outlines to make them more
 smooth (to correct both rounding errors introduced
 during conversion and present in the original font)
-<br>
-- Automatic generation of hints (still has lots of
+<li> Automatic generation of hints (still has lots of
 space for improvement)
-<br>
-- Automatic generation of BlueValues etc.
-<p>
+<li> Automatic generation of BlueValues etc.
+</ul>
 
 <b>Bux fixes:</b>
-<br>
-- Scaling of fonts to 1000x1000 M-square required by
+<ul>
+<li> Scaling of fonts to 1000x1000 M-square required by
 Type1 standard
-<br>
-- Printing out the contours in reverse direction, because
+<li> Printing out the contours in reverse direction, because
 TTF directions are different from Type1 ones (that was
 the major reason why the fonts generated by
 version 2.2 were rendered so badly in small sizes)
-<p>
+</ul>
 
 <H4>
 June 22, 1998 (AKA 2.2)
@@ -586,12 +503,11 @@ By Thomas Henlich.
 <p>
 
 <b>Bux fixes:</b>
-<br>
-- "width" should be "short int" because otherwise:
+<ul>
+<li> "width" should be "short int" because otherwise:
 characters with negative widths (e.g. -4) become *very* wide (65532)
-<br>
-- The number of /CharStrings is numglyphs and not numglyphs+1
-<p>
+<li> The number of /CharStrings is numglyphs and not numglyphs+1
+</ul>
 
 <H4>
 February 13, 1998
@@ -604,11 +520,11 @@ By Mark Heath.
 <p>
 
 <b>Bux fixes:</b>
-<br>
-- An original Bug Reported by Frank, which was just incorrect syntax in the 
+<ul>
+<li> An original Bug Reported by Frank, which was just incorrect syntax in the 
 Type 1 header, managed to creep back into the Feb 04 Version. This has been
 Fixed in the Feb 13 Version.
-<p>
+</ul>
 
 <H4>
 February 4, 1998
@@ -621,11 +537,11 @@ By Mark Heath.
 <p>
 
 <b>Bux fixes:</b>
-<br>
-- A workaround was implemented in ttf2pfa by altering the matrix. I suspect 
+<ul>
+<li> A workaround was implemented in ttf2pfa by altering the matrix. I suspect 
 I will have to calculate the correct values, as matrix ops are probably not
 allowed in Type 1 format.
-<p>
+</ul>
 
 <!
 ---------------------------------------------

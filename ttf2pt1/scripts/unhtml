@@ -10,6 +10,6 @@
 # are completely removed. Then all the in-line formatting is removed.
 # Then "&nbsp;", "&lt;", "&gt;" are changed to " ", "<", ">".
 
-sed '1,/<BODY>/d;/^<!/d;s/^</< </;s/> *$/>>/;s/<[^<>]*>//g;
+sed '1,/<BODY>/d;/^<!/d;s/<li>/-/g;s/^</< </;s/> *$/>>/;s/<[^<>]*>//g;
 /^< *>$/d;/^>>$/d;s/^< //;s/>$//;
 s/&nbsp;/ /g;s/&lt;/</g;s/&gt;/>/g;'
