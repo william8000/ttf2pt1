@@ -60,9 +60,12 @@ Johan Vromans <jvromans@squirrel.nl>
 Petr Titera <P.Titera@sh.cvut.cz>
  The Unicode map format with names, the forced Unicode option.
 
-
 Frank M. Siegert <frank@this.net>
  Port to Windows
+
+Lei Wang <lwang@amath8.amt.ac.cn>
+Chen Xiangyang <chenxy@sun.ihep.ac.cn>
+ Translation maps for Chinese fonts.
 
 I. Lee Hetherington <ilh@lcs.mit.edu>
  The Type1 assembler (from the package 't1utils'), its full copyright

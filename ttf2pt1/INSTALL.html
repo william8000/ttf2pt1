@@ -49,6 +49,7 @@ fonts:
 <b>
 - <A HREF="#X11">X11</A><br>
 - <A HREF="#gs">Ghostscript</A><br>
+- <A HREF="#win">MS Windows</A><br>
 - <A HREF="#netscape">Netscape Navigator/Communicator</A><br>
 - <A HREF="#rpm">Linux RPM package</A><br>
 - <A HREF="#framemaker">FrameMaker</A><br>
@@ -384,6 +385,20 @@ But the redefinition of the aliases may be dangerous if the width of
 characters in the new font will be different from the old font.
 Alas, there is no visible solution of this problem yet.
 <p>
+
+<A NAME="win"></A>
+<H3>
+MS Windows
+</H3>
+<!
+===========
+>
+
+MS Windows requires a different way to build the converter instead of the
+Makefile. An example of batch file <tt>winbuild.bat</tt> is provided
+for MS Visual C/C++. Probably it can be easily adapted for other 32-bit Windows
+and DOS compilers. The important part is to define the preprocessor symbol 
+WINDOWS during compilation.
 
 <A NAME="netscape"></a>
 <H3>

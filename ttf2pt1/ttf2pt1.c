@@ -94,7 +94,7 @@ int      correctwidth=0;	/* try to correct the character width */
 int      correctvsize=0;	/* try to correct the vertical size of characters */
 int      wantuid = 0;	/* user wants UniqueID entry in the font */
 int      allglyphs = 0;	/* convert all glyphs, not only 256 of them */
-int      warnlevel = 9999;	/* the level of permitted warnings */
+int      warnlevel = 3;	/* the level of permitted warnings */
 /* options - maximal limits */
 int      max_stemdepth = 128;	/* maximal depth of stem stack in interpreter (128 - limit from X11) */
 

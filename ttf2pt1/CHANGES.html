@@ -14,13 +14,13 @@ TTF2PT1 -  CHANGES history
 >
 
 <H4>
-3.22-current, work in progress
+3.22 -- May 16, 2000
 </H4>
 <!
 -----------------------
 >
 
-(SB)
+Packaged by Sergey Babkin.
 <p>
 
 <b>New features:</b>
@@ -38,7 +38,7 @@ maps.
 - Added compact external maps format (primarily for Eastern fonts).
 <br>
 - Added external maps for Chinese GBK and Big5 encodings (converted
-from ttf2pfb).
+from ttf2pfb) as well as maps for other Chinese encodings by Wang Lei.
 <br>
 - Added the idea of buckets to speed up the search in external maps.
 <br>
@@ -58,6 +58,9 @@ stack depth for the glyphs.
 <p>
 
 <b>Bug fixes:</b>
+<br>
+- Fixed printing of UID in script/trans. Changed the auto-generated UID to
+be in range 4000000-4999999 which is reserved by Adobe for private use.
 <br>
 - Fixed handling of "cleartomark" in built-in t1asm.
 <br>
