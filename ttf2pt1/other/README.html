@@ -142,5 +142,35 @@ The stems and the values of coordinates are for convenience
 marked twice, on each size of the picture.
 <p>
 
+<h4><tt>showdf</tt></h4>
+<!
+------
+>
+
+A Perl script to find a list of differing glyphs in two versions of a font
+file (for example, converted with different versions of <tt>ttf2pt1</tt> or
+with different options given to ttf2pt1) and feed this list into the <tt>showg</tt> 
+program for display.  The intended use is like:
+<p>
+
+&nbsp;&nbsp;<tt>showdf <i>&lt;showg-location&gt;</i> <i>&lt;fontfile1.t1a&gt;</i> <i>&lt;fontfile2.t1a&gt;</i> &gt;file.ps</tt><br>
+&nbsp;&nbsp;<tt>gv file.ps # start the Ghostscript viewer</tt>
+<p>
+
+If both <tt>showdf</tt> and <tt>showg</tt> scripts are located in the
+same directory, the command would look like:
+<p>
+
+&nbsp;&nbsp;<tt>./showdf ./showg font1.t1a font2.t1a &gt;file.ps</tt><br>
+<p>
+
+For decent results both font files should be converted from the same original
+font and contain the same glyphs with the same names in the same order. 
+Otherwise most probably all the glyphs will be included, or a failure may
+happen if some glyph is not found in one of the files. It is also a good
+idea to convert the fonts for comparison with hinting disabled, otherwise
+the differences in hinting may trigger the otherwise equal glyphs to be shown.
+<p>
+
 </BODY>
 </HTML>
