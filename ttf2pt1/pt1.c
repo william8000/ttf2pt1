@@ -5864,23 +5864,21 @@ print_glyph_subs(
 void
 print_glyph_metrics(
 	   int code,
-	   int glyphno,
-	   short *bbox
+	   int glyphno
 )
 {
+	GLYPH *g;
+
+	g = &glyph_list[glyphno];
 
 	if(transform)
 	  fprintf(afm_file, "C %d ; WX %d ; N %s ; B %d %d %d %d ;\n",
-		  code,
-		  glyph_list[glyphno].scaledwidth,
-		  glyph_list[glyphno].name,
-		  iscale(bbox[0]), iscale(bbox[1]), iscale(bbox[2]), iscale(bbox[3]));
+		  code, g->scaledwidth, g->name,
+		  iscale(g->xMin), iscale(g->yMin), iscale(g->xMax), iscale(g->yMax));
 	else
 	  fprintf(afm_file, "C %d ; WX %d ; N %s ; B %d %d %d %d ;\n",
-		  code,
-		  glyph_list[glyphno].width,
-		  glyph_list[glyphno].name,
-		  bbox[0], bbox[1], bbox[2], bbox[3]);
+		  code, g->scaledwidth, g->name,
+		  g->xMin, g->yMin, g->xMax, g->yMax);
 }
 
 /*

@@ -2138,10 +2138,7 @@ main(
 		fprintf(pfa_file,
 			"dup %d /%s put\n", i, glyph_list[encoding[i]].name);
 		if( glyph_list[encoding[i]].flags & GF_USED )  {
-			short bbox[4];
-
-			cursw->glbbox(encoding[i], bbox);
-			print_glyph_metrics(i, encoding[i], bbox);
+			print_glyph_metrics(i, encoding[i]);
 		}
 	}
 
@@ -2150,10 +2147,7 @@ main(
 		for(i=0; i<numglyphs; i++) {
 			if( (glyph_list[i].flags & GF_USED)
 			&& glyph_list[i].char_no == -1 ) {
-				short bbox[4];
-
-				cursw->glbbox(i, bbox);
-				print_glyph_metrics(-1, i, bbox);
+				print_glyph_metrics(-1, i);
 			}
 		}
 	}

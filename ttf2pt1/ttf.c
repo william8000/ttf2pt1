@@ -38,7 +38,6 @@ static int glenc( GLYPH *glyph_list, int *encoding, int *unimap);
 static void fnmetrics( struct font_metrics *fm);
 static int glpath( int glyphno, GLYPH *glyph_list);
 static void prkern( GLYPH *glyph_list, FILE *afm_file);
-static void glbbox(int glyphno, short *bboxres);
 
 /* globals */
 
@@ -56,7 +55,6 @@ struct frontsw ttf_sw = {
 	/*fnmetrics*/  fnmetrics,
 	/*glpath*/     glpath,
 	/*prkern*/     prkern,
-	/*glbbox*/     glbbox,
 };
 
 /* statics */
@@ -191,22 +189,6 @@ get_glyf_table(
 			*len = (ntohs(short_loca_table[glyphno + 1]) - ntohs(short_loca_table[glyphno])) << 1;
 		}
 	}
-}
-
-/* returns the glyph's bounding box in the array pointed by bboxres */
-static void glbbox(
-	int glyphno, 
-	short *bboxres
-)
-{
-	TTF_GLYF *glyf_table;
-
-	get_glyf_table(glyphno, &glyf_table, NULL);
-
-	bboxres[0] = (short)ntohs(glyf_table->xMin);
-	bboxres[1] = (short)ntohs(glyf_table->yMin);
-	bboxres[2] = (short)ntohs(glyf_table->xMax);
-	bboxres[3] = (short)ntohs(glyf_table->yMax);
 }
 
 static void
@@ -1332,7 +1314,7 @@ fnmetrics(
 )
 {
 	char *str;
-	static int fieldstocheck[]= {2,4,0};
+	static int fieldstocheck[]= {2,4,6};
 	int i;
 
 	fm->italic_angle = (short) (ntohs(post_table->italicAngle.upper)) +

@@ -212,7 +212,7 @@ void reversepaths( GLYPH * g);
 void dumppaths( GLYPH * g, GENTRY *start, GENTRY *end);
 void print_glyph( int glyphno);
 int print_glyph_subs( int glyphno, int startid);
-void print_glyph_metrics( int code, int glyphno, short *bbox);
+void print_glyph_metrics( int code, int glyphno);
 void findblues(void);
 void stemstatistics(void);
 void docorrectwidth(void);

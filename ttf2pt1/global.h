@@ -139,5 +139,4 @@ struct frontsw {
 	void  (*fnmetrics)(struct font_metrics *fm); /* get the font metrics */
 	int   (*glpath)(int glyphno, GLYPH *glyphs); /* get the glyph path */
 	void  (*prkern)(GLYPH *glyphs, FILE *afm_file); /* print the kerning data */
-	void  (*glbbox)(int glyphno, short *bboxres); /* get the glyph's bounding box */
 };
