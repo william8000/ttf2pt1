@@ -2169,18 +2169,10 @@ main(
 		fprintf(stderr, "**** options -a and -e are incompatible ****\n");
 		exit(1);
 	}
-        /* Get name of output file if not specified */
-        if (argc == 2) {
-	        char *p;
-                argv[2] = strdup (argv[1]);
-		p = strrchr(argv[2], '.');
-	        if (p)
-		  *p = '\0';
-	} else 
-	  if (argc != 3) {
+        if ((argc != 2) && (argc != 3)) {
 		usage();
 		exit(1);
-	  }
+	}
 
 	/* try to guess the language by the locale used */
 	if(uni_lang_converter==0 && (lang=getenv("LANG"))!=0 ) {
@@ -2215,7 +2207,7 @@ main(
 					if(frontswtab[i]->suffix[j]
 					&& !strcmp(p, frontswtab[i]->suffix[j]) ) {
 						cursw = frontswtab[i];
-						WARNING_1 fprintf(stderr, "Auto-detected front-end parser '%s'\n", 
+						WARNING_1 fprintf(stderr, "Auto-detected front-end parser '%s'\n",
 							cursw->name);
 						WARNING_1 fprintf(stderr, " (use ttf2pt1 -p? to get the full list of available front-ends)\n");
 						break;
@@ -2233,6 +2225,21 @@ main(
 
 	/* open the input file */
 	cursw->open(argv[1], front_arg);
+
+        /* Get base name of output file (if not specified)
+	 * by removing (known) suffixes
+	 */
+        if (argc == 2) {
+	        char *p;
+                argv[2] = strdup (argv[1]);
+		p = strrchr(argv[2], '.');
+	        if (p != NULL)
+		  for (j = 0; (j < MAXSUFFIX) && (cursw->suffix[j]); j++)
+ 		    if (!strcmp(p+1, cursw->suffix[j])) {
+		      *p = '\0';
+		      break;
+		    }
+	}
 
 	if (argv[2][0] == '-' && argv[2][1] == 0) {
 		pfa_file = stdout;
