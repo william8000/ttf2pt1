@@ -191,8 +191,8 @@ handle_header(
 			if(cl->flags & ALLOW_REPEAT)
 				continue;
 			
-			fprintf(stderr, "**** input line %d redefines the property %s\n", lineno, cl->name);
-			exit(1);
+			fprintf(stderr, "** input line %d redefines the property %s, ignored\n", lineno, cl->name);
+			continue;
 		}
 		cl->flags |= IS_SEEN;
 		if(cl->fmt == 0) {
@@ -248,7 +248,7 @@ handle_glyphs(
 )
 {
 	static int inbmap=0;
-	static char *bmap;
+	static char *bmap = 0;
 	static int xsz, ysz, xoff, yoff;
 	static int curln;
 	int i, c;
@@ -295,11 +295,14 @@ handle_glyphs(
 			fprintf(stderr,"**** weird BBX statement at line %d\n", lineno);
 			exit(1);
 		}
-		bmap=malloc(xsz*ysz);
-		if(bmap==0) {
-			fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
-			exit(255);
-		}
+		if(xsz*ysz != 0) {
+			bmap=malloc(xsz*ysz);
+			if(bmap==0) {
+				fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
+				exit(255);
+			}
+		} else
+			bmap = 0;
 		glyphs[curgl].lsb = -xoff*scale;
 		glyphs[curgl].xMin = -xoff*scale;
 		glyphs[curgl].xMax = (xsz-xoff)*scale;
@@ -316,6 +319,7 @@ handle_glyphs(
 			glyphs[curgl].entries = 0;
 			bmp_outline(&glyphs[curgl], scale, bmap, xsz, ysz, xoff, yoff);
 			free(bmap);
+			bmap = 0;
 			/* remember in a static table or it will be erased */
 			glpaths[curgl] = glyphs[curgl].entries;
 			glyphs[curgl].entries = 0;
@@ -324,6 +328,9 @@ handle_glyphs(
 				glyphs[curgl].ttf_pathlen = 1;
 			else
 				glyphs[curgl].ttf_pathlen = 0;
+		} else {
+			glpaths[curgl] = 0;
+			glyphs[curgl].ttf_pathlen = 0;
 		}
 		curgl++;
 	} else if(inbmap) {
