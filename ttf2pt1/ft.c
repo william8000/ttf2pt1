@@ -184,12 +184,6 @@ glmetrics(
 	for(i=0; i < face->num_glyphs; i++) {
 		g = &(glyph_list[i]);
 
-		/* XXX workaround for a FT2beta8 bug */
-		if( FT_Set_Char_Size(face,  0, face->units_per_EM, 1<<6, 1<<6) ) {
-			fprintf(stderr, "**** Cannot set the EM size ****\n");
-			exit(1);
-		}
-
 		if( FT_Load_Glyph(face, i, FT_LOAD_NO_BITMAP|FT_LOAD_NO_SCALE) ) {
 			fprintf(stderr, "Can't load glyph %s, skipped\n", g->name);
 			continue;
@@ -206,22 +200,12 @@ glmetrics(
 			g->lsb = 0;
 		}
 
-		/* XXX workaround for a FT2beta8 bug */
-		if( FT_Set_Char_Size(face,  0, face->units_per_EM<<6, 1<<6, 1<<6) ) {
-			fprintf(stderr, "**** Cannot set the EM size ****\n");
-			exit(1);
-		}
-		if( FT_Load_Glyph(face, i, FT_LOAD_NO_BITMAP|FT_LOAD_NO_SCALE) ) {
-			fprintf(stderr, "Can't load glyph %s, skipped\n", g->name);
-			continue;
-		}
-
 		if( FT_Get_Glyph(face->glyph, &gly) ) {
 			fprintf(stderr, "Can't access glyph %s bbox, skipped\n", g->name);
 			continue;
 		}
 
-		FT_Glyph_Get_CBox(gly, ft_glyph_bbox_pixels, &bbox);
+		FT_Glyph_Get_CBox(gly, ft_glyph_bbox_unscaled, &bbox);
 		g->xMin = bbox.xMin;
 		g->yMin = bbox.yMin;
 		g->xMax = bbox.xMax;
@@ -247,45 +231,69 @@ glenc(
 	int i, e;
 	unsigned code;
 
-	if(!enc_found) {
-		enc_type = 0;
+	for(e=0; e < face->num_charmaps; e++) {
+		fprintf(stderr, "found encoding pid=%d eid=%d\n", 
+			face->charmaps[e]->platform_id,
+			face->charmaps[e]->encoding_id);
+	}
+
+	if(enc_found)
+		goto populate_map;
+
+	enc_type = 0;
+
+	/* first check for a direct Adobe mapping */
+
+	if(!forceunicode) {
 		for(e=0; e < face->num_charmaps; e++) {
-			if(face->charmaps[e]->platform_id == 3) {
-				switch(face->charmaps[e]->encoding_id) {
-				case 0:
-					WARNING_1 fputs("Found Symbol Encoding\n", stderr);
-					break;
-				case 1:
-					WARNING_1 fputs("Found Unicode Encoding\n", stderr);
-					enc_type = 1;
-					break;
-				default:
-					WARNING_1 {
-						fprintf(stderr,
-						"****MS Encoding ID %d not supported****\n",
-							face->charmaps[e]->encoding_id);
-						fputs("Treating it like Symbol encoding\n", stderr);
-					}
-					break;
+			if(face->charmaps[e]->encoding == ft_encoding_adobe_custom) {
+				WARNING_1 fputs("Found Adobe Custom Encoding\n", stderr);
+				if( FT_Set_Charmap(face, face->charmaps[e]) ) {
+					fprintf(stderr, "**** Cannot set charmap in FreeType ****\n");
+					exit(1);
+				}
+				goto populate_map;
+			}
+		}
+	}
+
+	for(e=0; e < face->num_charmaps; e++) {
+		if(face->charmaps[e]->platform_id == 3) {
+			switch(face->charmaps[e]->encoding_id) {
+			case 0:
+				WARNING_1 fputs("Found Symbol Encoding\n", stderr);
+				break;
+			case 1:
+				WARNING_1 fputs("Found Unicode Encoding\n", stderr);
+				enc_type = 1;
+				break;
+			default:
+				WARNING_1 {
+					fprintf(stderr,
+					"****MS Encoding ID %d not supported****\n",
+						face->charmaps[e]->encoding_id);
+					fputs("Treating it like Symbol encoding\n", stderr);
 				}
 				break;
 			}
+			break;
 		}
-		if(e >= face->num_charmaps) {
-			WARNING_1 fputs("No Microsoft encoding, using first encoding available\n", stderr);
-			e = 0;
-		}
-		if(forceunicode) {
-			WARNING_1 fputs("Forcing Unicode Encoding\n", stderr);
-		}
-		
-		if( FT_Set_Charmap(face, face->charmaps[e]) ) {
-			fprintf(stderr, "**** Cannot set charmap in FreeType ****\n");
-			exit(1);
-		}
-		enc_found = 1;
+	}
+	if(e >= face->num_charmaps) {
+		WARNING_1 fputs("No Microsoft encoding, using first encoding available\n", stderr);
+		e = 0;
+	}
+	if(forceunicode) {
+		WARNING_1 fputs("Forcing Unicode Encoding\n", stderr);
+	}
+	
+	if( FT_Set_Charmap(face, face->charmaps[e]) ) {
+		fprintf(stderr, "**** Cannot set charmap in FreeType ****\n");
+		exit(1);
 	}
 
+populate_map:
+	enc_found = 1;
 	for(i=0; i<256; i++) {
 		if(encoding[i] != -1)
 			continue;
@@ -327,7 +335,7 @@ fnmetrics(
 	fm->is_fixed_pitch = FT_IS_FIXED_WIDTH(face);
 
 	fm->ascender = face->ascender;
-	fm->descender = -face->descender;
+	fm->descender = face->descender;
 
 	fm->units_per_em =  face->units_per_EM;
 
@@ -524,12 +532,6 @@ glpath(
 	FT_Outline *ol;
 
 	curg = &glyf_list[glyphno];
-
-	/* XXX workaround for a FT2beta8 bug */
-	if( FT_Set_Char_Size(face,  0, face->units_per_EM<<6, 1<<6, 1<<6) ) {
-		fprintf(stderr, "**** Cannot set the EM size ****\n");
-		exit(1);
-	}
 
 	if( FT_Load_Glyph(face, glyphno, FT_LOAD_NO_BITMAP|FT_LOAD_NO_SCALE|FT_LOAD_NO_HINTING) 
 	|| face->glyph->format != ft_glyph_format_outline ) {
