@@ -25,6 +25,43 @@
 </th></tr></table> </td></tr></table>
 
 <table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>November 24th 2001 v 3.4.0</font>
+</th></tr><tr><td>
+Packaged by
+Sergey Babkin
+<h2><font face=helvetica>New Features</font></h2>
+<ul>
+<li> Parser for the BDF bitmap fonts.
+<li> Vastly improved the smoothing of the outlines.
+<li> The options are saved as a comment in the output file.
+<li> New script <tt>other/showdf</tt> for visual comparison of the fonts.
+<li> New option <b>-G</b> to select the file types to generate.
+<li> Creation of the dvips encoding files (by Rigel).
+<li> More glyphs in the Chinese maps (by Rigel).
+<li> Made the assignment of ISO8859/1 glyph names to the glyphs in the
+  fonts without PostScript names in them dependent on the original
+  encoding: no change for the 8-bit encodings, for the Unicode encoding
+  the names are assigned to the glyph with the codes 0-255 in Unicode,
+  and for the other 16-bit encodings the 8859/1 names are not assigned
+  at all.
+</ul>
+<h2><font face=helvetica>Bug fixes:</font></h2>
+<ul>
+<li> Added a check for spaces in the PostScript font name in the FreeType
+  parser.
+<li> Made "-" a valid character in the glyph names.
+<li> Fixed handling of the Unicode names returned by FreeType, though
+  not perfectly.
+<li> Changed the build for FreeType-2.0.4.
+<li> Fixed the handling and printing of bad glyph names.
+<li> Fixed the bug with duplicated glyph names when more than 256 glyphs are 
+  extracted from a font that has no PostScript glyph names defined.
+<li> Added ability to map a glyph to more than one code when unisng the
+  native parser (-pttf).
+</ul>
+</th></tr></table> </td></tr></table>
+
+<table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
 <font face=helvetica>September 12th 2001 v 3.3.5</font>
 </th></tr><tr><td>
 Packaged by
