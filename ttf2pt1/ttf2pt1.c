@@ -145,14 +145,14 @@ static char    *name_fields[8];
  */
 
 static char    *Fmt3Encoding[256] = {
-	".null", ".notdef", ".notdef", ".notdef",
-	".notdef", ".notdef", ".notdef", ".notdef",
-	".notdef", ".notdef", ".notdef", ".notdef",
-	".notdef", "CR", ".notdef", ".notdef",
-	".notdef", ".notdef", ".notdef", ".notdef",
-	".notdef", ".notdef", ".notdef", ".notdef",
-	".notdef", ".notdef", ".notdef", ".notdef",
-	".notdef", ".notdef", ".notdef", ".notdef",
+	"c0", "c1", "c2", "c3",
+	"c4", "c5", "c6", "c7",
+	"c8", "c9", "c10", "c11",
+	"c12", "CR", "c14", "c15",
+	"c16", "c17", "c18", "c19",
+	"c20", "c21", "c22", "c23",
+	"c24", "c25", "c26", "c27",
+	"c28", "c29", "c30", "c31",
 	"space", "exclam", "quotedbl", "numbersign",
 	"dollar", "percent", "ampersand", "quotesingle",
 	"parenleft", "parenright", "asterisk", "plus",
