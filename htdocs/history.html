@@ -25,6 +25,42 @@
 </th></tr></table> </td></tr></table>
 
 <table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>June 4th 2001 v 3.3.4</font>
+</th></tr><tr><td>
+Packaged by
+Sergey Babkin
+<h2><font face=helvetica>New Features</font></h2>
+<ul>
+<li> Cyrillic (full set of glyphs) language tables (by Zvezdan Petkovic).
+  Now the languages "russian" and "bulgarian" are provided for compatibility
+  only, use the common language "cyrillic" instead.
+<li> More information in <a href="FONTS.html">FONTS</a> on using Cyrillic fonts with 
+  Netscape (by Zvezdan Petkovic)
+<li> In the Netscape print filter added removal of the clipping path command:
+  otherwise Netscape tends to cut off a large piece of the rightmost column
+  of the tables.
+<li> One more script for printing from Netscape (by Zvezdan Petkovic).
+<li> Added selection of the base TTF encoding by pid/eid in the external maps.
+<li> Improved the recognition of substituted stems for intersecting contours.
+<li> Improved the substituted hints to make the horizontal positioning of
+  the points at the same height more uniform at small pixel sizes.
+<li> Made the algorithm for calculation of standard stem widths more
+  selective.
+<li> Added link to the GnuWin32 project.
+</ul>
+<h2><font face=helvetica>Bug fixes:</font></h2>
+<ul>
+<li> TH: Print out metrics of un-encoded glyphs even without "-a" option.
+<li> Added missing "/" in Fontmap generation in convert (by Zvezdan Petkovic).
+<li> Removed unneccessary "\n" in messages in x2gs.
+<li> Removed the broken overoptimisation of "0 0 rmoveto".
+<li> Removed the useless warnings about multiple codes for a glyph.
+<li> Changed the FreeType2 include directory in the Makefile to match the
+  FreeType's default.
+</ul>
+</th></tr></table> </td></tr></table>
+
+<table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
 <font face=helvetica>March 4th 2001 v 3.3.3</font>
 </th></tr><tr><td>
 Packaged by
