@@ -1423,7 +1423,7 @@ handle_gnames(void)
 			/* Unicode - give 8859/1 names to the first 256 glyphs of Unicode */
 			for (n = 0; n < 256; n++) { /* here 256, not ENCTABSZ */
 				i = unicode_rev_lookup(n);
-				if (encoding[i] > 0) {
+				if (i>=0 && encoding[i] > 0) {
 					glyph_list[encoding[i]].name = Fmt3Encoding[i];
 				}
 			}
