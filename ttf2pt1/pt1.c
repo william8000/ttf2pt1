@@ -4257,7 +4257,7 @@ ffixquadrants(
 				dir[j] = i;
 				if(ISDBG(QUAD))
 					fprintf(stderr, "%g ", sp[j]);
-				if(sp[j] < 0.01) { /* front end of curve */
+				if(sp[j] < 0.03) { /* front end of curve */
 					if(ge->fpoints[i][0] != ge->prev->fpoints[i][2]) {
 						ge->fpoints[i][0] = ge->prev->fpoints[i][2];
 						if(ISDBG(QUAD)) fprintf(stderr, "flattened at front\n");
@@ -4272,7 +4272,7 @@ ffixquadrants(
 					}
 					sp[j] = sp[j+1]; np--; j--;
 					if(ISDBG(QUAD)) fprintf(stderr, "(front flat)  ");
-				} else if(sp[j] > 0.99) { /* rear end of curve */
+				} else if(sp[j] > 0.97) { /* rear end of curve */
 					if(ge->fpoints[i][1] != ge->fpoints[i][2]) {
 						ge->fpoints[i][1] = ge->fpoints[i][2];
 						if(ISDBG(QUAD)) fprintf(stderr, "flattened at rear\n");
