@@ -718,6 +718,9 @@ g_closepath(
 				g->lastentry = oge->prev;
 				if (oge->prev == 0)
 					g->entries = 0;
+				else
+					g->lastentry->next = 0;
+				free(oge);
 			}
 		}
 		return;
@@ -5846,8 +5849,15 @@ fconcisecontour(
 	double avsd2, maxd2, eps2;
 	double apcv[4][2];
 
-	if(startge == 0 /* XXX this should not happen but it does */
-	|| startge->type != GE_CURVE && startge->type != GE_LINE)
+	if(startge == 0) {
+		fprintf(stderr, "WARNING: assertion in %s line %d, please report it to the ttf2pt1 project\n",
+			__FILE__, __LINE__);
+		fprintf(stderr, "Strange contour in glyph %s\n", g->name);
+		dumppaths(g, NULL, NULL);
+		return;
+	}
+
+	if(startge->type != GE_CURVE && startge->type != GE_LINE)
 		return; /* probably a degenerate contour */
 
 	if(ISDBG(FCONCISE))
