@@ -130,8 +130,6 @@ int    encoding[ENCTABSZ];	/* inverse of glyph[].char_no */
 int    kerning_pairs = 0;
 
 /* prototypes */
-static int isign( int x);
-static int fsign( double x);
 static void fixcvdir( GENTRY * ge, int dir);
 static void fixcvends( GENTRY * ge);
 static int fgetcvdir( GENTRY * ge);
@@ -167,7 +165,7 @@ static void fconcisecontour( GLYPH *g, GENTRY *ge);
 static double fclosegap( GENTRY *from, GENTRY *to, int axis,
 	double gap, double *ret);
 
-static int
+int
 isign(
      int x
 )
@@ -180,7 +178,7 @@ isign(
 		return 0;
 }
 
-static int
+int
 fsign(
      double x
 )
@@ -451,6 +449,50 @@ fg_rmoveto(
 }
 
 void
+ig_rmoveto(
+	  GLYPH * g,
+	  int x,
+	  int y)
+{
+	GENTRY         *oge;
+
+	if (ISDBG(BUILDG))
+		fprintf(stderr, "%s: i rmoveto(%d, %d)\n", g->name, x, y);
+
+	assertisint(g, "adding int MOVE");
+
+	if ((oge = g->lastentry) != 0) {
+		if (oge->type == GE_MOVE) {	/* just eat up the first move */
+			oge->ix3 = x;
+			oge->iy3 = y;
+		} else if (oge->type == GE_LINE || oge->type == GE_CURVE) {
+			fprintf(stderr, "Glyph %s: MOVE in middle of path, ignored\n", g->name);
+		} else {
+			GENTRY         *nge;
+
+			nge = newgentry(0);
+			nge->type = GE_MOVE;
+			nge->ix3 = x;
+			nge->iy3 = y;
+
+			oge->next = nge;
+			nge->prev = oge;
+			g->lastentry = nge;
+		}
+	} else {
+		GENTRY         *nge;
+
+		nge = newgentry(0);
+		nge->type = GE_MOVE;
+		nge->ix3 = x;
+		nge->iy3 = y;
+		nge->bkwd = (GENTRY*)&g->entries;
+		g->entries = g->lastentry = nge;
+	}
+
+}
+
+void
 fg_rlineto(
 	  GLYPH * g,
 	  double x,
@@ -494,6 +536,50 @@ fg_rlineto(
 
 	if (0 && ISDBG(BUILDG))
 		dumppaths(g, NULL, NULL);
+}
+
+void
+ig_rlineto(
+	  GLYPH * g,
+	  int x,
+	  int y)
+{
+	GENTRY         *oge, *nge;
+
+	if (ISDBG(BUILDG))
+		fprintf(stderr, "%s: i rlineto(%d, %d)\n", g->name, x, y);
+
+	assertisint(g, "adding int LINE");
+
+	nge = newgentry(0);
+	nge->type = GE_LINE;
+	nge->ix3 = x;
+	nge->iy3 = y;
+
+	if ((oge = g->lastentry) != 0) {
+		if (x == oge->ix3 && y == oge->iy3) {	/* empty line */
+			/* ignore it or we will get in troubles later */
+			free(nge);
+			return;
+		}
+		if (g->path == 0) {
+			g->path = nge;
+			nge->bkwd = nge->frwd = nge;
+		} else {
+			oge->frwd = nge;
+			nge->bkwd = oge;
+			g->path->bkwd = nge;
+			nge->frwd = g->path;
+		}
+
+		oge->next = nge;
+		nge->prev = oge;
+		g->lastentry = nge;
+	} else {
+		WARNING_1 fprintf(stderr, "Glyph %s: LINE outside of path\n", g->name);
+		free(nge);
+	}
+
 }
 
 void
@@ -558,6 +644,67 @@ fg_rrcurveto(
 
 	if (0 && ISDBG(BUILDG))
 		dumppaths(g, NULL, NULL);
+}
+
+void
+ig_rrcurveto(
+	    GLYPH * g,
+	    int x1,
+	    int y1,
+	    int x2,
+	    int y2,
+	    int x3,
+	    int y3)
+{
+	GENTRY         *oge, *nge;
+
+	oge = g->lastentry;
+
+	if (ISDBG(BUILDG))
+		fprintf(stderr, "%s: i rrcurveto(%d, %d, %d, %d, %d, %d)\n"
+			,g->name, x1, y1, x2, y2, x3, y3);
+
+	assertisint(g, "adding int CURVE");
+
+	if (oge && oge->ix3 == x1 && x1 == x2 && x2 == x3)	/* check if it's
+								 * actually a line */
+		ig_rlineto(g, x1, y3);
+	else if (oge && oge->iy3 == y1 && y1 == y2 && y2 == y3)
+		ig_rlineto(g, x3, y1);
+	else {
+		nge = newgentry(0);
+		nge->type = GE_CURVE;
+		nge->ix1 = x1;
+		nge->iy1 = y1;
+		nge->ix2 = x2;
+		nge->iy2 = y2;
+		nge->ix3 = x3;
+		nge->iy3 = y3;
+
+		if (oge != 0) {
+			if (x3 == oge->ix3 && y3 == oge->iy3) {
+				free(nge);	/* consider this curve empty */
+				/* ignore it or we will get in troubles later */
+				return;
+			}
+			if (g->path == 0) {
+				g->path = nge;
+				nge->bkwd = nge->frwd = nge;
+			} else {
+				oge->frwd = nge;
+				nge->bkwd = oge;
+				g->path->bkwd = nge;
+				nge->frwd = g->path;
+			}
+
+			oge->next = nge;
+			nge->prev = oge;
+			g->lastentry = nge;
+		} else {
+			WARNING_1 fprintf(stderr, "Glyph %s: CURVE outside of path\n", g->name);
+			free(nge);
+		}
+	}
 }
 
 void

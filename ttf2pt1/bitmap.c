@@ -117,6 +117,25 @@ autotraced_bmp_outline(
 
 #endif /*USE_AUTOTRACE*/
 
+/* a fragment of a contour: a bunch of stairs-style gentries that
+ * may be replaced by one straight line or curve
+ */
+struct cfrag {
+	GENTRY *first; /* first gentry (inclusive) */
+	GENTRY *last;  /* last gentry */
+	double usefirst; /* use this length at the end of the first ge */
+	double uselast; /* use this length at the beginning of the last ge */
+	int flags;
+#define FRF_DHPLUS	0x0001 /* horiz direction towards increased coordinates */
+#define FRF_DHMINUS	0x0002 /* horiz direction towards decreased coordinates */
+#define FRF_DVPLUS	0x0004 /* vert direction towards increased coordinates */
+#define FRF_DVMINUS	0x0008 /* vert direction towards decreased coordinates */
+#define FRF_LINE	0x0010 /* this is a line - else curve */
+#define FRF_CORNER	0x0020 /* this curve is just a (potentially) rounded corner */
+#define FRF_IGNORE	0x0040 /* this fragment should be ignored */
+};
+typedef struct cfrag CFRAG;
+
 /*
  * Produce an outline from a bitmap.
  * scale - factor to scale the sizes
@@ -138,7 +157,7 @@ bmp_outline(
 {
 	char *hlm, *vlm; /* arrays of the limits of outlines */
 	char *amp; /* map of ambiguous points */
-	int x, y;
+	int x, y, nfrags, maxfrags;
 	char *ip, *op;
 	double fscale;
 
@@ -150,6 +169,7 @@ bmp_outline(
 #endif /*USE_AUTOTRACE*/
 
 	fscale = (double)scale;
+	g->flags &= ~GF_FLOAT; /* build it as int first */
 
 	if(!warnedhints) {
 		warnedhints = 1;
@@ -164,6 +184,8 @@ bmp_outline(
 #endif
 
 	/* now find the outlines */
+	maxfrags = 0;
+
 	hlm=calloc( xsz, ysz+1 ); /* horizontal limits */
 	vlm=calloc( xsz+1, ysz ); /* vertical limits */
 	amp=calloc( xsz, ysz ); /* ambiguous points */
@@ -270,7 +292,7 @@ bmp_outline(
 	printlimits(hlm, vlm, amp, xsz, ysz);
 #endif
 
-	/* generate the vectored outline */
+	/* generate the vectored (stepping) outline */
 
 	while(1) {
 		int found = 0;
@@ -290,7 +312,7 @@ bmp_outline(
 		break; /* have no contours left */
 
 	foundcontour:
-		fg_rmoveto(g, fscale*(x+xoff), fscale*(y+yoff));
+		ig_rmoveto(g, x+xoff, y+yoff); /* intermediate as int */
 
 		startx = firstx = x;
 		starty = firsty = y;
@@ -403,7 +425,8 @@ bmp_outline(
 
 		gotit:
 			if(hor != newhor) { /* changed direction, end the previous line */
-				fg_rlineto(g, fscale*(x+xoff), fscale*(y+yoff));
+				maxfrags++;
+				ig_rlineto(g, x+xoff, y+yoff); /* intermediate as int */
 				firstx = x; firsty = y;
 			}
 			lm[newy*maxx + newx] = -lm[newy*maxx + newx];
@@ -417,10 +440,231 @@ bmp_outline(
 #if 0
 		printf("trace (%d, %d) outer=%d hor=%d dir=%d\n", x, y, outer, hor, dir);
 #endif
-		fg_rlineto(g, fscale*(x+xoff), fscale*(y+yoff));
+		maxfrags++;
+		ig_rlineto(g, x+xoff, y+yoff); /* intermediate as int */
 		g_closepath(g);
 	}
-	
+
+
+	/* try to vectorize the curves and sloped lines in the bitmap */
+	if(vectorize) { 
+		GENTRY *ge, *pge, *cge, *loopge;
+		CFRAG *frag;
+
+		/* there can't be more fragments than gentries */
+		frag = calloc(maxfrags, sizeof *frag);
+		if(frag == 0)  {
+			fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
+			exit(255);
+		}
+		nfrags = 0;
+
+		dumppaths(g, NULL, NULL);
+		for(cge=g->entries; cge!=0; cge=cge->next) {
+			if(cge->type != GE_MOVE)
+				continue;
+
+			/* we've found the beginning of a contour */
+			{
+				int hdir, vdir, d, firsthor, hor, count;
+				int lastlen, nextlen;
+				/* these are flags showing what this fragment may be yet */
+				int hline, vline, convex, concave, hline2, vline2, hline3, vline3;
+				int nexthline, nextvline, nextconvex, nextconcave;
+				int lastdx, lastdy, maxlen, minlen;
+
+				/* we know that all the contours start at the top-left corner,
+				 * so at most it might be before/after the last element of
+				 * the last/first fragment
+				 */
+
+				ge = cge->next;
+				pge = ge->bkwd;
+				if(ge->ix3 == pge->ix3) { /* a vertical line */
+					/* we want to start always from a horizontal line because
+					 * then we always start from top and that is quaranteed to be a 
+					 * fragment boundary, so move the start point of the contour
+					 */
+					pge->prev->next = pge->next;
+					pge->next->prev = pge->prev;
+					cge->next = pge;
+					pge->prev = cge;
+					pge->next = ge;
+					ge->prev = pge;
+					ge = pge; pge = ge->bkwd;
+					cge->ix3 = pge->ix3; cge->iy3 = pge->iy3;
+				}
+
+				do { /* for each fragment */
+					hdir = isign(ge->ix3 - pge->ix3);
+					vdir = isign(ge->iy3 - pge->iy3);
+					firsthor = hor = (hdir != 0);
+					lastlen = maxlen = minlen = lastdx = lastdy = 0;
+					if(hor) {
+						lastlen = abs(ge->ix3 - pge->ix3);
+						nexthline = hline = hline2 = hline3 = 1;
+						nextvline = vline = vline2 = vline3 = 0;
+					} else {
+						lastlen = abs(ge->iy3 - pge->iy3);
+						nexthline = hline = hline2 = hline3 = 0;
+						nextvline = vline = vline2 = vline3 = 1;
+					}
+
+					frag[nfrags].first = ge;
+					count = 1;
+
+					fprintf(stderr, "%s: frag start at %p\n", g->name, ge);
+
+					/* the (rather random) definitions are:
+					 * convex: dx gets longer, dy gets shorter towards the end (vh-curve)
+					 * concave: dx gets shorter, dy gets longer towards the end (hv-curve)
+					 */
+					nextconvex = convex = nextconcave = concave = 1;
+
+					do {
+						pge = ge;
+						ge = ge->frwd;
+						fprintf(stderr, "frag + %p\n",  ge);
+						hor = !hor; /* we know that the directions alternate nicely */
+						count++; /* including the current ge */
+
+						if(hor) {
+							d = isign(ge->ix3 - pge->ix3);
+							if(hdir==0)
+								hdir = d;
+							else if(hdir != d) {
+								fprintf(stderr, "wrong hdir ");
+								goto overstepped;
+							}
+							nextlen = abs(ge->ix3 - pge->ix3);
+
+							if(lastdx != 0) {
+								if(nextconvex && nextlen < lastdx)
+									nextconvex = 0;
+								if(nextconcave && nextlen > lastdx)
+									nextconcave = 0;
+							}
+							lastdx = nextlen;
+						} else {
+							d = isign(ge->iy3 - pge->iy3);
+							if(vdir==0)
+								vdir = d;
+							else if(vdir != d) {
+								fprintf(stderr, "wrong vdir ");
+								goto overstepped;
+							}
+							nextlen = abs(ge->iy3 - pge->iy3);
+
+							if(lastdy != 0) {
+								if(nextconvex && nextlen > lastdx)
+									nextconvex = 0;
+								if(nextconcave && nextlen < lastdx)
+									nextconcave = 0;
+							}
+							lastdy = nextlen;
+						}
+						if(lastlen > 1 && nextlen > 1) { /* an abrupt step */
+							fprintf(stderr, "abrupt step\n");
+							if(count > 2) {
+						overstepped: /* the last gentry does not belong to this fragment */
+								fprintf(stderr, "frag - %p\n",  ge);
+								hor = !hor;
+								count--; ge = pge; pge = ge->bkwd;
+							}
+							break;
+						}
+						/* may it be a continuation of the line in its long direction ? */
+						if( nexthline && hor || nextvline && !hor ) {
+							if(maxlen==0)
+								maxlen = minlen = nextlen;
+							else if(maxlen==minlen) {
+								if(nextlen < maxlen) {
+									if(nextlen < minlen-1)
+										nexthline = nextvline = 0; /* it can't */
+									else
+										minlen = nextlen;
+								} else {
+									if(nextlen > maxlen+1)
+										nexthline = nextvline = 0; /* it can't */
+									else
+										maxlen = nextlen;
+								}
+							} else if(nextlen < minlen || nextlen > maxlen)
+								nexthline = nextvline = 0; /* it can't */
+						}
+						/* may it be a continuation of the line in its short direction ? */
+						if( nexthline && !hor || nextvline && hor ) {
+							if(nextlen != 1)
+								nexthline = nextvline = 0; /* it can't */
+						}
+
+						if(!nextconvex && !nextconcave && !nexthline && !nextvline)
+							goto overstepped; /* this can not be a reasonable continuation */
+
+						lastlen = nextlen;
+						hline3 = hline2; hline2 = hline; hline = nexthline;
+						vline3 = vline2; vline2 = vline; vline = nextvline;
+						convex = nextconvex;
+						concave = nextconcave;
+					} while(ge != cge->next);
+
+					/* see, what kind of fragment we have got */
+					if(count < 2) {
+						fprintf(stderr, "**** weird fragment in '%s' count=%d around (%f, %f)\n",
+							g->name, count, fscale*frag[nfrags].first->ix3, fscale*frag[nfrags].first->iy3);
+						continue;
+					} 
+
+					/* calculate the direction flags */
+					d = 0;
+					if(hdir < 0)
+						d |= FRF_DHMINUS;
+					else
+						d |= FRF_DHPLUS;
+					if(vdir < 0)
+						d |= FRF_DVMINUS;
+					else
+						d |= FRF_DVPLUS;
+					frag[nfrags].flags = d;
+
+					if(count == 2) {
+						frag[nfrags].flags |= FRF_CORNER;
+						frag[nfrags].usefirst = frag[nfrags].uselast = 0.5 ;
+						frag[nfrags].last = ge;
+						fprintf(stderr, "%s: corner at (%d, %d)\n",
+							g->name, frag[nfrags].first->ix3, frag[nfrags].first->iy3);
+						nfrags++;
+						continue;
+					}
+					/* XXX get the other types */
+
+				} while(ge != cge->next);
+			}
+
+		}
+		
+		free(frag);
+	} /* end of vectorization logic */
+
+	/* convert the data to float */
+	{
+		GENTRY *ge;
+		double x, y;
+
+		for(ge = g->entries; ge != 0; ge = ge->next) {
+			ge->flags |= GEF_FLOAT;
+			if(ge->type != GE_MOVE && ge->type != GE_LINE) 
+				continue;
+
+			x = fscale * ge->ix3;
+			y = fscale * ge->iy3;
+
+			ge->fx3 = x;
+			ge->fy3 = y;
+		}
+		g->flags |= GF_FLOAT;
+	}
+
 	free(hlm); free(vlm); free(amp);
 }
 
