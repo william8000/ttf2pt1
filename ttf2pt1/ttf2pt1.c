@@ -2143,12 +2143,10 @@ main(
 	}
 
 	/* print the metrics for glyphs not in encoding table */
-	if(allglyphs) {
-		for(i=0; i<numglyphs; i++) {
-			if( (glyph_list[i].flags & GF_USED)
-			&& glyph_list[i].char_no == -1 ) {
-				print_glyph_metrics(-1, i);
-			}
+	for(i=0; i<numglyphs; i++) {
+		if( (glyph_list[i].flags & GF_USED)
+		&& glyph_list[i].char_no == -1 ) {
+			print_glyph_metrics(-1, i);
 		}
 	}
 
