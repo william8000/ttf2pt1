@@ -294,6 +294,10 @@ The <B>options</B> are:
    <tt>&nbsp;&nbsp;cat *.pf[ab] | grep UniqueID | sort | uniq -c | grep -v ' 1 '</tt>
 <p>
 
+   Or if you use <tt>scripts/convert</tt> it will do that for you automatically 
+   plus it will also give the exact list of files with duplicate UIDs.
+<p>
+
 <TT><B>-w</TT></B> - Try to correct the glyph widths. This option is designed to be
    used on broken fonts which specify too narrow widths for the 
    letters. You can tell that a font can benefit from this option
@@ -459,7 +463,7 @@ are described shortly in <A HREF="other/README.html">others/README</a>.
 TO DO:
 </H4>
 <!
------
+------
 >
 
 - Improve hinting.
@@ -529,8 +533,9 @@ seems to be the strongest moving force behind the Open Source software.
 The next step is playing with the options. This serves a dual purpose:
 on one hand, it helps to localize the bug, on the other hand you may be
 able to get a working version of the font for the meantime while the
-bug is being fixed. The typical options to try out are: -s, then -h,
-then -o. They are described in a bit more detail above. Try them one by one
+bug is being fixed. The typical options to try out are: if you use the
+option <tt><b>-H</b></tt> then try to not use it first, then try to use <tt><b>-s</b></tt>, then <tt><b>-h</b></tt>,
+then <tt><b>-o</b></tt>. They are described in a bit more detail above. Try them one by one
 and in combinations. See if with them the resulting fonts look better.
 <p>
 
@@ -692,6 +697,13 @@ covers other issues regarding the use of this software. Please note that
 although <tt>ttf2pfa</tt> is a public domain software, <tt>ttf2pt1</tt>
 is instead covered by an Open Source license. See the <tt>COPYRIGHT</tt>
 file for details.
+<p>
+
+Please note also that <tt>ttf2pfa</tt> has not been maintained for a long time.
+All of its functionality has been integrated into <tt>ttf2pt1</tt> and all the
+development moved to <tt>ttf2pt1</tt>, including Andrew Weeks, the author of
+<tt>ttf2pfa</tt>. <tt>Ttf2pfa</tt> is provided for historical reasons only. Please use
+<tt>ttf2pt1</tt> instead.
 
 <HR>
 <!
