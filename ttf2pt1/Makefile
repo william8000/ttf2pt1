@@ -116,7 +116,7 @@ warning: docs
 	@echo "(or if you are lazy and hope that it will work as is run \`make all')">&2
 	@echo >&2
 
-DOCS=CHANGES README INSTALL INSTALL.hpux encodings/README other/README \
+DOCS=CHANGES README FONTS FONTS.hpux encodings/README other/README \
 	app/X11/README app/netscape/README
 
 SUBDIRS = app encodings maps scripts other
@@ -142,8 +142,8 @@ rpm: app/RPM/Makefile app/RPM/ttf2pt1.spec
 ttf2pt1.1: README.html
 	scripts/html2man . . <README.html
 
-ttf2pt1_convert.1 ttf2pt1_x2gs.1: INSTALL.html
-	scripts/html2man . . <INSTALL.html
+ttf2pt1_convert.1 ttf2pt1_x2gs.1: FONTS.html
+	scripts/html2man . . <FONTS.html
 
 app/RPM/Makefile: Makefile
 	sed 's/^CFLAGS_SYS.*=.*$$/CFLAGS_SYS= -O2 -D_GNU_SOURCE/;/warning:/,/^$$/s/^/#/' <Makefile >app/RPM/Makefile
@@ -190,11 +190,11 @@ app/X11/README: app/X11/README.html
 app/netscape/README: app/netscape/README.html
 	scripts/unhtml <app/netscape/README.html >app/netscape/README
 
-INSTALL: INSTALL.html
-	scripts/unhtml <INSTALL.html >INSTALL
+FONTS: FONTS.html
+	scripts/unhtml <FONTS.html >FONTS
 
-INSTALL.hpux: INSTALL.hpux.html
-	scripts/unhtml <INSTALL.hpux.html >INSTALL.hpux
+FONTS.hpux: FONTS.hpux.html
+	scripts/unhtml <FONTS.hpux.html >FONTS.hpux
 
 install: all
 	scripts/inst_dir $(BINDIR)
