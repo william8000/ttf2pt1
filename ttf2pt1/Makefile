@@ -142,7 +142,7 @@ warning: docs
 	@echo >&2
 
 DOCS=CHANGES README FONTS FONTS.hpux encodings/README other/README \
-	app/X11/README app/netscape/README
+	app/X11/README app/netscape/README app/TeX/README
 
 SUBDIRS = app encodings maps scripts other
 TXTFILES = README* FONTS* CHANGES* COPYRIGHT
@@ -221,6 +221,9 @@ app/X11/README: app/X11/README.html
 
 app/netscape/README: app/netscape/README.html
 	scripts/unhtml <app/netscape/README.html >app/netscape/README
+
+app/TeX/README: app/TeX/README.html
+	scripts/unhtml <app/TeX/README.html >app/TeX/README
 
 FONTS: FONTS.html
 	scripts/unhtml <FONTS.html >FONTS
