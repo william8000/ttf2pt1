@@ -165,11 +165,17 @@ ttf.o: ttf.c ttf.h pt1.h global.h
 ft.o: ft.c pt1.h global.h
 	$(CC) $(CFLAGS) -c ft.c
 
+bdf.o: bdf.c pt1.h global.h
+	$(CC) $(CFLAGS) -c bdf.c
+
+bitmap.o: bitmap.c pt1.h global.h
+	$(CC) $(CFLAGS) -c bitmap.c
+
 runt1asm.o: runt1asm.c global.h
 	$(CC) $(CFLAGS) $(CFLAGS_EXTT1ASM) -c runt1asm.c
 
-ttf2pt1:	ttf2pt1.o pt1.o runt1asm.o ttf.o ft.o
-	$(CC) $(CFLAGS) -o ttf2pt1 ttf2pt1.o pt1.o runt1asm.o ttf.o ft.o $(LIBS)
+ttf2pt1:	ttf2pt1.o pt1.o runt1asm.o ttf.o ft.o bdf.o bitmap.o
+	$(CC) $(CFLAGS) -o ttf2pt1 ttf2pt1.o pt1.o runt1asm.o ttf.o ft.o bdf.o bitmap.o $(LIBS)
 
 CHANGES: CHANGES.html
 	scripts/unhtml <CHANGES.html >CHANGES

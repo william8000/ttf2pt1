@@ -89,11 +89,13 @@
 /* table of front-ends */
 
 extern struct frontsw ttf_sw;
+extern struct frontsw bdf_sw;
 #if defined(USE_FREETYPE)
 	extern struct frontsw freetype_sw;
 #endif
 
 struct frontsw *frontswtab[] = {
+	&bdf_sw,
 #if defined(USE_FREETYPE) && defined(PREFER_FREETYPE)
 	&freetype_sw,
 #endif

@@ -424,6 +424,8 @@ The <B>options</B> are:
 
    &nbsp;&nbsp;<TT>ttf</TT> - built-in parser for the ttf files (suffix <tt>.ttf</tt>)
 <br>
+   &nbsp;&nbsp;<TT>bdf</TT> - built-in parser for the BDF files (suffix <tt>.bdf</tt>)
+<br>
    &nbsp;&nbsp;<TT>ft</TT> - parser based on the FreeType-2 library (suffixes <tt>.ttf</tt>,
        <tt>.otf</tt>, <tt>.pfa</tt>, <tt>.pfb</tt>)
 <p>
@@ -432,6 +434,13 @@ The <B>options</B> are:
    for instructions how to enable it. We do no support this parser on
    Windows: probably it will work but nobody tried and nobody knows how
    to build it. 
+<p>
+
+   The conversion of the bitmap fonts (such as BDF) is simplistic yet,
+   producing jagged outlines.  When converting such fonts, it might be 
+   a good idea to turn off the hint substitution (using option <b>-Ou</b>) 
+   because the hints produced will be huge but not adding much to the
+   quality of the fonts.
 <p>
 
 <!-- ==item * -->
