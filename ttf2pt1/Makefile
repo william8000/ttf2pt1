@@ -85,6 +85,10 @@ CFLAGS_PREF=
 #
 #CFLAGS_PREF= -DPREFER_FREETYPE
 
+# Uncomment the second line to not compile t1asm into ttf2pt1
+CFLAGS_EXTT1ASM=
+#CFLAGS_EXTT1ASM= -DEXTERNAL_T1ASM
+
 CFLAGS= $(CFLAGS_SYS) $(CFLAGS_FT) $(CFLAGS_PREF)
 LIBS= $(LIBS_SYS) $(LIBS_FT)
 
@@ -162,8 +166,11 @@ ttf.o: ttf.c ttf.h pt1.h global.h
 ft.o: ft.c pt1.h global.h
 	$(CC) $(CFLAGS) -c ft.c
 
-ttf2pt1:	ttf2pt1.o pt1.o t1asm.o ttf.o ft.o
-	$(CC) $(CFLAGS) -o ttf2pt1 ttf2pt1.o pt1.o t1asm.o ttf.o ft.o $(LIBS)
+runt1asm.o: runt1asm.c global.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTT1ASM) -c runt1asm.c
+
+ttf2pt1:	ttf2pt1.o pt1.o runt1asm.o ttf.o ft.o
+	$(CC) $(CFLAGS) -o ttf2pt1 ttf2pt1.o pt1.o runt1asm.o ttf.o ft.o $(LIBS)
 
 CHANGES: CHANGES.html
 	scripts/unhtml <CHANGES.html >CHANGES

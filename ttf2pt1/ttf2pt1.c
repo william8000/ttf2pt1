@@ -1944,6 +1944,8 @@ main(
 		case 0:	/* child */
 			fclose(pfa_file);
 			exit(runt1asm(pfbflag));
+		default: /* parent */
+			fclose(ifp); fclose(ofp);
 		}
 	}
 #endif /* WINDOWS */
