@@ -165,7 +165,7 @@ while(<STDIN>) {
 		#s/\<\/blockquote\>/\n\n=back\n\n/gi;
 		s/\<ul\>/\n\n=over 4\n\n/gi;
 		s/\<\/ul\>/\n\n=back\n\n/gi;
-		s/\<li\>/\n\n=item \*\n\n/gi;
+		s/\<li\>\s*/\n\n=item \*\n\n/gi;
 		s/\<i\>(.*?)\<\/i\>/I\{\1\}/gi;
 		s/\<b\>(.*?)\<\/b\>/B\{\1\}/gi;
 		s/\<tt\>(.*?)\<\/tt\>/C\{\1\}/gi;
