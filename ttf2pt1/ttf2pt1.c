@@ -1340,13 +1340,23 @@ handle_gnames(void)
 			found = 0;
 			for (i = 0; i < n && !found; i++) {
 				if (strcmp(glyph_list[i].name, glyph_list[n].name) == 0) {
-					glyph_list[n].name = malloc(16);
+					if (( glyph_list[n].name = malloc(16) )==0) {
+						fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
+						exit(255);
+					}
 					sprintf(glyph_list[n].name, "_d_%d", n);
-					WARNING_3 fprintf(stderr,
-						"Glyph %d has the same name as %d: (%s), changing to %s\n",
-						n, i,
-						glyph_list[i].name,
-						glyph_list[n].name);
+
+					/* if the font has no names in it (what the native parser
+					 * recognises as ps_fmt_3), FreeType returns all the 
+					 * names as .notdef, so don't complain in this case
+					 */
+					if(strcmp(glyph_list[i].name, ".notdef")) {
+						WARNING_3 fprintf(stderr,
+							"Glyph %d has the same name as %d: (%s), changing to %s\n",
+							n, i,
+							glyph_list[i].name,
+							glyph_list[n].name);
+					}
 					found = 1;
 				}
 			}
@@ -1396,9 +1406,23 @@ handle_gnames(void)
 	}
 
 	if (ps_fmt_3) {
+		/* get rid of the old names, they are all "UNKNOWN" anyawy */
+		for (i = 0; i < numglyphs; i++) {
+			glyph_list[i].name = 0;
+		}
 		for (i = 0; i < 256; i++) { /* here 256, not ENCTABSZ */
 			if (encoding[i] > 0) {
 				glyph_list[encoding[i]].name = Fmt3Encoding[i];
+			}
+		}
+		/* assign unique names to the rest of the glyphs */
+		for (i = 0; i < numglyphs; i++) {
+			if (glyph_list[i].name == 0) {
+				if (( glyph_list[i].name = malloc(16) )==0) {
+					fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
+					exit(255);
+				}
+				sprintf(glyph_list[i].name, "_d_%d", i);
 			}
 		}
 	}
@@ -1787,6 +1811,8 @@ main(
 					fprintf(stderr, "The default state corresponds to the option -G ");
 					print_subo_dflt(stderr, fgotbl);
 					fprintf(stderr, "\n");
+					fprintf(stderr, "If the result is written to STDOUT, the last specified enabling suboption of -G\n");
+					fprintf(stderr, "selects the file to be written to STDOUT (the font file by default).\n");
 					exit(1);
 				}
 				if( *(s->valp) )
