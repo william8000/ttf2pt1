@@ -136,7 +136,7 @@ veryclean: clean
 rpm: app/RPM/Makefile app/RPM/ttf2pt1.spec
 
 ttf2pt1.1: README.html
-	scripts/html2man . . <$<
+	scripts/html2man . . <README.html
 
 app/RPM/Makefile: Makefile
 	sed 's/^CFLAGS_SYS.*=.*$$/CFLAGS_SYS= -O2 -D_GNU_SOURCE/;/warning:/,/^$$/s/^/#/' <Makefile >app/RPM/Makefile
