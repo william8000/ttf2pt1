@@ -36,7 +36,14 @@ double   italic_angle;
 GLYPH   *glyph_list;
 int    encoding[256];	/* inverse of glyph[].char_no */
 
-int
+/* prototypes */
+static int sign( int x);
+static void fixcvdir( GENTRY * ge, int dir);
+static void fixcvends( GENTRY * ge);
+static int fgetcvdir( GENTRY * ge);
+static int igetcvdir( GENTRY * ge);
+
+static int
 sign(
      int x
 )
@@ -49,7 +56,7 @@ sign(
 		return 0;
 }
 
-GENTRY         *
+static GENTRY *
 newgentry(void)
 {
 	GENTRY         *ge;
@@ -62,11 +69,12 @@ newgentry(void)
 	}
 	ge->next = ge->prev = ge->first = 0;
 	ge->stemid = -1;
+	ge->flags = 0;
 	return ge;
 }
 
 /*
- * * SB * Routines to print out Postscript functions with optimization
+ * Routines to print out Postscript functions with optimization
  */
 
 void
@@ -136,6 +144,16 @@ closepath(void)
 }
 
 /*
+ * Many of the path processing routines exist (or will exist) in
+ * both floating-point and integer version. Fimally most of the
+ * processing will go in floating point and the integer processing
+ * will become legacy.
+ * The names of floating routines start with f, names of integer 
+ * routines start with i, and those old routines existing in one 
+ * version only have no such prefix at all.
+ */
+
+/*
 ** Routine that checks integrity of the path, for debugging
 */
 
@@ -148,13 +166,21 @@ assertpath(
 )
 {
 	GENTRY         *first, *pe, *ge;
+	int	isfloat;
 
 	if(from==0)
 		return;
+	isfloat = (from->flags & GEF_FLOAT);
 	pe = from->prev;
 	for (ge = from; ge != 0; pe = ge, ge = ge->next) {
+		if( (ge->flags & GEF_FLOAT) ^ isfloat ) {
+			fprintf(stderr, "**! assertpath: called from %s line %d (%s) ****\n", file, line, name);
+			fprintf(stderr, "float flag changes from %s to %s at 0x%x (type %c, prev type %c)\n",
+				(isfloat ? "TRUE" : "FALSE"), (isfloat ? "FALSE" : "TRUE"), ge, ge->type, pe->type);
+			exit(1);
+		}
 		if (pe != ge->prev) {
-			fprintf(stderr, "**** assertpath: called from %s line %d (%s) ****\n", file, line, name);
+			fprintf(stderr, "**! assertpath: called from %s line %d (%s) ****\n", file, line, name);
 			fprintf(stderr, "unidirectional chain 0x%x -next-> 0x%x -prev-> 0x%x \n",
 				pe, ge, ge->prev);
 			exit(1);
@@ -162,19 +188,19 @@ assertpath(
 		if (ge->type == GE_MOVE)
 			first = ge->next;
 		if (ge->first && ge->first != first) {
-			fprintf(stderr, "**** assertpath: called from %s line %d (%s) ****\n", file, line, name);
+			fprintf(stderr, "**! assertpath: called from %s line %d (%s) ****\n", file, line, name);
 			fprintf(stderr, "broken loop 0x%x -...-> 0x%x -first-> 0x%x \n",
 				first, ge, ge->first);
 			exit(1);
 		}
 		if (ge->type == GE_PATH) {
 			if (ge->prev == 0) {
-				fprintf(stderr, "**** assertpath: called from %s line %d (%s) ****\n", file, line, name);
+				fprintf(stderr, "**! assertpath: called from %s line %d (%s) ****\n", file, line, name);
 				fprintf(stderr, "empty path at 0x%x \n", ge);
 				exit(1);
 			}
 			if (ge->prev->first == 0) {
-				fprintf(stderr, "**** assertpath: called from %s line %d (%s) ****\n", file, line, name);
+				fprintf(stderr, "**! assertpath: called from %s line %d (%s) ****\n", file, line, name);
 				fprintf(stderr, "path without backlink at 0x%x \n", pe);
 				exit(1);
 			}
@@ -182,24 +208,109 @@ assertpath(
 	}
 }
 
+void
+assertisfloat(
+	GLYPH *g,
+	char *msg
+)
+{
+	if( !(g->flags & GF_FLOAT) ) {
+		fprintf(stderr, "**! Glyph %s is not float: %s\n", g->name, msg);
+		exit(1);
+	}
+	if(g->lastentry) {
+		if( !(g->lastentry->flags & GEF_FLOAT) ) {
+			fprintf(stderr, "**! Glyphs %s last entry is int: %s\n", g->name, msg);
+			exit(1);
+		}
+	}
+}
+
+void
+assertisint(
+	GLYPH *g,
+	char *msg
+)
+{
+	if( (g->flags & GF_FLOAT) ) {
+		fprintf(stderr, "**! Glyph %s is not int: %s\n", g->name, msg);
+		exit(1);
+	}
+	if(g->lastentry) {
+		if( (g->lastentry->flags & GEF_FLOAT) ) {
+			fprintf(stderr, "**! Glyphs %s last entry is float: %s\n", g->name, msg);
+			exit(1);
+		}
+	}
+}
+
+
 /*
- * * SB * Routines to save the generated data about glyph
+ * Routines to save the generated data about glyph
  */
 
 void
-g_rmoveto(
+fg_rmoveto(
+	  GLYPH * g,
+	  double x,
+	  double y)
+{
+	GENTRY         *oge;
+
+	if (ISDBG(BUILDG))
+		fprintf(stderr, "%s: f rmoveto(%g, %g)\n", g->name, x, y);
+
+	assertisfloat(g, "adding float MOVE");
+
+	if ((oge = g->lastentry) != 0) {
+		if (oge->type == GE_MOVE) {	/* just eat up the first move */
+			oge->fx3 = x;
+			oge->fy3 = y;
+		} else if (oge->type == GE_LINE || oge->type == GE_CURVE) {
+			fprintf(stderr, "Glyph %s: MOVE in middle of path\n", g->name);
+		} else {
+			GENTRY         *nge;
+
+			nge = newgentry();
+			nge->flags |= GEF_FLOAT;
+			nge->type = GE_MOVE;
+			nge->fx3 = x;
+			nge->fy3 = y;
+
+			oge->next = nge;
+			nge->prev = oge;
+			g->lastentry = nge;
+		}
+	} else {
+		GENTRY         *nge;
+
+		nge = newgentry();
+		nge->flags |= GEF_FLOAT;
+		nge->type = GE_MOVE;
+		nge->fx3 = x;
+		nge->fy3 = y;
+		g->entries = g->lastentry = nge;
+	}
+
+}
+
+void
+ig_rmoveto(
 	  GLYPH * g,
 	  int x,
 	  int y)
 {
 	GENTRY         *oge;
 
-	if (0)
-		fprintf(stderr, "%s: rmoveto(%d, %d)\n", g->name, x, y);
+	if (ISDBG(BUILDG))
+		fprintf(stderr, "%s: i rmoveto(%d, %d)\n", g->name, x, y);
+
+	assertisint(g, "adding int MOVE");
+
 	if ((oge = g->lastentry) != 0) {
 		if (oge->type == GE_MOVE) {	/* just eat up the first move */
-			oge->x3 = x;
-			oge->y3 = y;
+			oge->ix3 = x;
+			oge->iy3 = y;
 		} else if (oge->type == GE_LINE || oge->type == GE_CURVE) {
 			fprintf(stderr, "Glyph %s: MOVE in middle of path\n", g->name);
 		} else {
@@ -207,8 +318,8 @@ g_rmoveto(
 
 			nge = newgentry();
 			nge->type = GE_MOVE;
-			nge->x3 = x;
-			nge->y3 = y;
+			nge->ix3 = x;
+			nge->iy3 = y;
 
 			oge->next = nge;
 			nge->prev = oge;
@@ -219,30 +330,34 @@ g_rmoveto(
 
 		nge = newgentry();
 		nge->type = GE_MOVE;
-		nge->x3 = x;
-		nge->y3 = y;
+		nge->ix3 = x;
+		nge->iy3 = y;
 		g->entries = g->lastentry = nge;
 	}
 
 }
 
 void
-g_rlineto(
+fg_rlineto(
 	  GLYPH * g,
-	  int x,
-	  int y)
+	  double x,
+	  double y)
 {
 	GENTRY         *oge, *nge;
 
-	if (0)
-		fprintf(stderr, "%s: rlineto(%d, %d)\n", g->name, x, y);
+	if (ISDBG(BUILDG))
+		fprintf(stderr, "%s: f rlineto(%g, %g)\n", g->name, x, y);
+
+	assertisfloat(g, "adding float LINE");
+
 	nge = newgentry();
+	nge->flags |= GEF_FLOAT;
 	nge->type = GE_LINE;
-	nge->x3 = x;
-	nge->y3 = y;
+	nge->fx3 = x;
+	nge->fy3 = y;
 
 	if ((oge = g->lastentry) != 0) {
-		if (x == oge->x3 && y == oge->y3) {	/* empty line */
+		if (x == oge->fx3 && y == oge->fy3) {	/* empty line */
 			/* ignore it or we will get in troubles later */
 			free(nge);
 			return;
@@ -255,49 +370,86 @@ g_rlineto(
 		g->lastentry = nge;
 	} else {
 		WARNING_1 fprintf(stderr, "Glyph %s: LINE outside of path\n", g->name);
-#if 0
-		g->entries = g->lastentry = nge;
-#else
 		free(nge);
-#endif
 	}
 
 }
 
 void
-g_rrcurveto(
+ig_rlineto(
+	  GLYPH * g,
+	  int x,
+	  int y)
+{
+	GENTRY         *oge, *nge;
+
+	if (ISDBG(BUILDG))
+		fprintf(stderr, "%s: i rlineto(%d, %d)\n", g->name, x, y);
+
+	assertisint(g, "adding int LINE");
+
+	nge = newgentry();
+	nge->type = GE_LINE;
+	nge->ix3 = x;
+	nge->iy3 = y;
+
+	if ((oge = g->lastentry) != 0) {
+		if (x == oge->ix3 && y == oge->iy3) {	/* empty line */
+			/* ignore it or we will get in troubles later */
+			free(nge);
+			return;
+		}
+		if (g->path == 0)
+			g->path = nge;
+
+		oge->next = nge;
+		nge->prev = oge;
+		g->lastentry = nge;
+	} else {
+		WARNING_1 fprintf(stderr, "Glyph %s: LINE outside of path\n", g->name);
+		free(nge);
+	}
+
+}
+
+void
+fg_rrcurveto(
 	    GLYPH * g,
-	    int x1,
-	    int y1,
-	    int x2,
-	    int y2,
-	    int x3,
-	    int y3)
+	    double x1,
+	    double y1,
+	    double x2,
+	    double y2,
+	    double x3,
+	    double y3)
 {
 	GENTRY         *oge, *nge;
 
 	oge = g->lastentry;
 
-	if (0)
-		fprintf(stderr, "%s: rrcurveto(%d, %d, %d, %d, %d, %d)\n"
+	if (ISDBG(BUILDG))
+		fprintf(stderr, "%s: f rrcurveto(%g, %g, %g, %g, %g, %g)\n"
 			,g->name, x1, y1, x2, y2, x3, y3);
-	if (oge && oge->x3 == x1 && x1 == x2 && x2 == x3)	/* check if it's
+
+	assertisfloat(g, "adding float CURVE");
+
+	if (oge && oge->fx3 == x1 && x1 == x2 && x2 == x3)	/* check if it's
 								 * actually a line */
-		g_rlineto(g, x1, y3);
-	else if (oge && oge->y3 == y1 && y1 == y2 && y2 == y3)
-		g_rlineto(g, x3, y1);
+		fg_rlineto(g, x1, y3);
+	else if (oge && oge->fy3 == y1 && y1 == y2 && y2 == y3)
+		fg_rlineto(g, x3, y1);
 	else {
 		nge = newgentry();
+		nge->flags |= GEF_FLOAT;
 		nge->type = GE_CURVE;
-		nge->x1 = x1;
-		nge->y1 = y1;
-		nge->x2 = x2;
-		nge->y2 = y2;
-		nge->x3 = x3;
-		nge->y3 = y3;
+		nge->fx1 = x1;
+		nge->fy1 = y1;
+		nge->fx2 = x2;
+		nge->fy2 = y2;
+		nge->fx3 = x3;
+		nge->fy3 = y3;
 
 		if (oge != 0) {
-			if (x3 == oge->x3 && y3 == oge->y3) {
+			if (x3 == oge->fx3 && y3 == oge->fy3) {
 				free(nge);	/* consider this curve empty */
 				/* ignore it or we will get in troubles later */
 				return;
@@ -310,11 +462,61 @@ g_rrcurveto(
 			g->lastentry = nge;
 		} else {
 			WARNING_1 fprintf(stderr, "Glyph %s: CURVE outside of path\n", g->name);
-#if 0
-			g->entries = g->lastentry = nge;
-#else
 			free(nge);
-#endif
+		}
+	}
+}
+
+void
+ig_rrcurveto(
+	    GLYPH * g,
+	    int x1,
+	    int y1,
+	    int x2,
+	    int y2,
+	    int x3,
+	    int y3)
+{
+	GENTRY         *oge, *nge;
+
+	oge = g->lastentry;
+
+	if (ISDBG(BUILDG))
+		fprintf(stderr, "%s: i rrcurveto(%d, %d, %d, %d, %d, %d)\n"
+			,g->name, x1, y1, x2, y2, x3, y3);
+
+	assertisint(g, "adding int CURVE");
+
+	if (oge && oge->ix3 == x1 && x1 == x2 && x2 == x3)	/* check if it's
+								 * actually a line */
+		ig_rlineto(g, x1, y3);
+	else if (oge && oge->iy3 == y1 && y1 == y2 && y2 == y3)
+		ig_rlineto(g, x3, y1);
+	else {
+		nge = newgentry();
+		nge->type = GE_CURVE;
+		nge->ix1 = x1;
+		nge->iy1 = y1;
+		nge->ix2 = x2;
+		nge->iy2 = y2;
+		nge->ix3 = x3;
+		nge->iy3 = y3;
+
+		if (oge != 0) {
+			if (x3 == oge->ix3 && y3 == oge->iy3) {
+				free(nge);	/* consider this curve empty */
+				/* ignore it or we will get in troubles later */
+				return;
+			}
+			if (g->path == 0)
+				g->path = nge;
+
+			oge->next = nge;
+			nge->prev = oge;
+			g->lastentry = nge;
+		} else {
+			WARNING_1 fprintf(stderr, "Glyph %s: CURVE outside of path\n", g->name);
+			free(nge);
 		}
 	}
 }
@@ -326,7 +528,7 @@ g_closepath(
 {
 	GENTRY         *oge, *nge;
 
-	if (0)
+	if (ISDBG(BUILDG))
 		fprintf(stderr, "%s: closepath\n", g->name);
 
 	oge = g->lastentry;
@@ -348,6 +550,7 @@ g_closepath(
 	}
 	if (oge != 0) {		/* only if we actually have a path */
 		nge = newgentry();
+		nge->flags |= (oge->flags & GEF_FLOAT); /* keep the same type */
 		nge->type = GE_PATH;
 		oge->first = g->path;
 		g->path = 0;
@@ -366,7 +569,7 @@ g_closepath(
 ** outer points
 */
 
-void
+static void
 fixcvends(
 	  GENTRY * ge
 )
@@ -377,14 +580,14 @@ fixcvends(
 	if (ge->type != GE_CURVE)
 		return;
 
-	x0 = ge->prev->x3;
-	y0 = ge->prev->y3;
-	x1 = ge->x1;
-	y1 = ge->y1;
-	x2 = ge->x2;
-	y2 = ge->y2;
-	x3 = ge->x3;
-	y3 = ge->y3;
+	x0 = ge->prev->ix3;
+	y0 = ge->prev->iy3;
+	x1 = ge->ix1;
+	y1 = ge->iy1;
+	x2 = ge->ix2;
+	y2 = ge->iy2;
+	x3 = ge->ix3;
+	y3 = ge->iy3;
 
 
 	/* look at the start of the curve */
@@ -400,43 +603,43 @@ fixcvends(
 			 * later
 			 */
 			if (abs(x3 - x0) <= 2 || abs(y3 - y0) <= 2) {
-				ge->x1 = x3;
-				ge->y1 = y3;
-				ge->x2 = x0;
-				ge->y2 = y0;
+				ge->ix1 = x3;
+				ge->iy1 = y3;
+				ge->ix2 = x0;
+				ge->iy2 = y0;
 			} else {/* just make it a line */
 				ge->type = GE_LINE;
 			}
 		} else {
 			if (abs(dx) < 4 && abs(dy) < 4) {	/* consider it very
 								 * small */
-				ge->x1 = x2;
-				ge->y1 = y2;
+				ge->ix1 = x2;
+				ge->iy1 = y2;
 			} else if (abs(dx) < 8 && abs(dy) < 8) {	/* consider it small */
-				ge->x1 += dx / 2;
-				ge->y1 += dy / 2;
+				ge->ix1 += dx / 2;
+				ge->iy1 += dy / 2;
 			} else {
-				ge->x1 += dx / 4;
-				ge->y1 += dy / 4;
+				ge->ix1 += dx / 4;
+				ge->iy1 += dy / 4;
 			}
 			/* make sure that it's still on the same side */
 			if (abs(x3 - x0) * abs(dy) < abs(y3 - y0) * abs(dx)) {
-				if (abs(x3 - x0) * abs(ge->y1 - y0) > abs(y3 - y0) * abs(ge->x1 - x0))
-					ge->x1 += sign(dx);
+				if (abs(x3 - x0) * abs(ge->iy1 - y0) > abs(y3 - y0) * abs(ge->ix1 - x0))
+					ge->ix1 += sign(dx);
 			} else {
-				if (abs(x3 - x0) * abs(ge->y1 - y0) < abs(y3 - y0) * abs(ge->x1 - x0))
-					ge->y1 += sign(dy);
+				if (abs(x3 - x0) * abs(ge->iy1 - y0) < abs(y3 - y0) * abs(ge->ix1 - x0))
+					ge->iy1 += sign(dy);
 			}
 
-			ge->x2 += (x3 - x2) / 8;
-			ge->y2 += (y3 - y2) / 8;
+			ge->ix2 += (x3 - x2) / 8;
+			ge->iy2 += (y3 - y2) / 8;
 			/* make sure that it's still on the same side */
 			if (abs(x3 - x0) * abs(y3 - y2) < abs(y3 - y0) * abs(x3 - x2)) {
-				if (abs(x3 - x0) * abs(y3 - ge->y2) > abs(y3 - y0) * abs(x3 - ge->x2))
-					ge->y1 -= sign(y3 - y2);
+				if (abs(x3 - x0) * abs(y3 - ge->iy2) > abs(y3 - y0) * abs(x3 - ge->ix2))
+					ge->iy1 -= sign(y3 - y2);
 			} else {
-				if (abs(x3 - x0) * abs(y3 - ge->y2) < abs(y3 - y0) * abs(x3 - ge->x2))
-					ge->x1 -= sign(x3 - x2);
+				if (abs(x3 - x0) * abs(y3 - ge->iy2) < abs(y3 - y0) * abs(x3 - ge->ix2))
+					ge->ix1 -= sign(x3 - x2);
 			}
 
 		}
@@ -451,43 +654,43 @@ fixcvends(
 			 * later
 			 */
 			if (abs(x3 - x0) <= 2 || abs(y3 - y0) <= 2) {
-				ge->x1 = x3;
-				ge->y1 = y3;
-				ge->x2 = x0;
-				ge->y2 = y0;
+				ge->ix1 = x3;
+				ge->iy1 = y3;
+				ge->ix2 = x0;
+				ge->iy2 = y0;
 			} else {/* just make it a line */
 				ge->type = GE_LINE;
 			}
 		} else {
 			if (abs(dx) < 4 && abs(dy) < 4) {	/* consider it very
 								 * small */
-				ge->x2 = x1;
-				ge->y2 = y1;
+				ge->ix2 = x1;
+				ge->iy2 = y1;
 			} else if (abs(dx) < 8 && abs(dy) < 8) {	/* consider it small */
-				ge->x2 += dx / 2;
-				ge->y2 += dy / 2;
+				ge->ix2 += dx / 2;
+				ge->iy2 += dy / 2;
 			} else {
-				ge->x2 += dx / 4;
-				ge->y2 += dy / 4;
+				ge->ix2 += dx / 4;
+				ge->iy2 += dy / 4;
 			}
 			/* make sure that it's still on the same side */
 			if (abs(x3 - x0) * abs(dy) < abs(y3 - y0) * abs(dx)) {
-				if (abs(x3 - x0) * abs(ge->y2 - y3) > abs(y3 - y0) * abs(ge->x2 - x3))
-					ge->x2 += sign(dx);
+				if (abs(x3 - x0) * abs(ge->iy2 - y3) > abs(y3 - y0) * abs(ge->ix2 - x3))
+					ge->ix2 += sign(dx);
 			} else {
-				if (abs(x3 - x0) * abs(ge->y2 - y3) < abs(y3 - y0) * abs(ge->x2 - x3))
-					ge->y2 += sign(dy);
+				if (abs(x3 - x0) * abs(ge->iy2 - y3) < abs(y3 - y0) * abs(ge->ix2 - x3))
+					ge->iy2 += sign(dy);
 			}
 
-			ge->x1 += (x0 - x1) / 8;
-			ge->y1 += (y0 - y1) / 8;
+			ge->ix1 += (x0 - x1) / 8;
+			ge->iy1 += (y0 - y1) / 8;
 			/* make sure that it's still on the same side */
 			if (abs(x3 - x0) * abs(y0 - y1) < abs(y3 - y0) * abs(x0 - x1)) {
-				if (abs(x3 - x0) * abs(y0 - ge->y1) > abs(y3 - y0) * abs(x0 - ge->x1))
-					ge->y1 -= sign(y0 - y1);
+				if (abs(x3 - x0) * abs(y0 - ge->iy1) > abs(y3 - y0) * abs(x0 - ge->ix1))
+					ge->iy1 -= sign(y0 - y1);
 			} else {
-				if (abs(x3 - x0) * abs(y0 - ge->y1) < abs(y3 - y0) * abs(x0 - ge->x1))
-					ge->x1 -= sign(x0 - x1);
+				if (abs(x3 - x0) * abs(y0 - ge->iy1) < abs(y3 - y0) * abs(x0 - ge->ix1))
+					ge->ix1 -= sign(x0 - x1);
 			}
 
 		}
@@ -511,14 +714,14 @@ flattencurves(
 		if (ge->type != GE_CURVE)
 			continue;
 
-		x0 = ge->prev->x3;
-		y0 = ge->prev->y3;
-		x1 = ge->x1;
-		y1 = ge->y1;
-		x2 = ge->x2;
-		y2 = ge->y2;
-		x3 = ge->x3;
-		y3 = ge->y3;
+		x0 = ge->prev->ix3;
+		y0 = ge->prev->iy3;
+		x1 = ge->ix1;
+		y1 = ge->iy1;
+		x2 = ge->ix2;
+		y2 = ge->iy2;
+		x3 = ge->ix3;
+		y3 = ge->iy3;
 
 		if ((x1 - x0) * (y2 - y1) == (x2 - x1) * (y1 - y0)
 		    && (x1 - x0) * (y3 - y2) == (x3 - x2) * (y1 - y0)) {
@@ -537,25 +740,14 @@ flattencurves(
 ** it is the superposition of two values for the front and
 ** rear ends of curve:
 **
-** 1 - goes over the line connecting the ends
-** 0 - coincides with the line connecting the ends
-** -1 - goes under the line connecting the ends
+** >EQUAL - goes over the line connecting the ends
+** =EQUAL - coincides with the line connecting the ends
+** <EQUAL - goes under the line connecting the ends
+**
+** See CVDIR_* for exact definitions.
 */
 
-/* front end */
-#define CVDIR_FUP	0x02	/* goes over the line connecting the ends */
-#define CVDIR_FEQUAL	0x01	/* coincides with the line connecting the
-				 * ends */
-#define CVDIR_FDOWN	0x00	/* goes under the line connecting the ends */
-
-/* rear end */
-#define CVDIR_RSAME	0x30	/* is the same as for the front end */
-#define CVDIR_RUP	0x20	/* goes over the line connecting the ends */
-#define CVDIR_REQUAL	0x10	/* coincides with the line connecting the
-				 * ends */
-#define CVDIR_RDOWN	0x00	/* goes under the line connecting the ends */
-
-void
+static void
 fixcvdir(
 	 GENTRY * ge,
 	 int dir
@@ -566,26 +758,26 @@ fixcvdir(
 	int             changed;
 	int             fdir, rdir;
 
-	fdir = (dir & 0x0F) - CVDIR_FEQUAL;
-	if ((dir & 0xF0) == CVDIR_RSAME)
-		rdir = fdir;
+	fdir = (dir & CVDIR_FRONT) - CVDIR_FEQUAL;
+	if ((dir & CVDIR_REAR) == CVDIR_RSAME)
+		rdir = fdir; /* we need only sign, exact value doesn't matter */
 	else
-		rdir = ((dir & 0xF0) - CVDIR_REQUAL) >> 4;
+		rdir = (dir & CVDIR_REAR) - CVDIR_REQUAL;
 
 	fixcvends(ge);
 
-	c = sign(ge->x3 - ge->prev->x3);	/* note the direction of
+	c = sign(ge->ix3 - ge->prev->ix3);	/* note the direction of
 						 * curve */
-	d = sign(ge->y3 - ge->prev->y3);
+	d = sign(ge->iy3 - ge->prev->iy3);
 
-	a = ge->y2 - ge->y1;
-	b = ge->x2 - ge->x1;
+	a = ge->iy2 - ge->iy1;
+	b = ge->ix2 - ge->ix1;
 	kk = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ((double) b / (double) a));
-	a = ge->y1 - ge->prev->y3;
-	b = ge->x1 - ge->prev->x3;
+	a = ge->iy1 - ge->prev->iy3;
+	b = ge->ix1 - ge->prev->ix3;
 	kk1 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ((double) b / (double) a));
-	a = ge->y3 - ge->y2;
-	b = ge->x3 - ge->x2;
+	a = ge->iy3 - ge->iy2;
+	b = ge->ix3 - ge->ix2;
 	kk2 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ((double) b / (double) a));
 
 	changed = 1;
@@ -594,83 +786,83 @@ fixcvdir(
 			/* for debugging */
 			fprintf(stderr, "fixcvdir %d %d (%d %d %d %d %d %d) %f %f %f\n",
 				fdir, rdir,
-				ge->x1 - ge->prev->x3,
-				ge->y1 - ge->prev->y3,
-				ge->x2 - ge->x1,
-				ge->y2 - ge->y1,
-				ge->x3 - ge->x2,
-				ge->y3 - ge->y2,
+				ge->ix1 - ge->prev->ix3,
+				ge->iy1 - ge->prev->iy3,
+				ge->ix2 - ge->ix1,
+				ge->iy2 - ge->iy1,
+				ge->ix3 - ge->ix2,
+				ge->iy3 - ge->iy2,
 				kk1, kk, kk2);
 		}
 		changed = 0;
 
 		if (fdir > 0) {
 			if (kk1 > kk) {	/* the front end has problems */
-				if (c * (ge->x1 - ge->prev->x3) > 0) {
-					ge->x1 -= c;
+				if (c * (ge->ix1 - ge->prev->ix3) > 0) {
+					ge->ix1 -= c;
 					changed = 1;
-				} if (d * (ge->y2 - ge->y1) > 0) {
-					ge->y1 += d;
+				} if (d * (ge->iy2 - ge->iy1) > 0) {
+					ge->iy1 += d;
 					changed = 1;
 				}
 				/* recalculate the coefficients */
-				a = ge->y2 - ge->y1;
-				b = ge->x2 - ge->x1;
+				a = ge->iy2 - ge->iy1;
+				b = ge->ix2 - ge->ix1;
 				kk = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ((double) b / (double) a));
-				a = ge->y1 - ge->prev->y3;
-				b = ge->x1 - ge->prev->x3;
+				a = ge->iy1 - ge->prev->iy3;
+				b = ge->ix1 - ge->prev->ix3;
 				kk1 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ((double) b / (double) a));
 			}
 		} else if (fdir < 0) {
 			if (kk1 < kk) {	/* the front end has problems */
-				if (c * (ge->x2 - ge->x1) > 0) {
-					ge->x1 += c;
+				if (c * (ge->ix2 - ge->ix1) > 0) {
+					ge->ix1 += c;
 					changed = 1;
-				} if (d * (ge->y1 - ge->prev->y3) > 0) {
-					ge->y1 -= d;
+				} if (d * (ge->iy1 - ge->prev->iy3) > 0) {
+					ge->iy1 -= d;
 					changed = 1;
 				}
 				/* recalculate the coefficients */
-				a = ge->y1 - ge->prev->y3;
-				b = ge->x1 - ge->prev->x3;
+				a = ge->iy1 - ge->prev->iy3;
+				b = ge->ix1 - ge->prev->ix3;
 				kk1 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ((double) b / (double) a));
-				a = ge->y2 - ge->y1;
-				b = ge->x2 - ge->x1;
+				a = ge->iy2 - ge->iy1;
+				b = ge->ix2 - ge->ix1;
 				kk = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ((double) b / (double) a));
 			}
 		}
 		if (rdir > 0) {
 			if (kk2 < kk) {	/* the rear end has problems */
-				if (c * (ge->x2 - ge->x1) > 0) {
-					ge->x2 -= c;
+				if (c * (ge->ix2 - ge->ix1) > 0) {
+					ge->ix2 -= c;
 					changed = 1;
-				} if (d * (ge->y3 - ge->y2) > 0) {
-					ge->y2 += d;
+				} if (d * (ge->iy3 - ge->iy2) > 0) {
+					ge->iy2 += d;
 					changed = 1;
 				}
 				/* recalculate the coefficients */
-				a = ge->y2 - ge->y1;
-				b = ge->x2 - ge->x1;
+				a = ge->iy2 - ge->iy1;
+				b = ge->ix2 - ge->ix1;
 				kk = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ((double) b / (double) a));
-				a = ge->y3 - ge->y2;
-				b = ge->x3 - ge->x2;
+				a = ge->iy3 - ge->iy2;
+				b = ge->ix3 - ge->ix2;
 				kk2 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ((double) b / (double) a));
 			}
 		} else if (rdir < 0) {
 			if (kk2 > kk) {	/* the rear end has problems */
-				if (c * (ge->x3 - ge->x2) > 0) {
-					ge->x2 += c;
+				if (c * (ge->ix3 - ge->ix2) > 0) {
+					ge->ix2 += c;
 					changed = 1;
-				} if (d * (ge->y2 - ge->y1) > 0) {
-					ge->y2 -= d;
+				} if (d * (ge->iy2 - ge->iy1) > 0) {
+					ge->iy2 -= d;
 					changed = 1;
 				}
 				/* recalculate the coefficients */
-				a = ge->y2 - ge->y1;
-				b = ge->x2 - ge->x1;
+				a = ge->iy2 - ge->iy1;
+				b = ge->ix2 - ge->ix1;
 				kk = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ((double) b / (double) a));
-				a = ge->y3 - ge->y2;
-				b = ge->x3 - ge->x2;
+				a = ge->iy3 - ge->iy2;
+				b = ge->ix3 - ge->ix2;
 				kk2 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ((double) b / (double) a));
 			}
 		}
@@ -680,8 +872,84 @@ fixcvdir(
 
 /* Get the directions of ends of curve for further usage */
 
-int
-getcvdir(
+/* expects that the previous element is also floating */
+
+static int
+fgetcvdir(
+	 GENTRY * ge
+)
+{
+	double          a, b;
+	double          k, k1, k2;
+	int             dir = 0;
+
+	a = ge->fy2 - ge->fy1;
+	b = ge->fx2 - ge->fx1;
+	k = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ( b / a));
+	a = ge->fy1 - ge->prev->fy3;
+	b = ge->fx1 - ge->prev->fx3;
+	k1 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ( b / a));
+	a = ge->fy3 - ge->fy2;
+	b = ge->fx3 - ge->fx2;
+	k2 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ( b / a));
+
+	if (k1 < k)
+		dir |= CVDIR_FUP;
+	else if (k1 > k)
+		dir |= CVDIR_FDOWN;
+	else
+		dir |= CVDIR_FEQUAL;
+
+	if (k2 > k)
+		dir |= CVDIR_RUP;
+	else if (k2 < k)
+		dir |= CVDIR_RDOWN;
+	else
+		dir |= CVDIR_REQUAL;
+
+	return dir;
+}
+
+/* expects that the previous element is integer */
+
+static int
+fi_getcvdir(
+	 GENTRY * ge
+)
+{
+	double          a, b;
+	double          k, k1, k2;
+	int             dir = 0;
+
+	a = ge->fy2 - ge->fy1;
+	b = ge->fx2 - ge->fx1;
+	k = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ( b / a));
+	a = ge->fy1 - ge->prev->iy3;
+	b = ge->fx1 - ge->prev->ix3;
+	k1 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ( b / a));
+	a = ge->fy3 - ge->fy2;
+	b = ge->fx3 - ge->fx2;
+	k2 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ( b / a));
+
+	if (k1 < k)
+		dir |= CVDIR_FUP;
+	else if (k1 > k)
+		dir |= CVDIR_FDOWN;
+	else
+		dir |= CVDIR_FEQUAL;
+
+	if (k2 > k)
+		dir |= CVDIR_RUP;
+	else if (k2 < k)
+		dir |= CVDIR_RDOWN;
+	else
+		dir |= CVDIR_REQUAL;
+
+	return dir;
+}
+
+static int
+igetcvdir(
 	 GENTRY * ge
 )
 {
@@ -689,14 +957,14 @@ getcvdir(
 	double          k, k1, k2;
 	int             dir = 0;
 
-	a = ge->y2 - ge->y1;
-	b = ge->x2 - ge->x1;
+	a = ge->iy2 - ge->iy1;
+	b = ge->ix2 - ge->ix1;
 	k = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ((double) b / (double) a));
-	a = ge->y1 - ge->prev->y3;
-	b = ge->x1 - ge->prev->x3;
+	a = ge->iy1 - ge->prev->iy3;
+	b = ge->ix1 - ge->prev->ix3;
 	k1 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ((double) b / (double) a));
-	a = ge->y3 - ge->y2;
-	b = ge->x3 - ge->x2;
+	a = ge->iy3 - ge->iy2;
+	b = ge->ix3 - ge->ix2;
 	k2 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : ((double) b / (double) a));
 
 	if (k1 < k)
@@ -716,6 +984,7 @@ getcvdir(
 	return dir;
 }
 
+#if 0
 /* a function just to test the work of fixcvdir() */
 static void
 testfixcvdir(
@@ -727,10 +996,109 @@ testfixcvdir(
 
 	for (ge = g->entries; ge != 0; ge = ge->next) {
 		if (ge->type == GE_CURVE) {
-			dir = getcvdir(ge);
+			dir = igetcvdir(ge);
 			fixcvdir(ge, dir);
 		}
 	}
+}
+#endif
+
+static int
+round(
+	double val
+)
+{
+	return (int) (val > 0 ? val + 0.5 : val - 0.5);
+}
+	
+/*
+ * Routine that converts all entries in the path from float to int
+ */
+
+void
+pathtoint(
+	GLYPH *g
+)
+{
+	GENTRY *ge;
+	int x[3], y[3];
+	int i;
+	int dir;
+
+
+	if(ISDBG(TOINT))
+		fprintf(stderr, "TOINT: glyph %s\n", g->name);
+	g->lastentry = 0;
+	assertisfloat(g, "converting path to int\n");
+
+	/* 1st pass, collect the directions of the curves: have
+	 * to do that in advance, while everyting is float
+	 */
+	for(ge = g->entries; ge != 0; ge = ge->next) {
+		if( !(ge->flags & GEF_FLOAT) ) {
+			fprintf(stderr, "**! glyphs %s has int entry, found in conversion to int\n",
+				g->name);
+			exit(1);
+		}
+		if(ge->type == GE_CURVE) {
+			ge->dir = fgetcvdir(ge);
+		}
+	}
+
+	/* now do the conversion */
+	for(ge = g->entries; ge != 0; ge = ge->next) {
+		switch(ge->type) {
+		case GE_MOVE:
+		case GE_LINE:
+			if(ISDBG(TOINT))
+				fprintf(stderr," %c float x=%g y=%g\n", ge->type, ge->fx3, ge->fy3);
+			x[0] = round(ge->fx3);
+			y[0] = round(ge->fy3);
+			ge->ix3 = x[0]; ge->iy3 = y[0];
+			if(ISDBG(TOINT))
+				fprintf(stderr,"   int   x=%d y=%d\n", ge->ix3, ge->iy3);
+			break;
+		case GE_CURVE:
+			if(ISDBG(TOINT))
+				fprintf(stderr," %c float ", ge->type);
+
+			if( ISDBG(TOINT) ) {
+				dir = fi_getcvdir(ge);
+				if( dir != ge->dir)
+					fprintf(stderr, "dir changed from 0x%x to 0x%x\n", ge->dir, dir);
+			}
+
+			for(i=0; i<3; i++) {
+				if(ISDBG(TOINT))
+					fprintf(stderr,"(%g, %g) ", ge->points.f.x[i], ge->points.f.y[i]);
+				x[i] = round(ge->points.f.x[i]);
+				y[i] = round(ge->points.f.y[i]);
+			}
+
+			if(ISDBG(TOINT))
+				fprintf(stderr,"\n   int   ");
+
+			for(i=0; i<3; i++) {
+				ge->points.i.x[i] = x[i];
+				ge->points.i.y[i] = y[i];
+				if(ISDBG(TOINT))
+					fprintf(stderr,"(%d, %d) ", ge->points.i.x[i], ge->points.i.y[i]);
+			}
+			ge->flags &= ~GEF_FLOAT; /* for fixcvdir */
+			fixcvdir(ge, ge->dir);
+
+			if(ISDBG(TOINT)) {
+				fprintf(stderr,"\n   fixed ");
+				for(i=0; i<3; i++)
+					fprintf(stderr,"(%d, %d) ", ge->points.i.x[i], ge->points.i.y[i]);
+				fprintf(stderr,"\n");
+			}
+
+			break;
+		}
+		ge->flags &= ~GEF_FLOAT;
+	}
+	g->flags &= ~GF_FLOAT;
 }
 
 
@@ -749,8 +1117,8 @@ checkcv(
 	if (ge->type != GE_CURVE)
 		return 0;
 
-	xdep = ge->x3 - ge->prev->x3;
-	ydep = ge->y3 - ge->prev->y3;
+	xdep = ge->ix3 - ge->prev->ix3;
+	ydep = ge->iy3 - ge->prev->iy3;
 
 	if (ge->type == GE_CURVE
 	    && (xdep * (xdep + dx)) > 0
@@ -778,13 +1146,13 @@ closepaths(
 					g->name);
 			}
 			fge = fge->prev;
-			if (fge->x3 != ge->x3 || fge->y3 != ge->y3) {
+			if (fge->ix3 != ge->ix3 || fge->iy3 != ge->iy3) {
 				/* we have to fix this open path */
 
 				WARNING_3 fprintf(stderr, "Glyph %s got path open by dx=%d dy=%d\n",
-				g->name, fge->x3 - ge->x3, fge->y3 - ge->y3);
+				g->name, fge->ix3 - ge->ix3, fge->iy3 - ge->iy3);
 
-				if (abs(ge->x3 - fge->x3) <= 2 && abs(ge->y3 - fge->y3) <= 2) {
+				if (abs(ge->ix3 - fge->ix3) <= 2 && abs(ge->iy3 - fge->iy3) <= 2) {
 					/*
 					 * small change, try to correct what
 					 * we have
@@ -792,36 +1160,36 @@ closepaths(
 					int             xopen, yopen, xdep,
 					                ydep, fxdep, fydep;
 
-					xopen = fge->x3 - ge->x3;
-					yopen = fge->y3 - ge->y3;
-					xdep = ge->x3 - ge->prev->x3;
-					ydep = ge->y3 - ge->prev->y3;
-					fxdep = fge->next->x3 - fge->x3;
-					fydep = fge->next->y3 - fge->y3;
+					xopen = fge->ix3 - ge->ix3;
+					yopen = fge->iy3 - ge->iy3;
+					xdep = ge->ix3 - ge->prev->ix3;
+					ydep = ge->iy3 - ge->prev->iy3;
+					fxdep = fge->next->ix3 - fge->ix3;
+					fydep = fge->next->iy3 - fge->iy3;
 
 					/* first try to fix a curve */
 					if (checkcv(ge, xopen, yopen)) {
-						dir = getcvdir(ge);
-						ge->x2 += xopen;
-						ge->x3 += xopen;
-						ge->y2 += yopen;
-						ge->y3 += yopen;
+						dir = igetcvdir(ge);
+						ge->ix2 += xopen;
+						ge->ix3 += xopen;
+						ge->iy2 += yopen;
+						ge->iy3 += yopen;
 						fixcvdir(ge, dir);
 					} else if (checkcv(fge->next, xopen, yopen)) {
-						dir = getcvdir(fge->next);
-						fge->x3 -= xopen;
-						fge->next->x1 -= xopen;
-						fge->y3 -= yopen;
-						fge->next->y1 -= yopen;
+						dir = igetcvdir(fge->next);
+						fge->ix3 -= xopen;
+						fge->next->ix1 -= xopen;
+						fge->iy3 -= yopen;
+						fge->next->iy1 -= yopen;
 						fixcvdir(fge->next, dir);
 
 						/* then try to fix a line */
 					} else if (ge->type == GE_LINE) {
-						ge->x3 += xopen;
-						ge->y3 += yopen;
+						ge->ix3 += xopen;
+						ge->iy3 += yopen;
 					} else if (fge->next->type == GE_LINE) {
-						fge->x3 -= xopen;
-						fge->y3 -= yopen;
+						fge->ix3 -= xopen;
+						fge->iy3 -= yopen;
 
 						/*
 						 * and as the last resort
@@ -831,8 +1199,8 @@ closepaths(
 						GENTRY         *nge;
 
 						nge = newgentry();
-						nge->x3 = fge->x3;
-						nge->y3 = fge->y3;
+						nge->ix3 = fge->ix3;
+						nge->iy3 = fge->iy3;
 						nge->type = GE_LINE;
 
 						nge->prev = ge;
@@ -849,8 +1217,8 @@ closepaths(
 					GENTRY         *nge;
 
 					nge = newgentry();
-					nge->x3 = fge->x3;
-					nge->y3 = fge->y3;
+					nge->ix3 = fge->ix3;
+					nge->iy3 = fge->iy3;
 					nge->type = GE_LINE;
 
 					nge->prev = ge;
@@ -897,10 +1265,10 @@ smoothjoints(
 		/* now handle various joints */
 
 		if (ge->type == GE_LINE && ne->type == GE_LINE) {
-			dx1 = ge->x3 - ge->prev->x3;
-			dy1 = ge->y3 - ge->prev->y3;
-			dx2 = ne->x3 - ge->x3;
-			dy2 = ne->y3 - ge->y3;
+			dx1 = ge->ix3 - ge->prev->ix3;
+			dy1 = ge->iy3 - ge->prev->iy3;
+			dx2 = ne->ix3 - ge->ix3;
+			dy2 = ne->iy3 - ge->iy3;
 
 			/* check whether they have the same direction */
 			/* and the same slope */
@@ -912,8 +1280,8 @@ smoothjoints(
 					 * move the starting point of the
 					 * path
 					 */
-					ne->prev->x3 = ge->x3 = ne->x3;
-					ne->prev->y3 = ge->y3 = ne->y3;
+					ne->prev->ix3 = ge->ix3 = ne->ix3;
+					ne->prev->iy3 = ge->iy3 = ne->iy3;
 
 					/* get rid of the last line of path */
 					ne->prev->next = ne->next;
@@ -922,8 +1290,8 @@ smoothjoints(
 					free(ne);
 				} else {
 					/* extend the previous line */
-					ge->x3 = ne->x3;
-					ge->y3 = ne->y3;
+					ge->ix3 = ne->ix3;
+					ge->iy3 = ne->iy3;
 
 					/* and get rid of the next line */
 					ge->first = ne->first;
@@ -935,32 +1303,32 @@ smoothjoints(
 		} else if (ge->type == GE_LINE && ne->type == GE_CURVE) {
 			fixcvends(ne);
 
-			dx1 = ge->x3 - ge->prev->x3;
-			dy1 = ge->y3 - ge->prev->y3;
-			dx2 = ne->x1 - ge->x3;
-			dy2 = ne->y1 - ge->y3;
+			dx1 = ge->ix3 - ge->prev->ix3;
+			dy1 = ge->iy3 - ge->prev->iy3;
+			dx2 = ne->ix1 - ge->ix3;
+			dy2 = ne->iy1 - ge->iy3;
 
 			/* if the line is nearly horizontal and we can fix it */
 			if (dx1 != 0 && 5 * abs(dy1) / abs(dx1) == 0
 			    && checkcv(ne, 0, -dy1)
 			    && abs(dy1) <= 4) {
-				dir = getcvdir(ne);
-				ge->y3 -= dy1;
-				ne->y1 -= dy1;
+				dir = igetcvdir(ne);
+				ge->iy3 -= dy1;
+				ne->iy1 -= dy1;
 				fixcvdir(ne, dir);
 				if (ge->first)
-					ne->prev->y3 -= dy1;
+					ne->prev->iy3 -= dy1;
 				dy1 = 0;
 			} else if (dy1 != 0 && 5 * abs(dx1) / abs(dy1) == 0
 				   && checkcv(ne, -dx1, 0)
 				   && abs(dx1) <= 4) {
 				/* the same but vertical */
-				dir = getcvdir(ne);
-				ge->x3 -= dx1;
-				ne->x1 -= dx1;
+				dir = igetcvdir(ne);
+				ge->ix3 -= dx1;
+				ne->ix1 -= dx1;
 				fixcvdir(ne, dir);
 				if (ge->first)
-					ne->prev->x3 -= dx1;
+					ne->prev->ix3 -= dx1;
 				dx1 = 0;
 			}
 			/*
@@ -968,46 +1336,46 @@ smoothjoints(
 			 * horizontally
 			 */
 			if (dy1 == 0 && dx2 != 0 && 5 * abs(dy2) / abs(dx2) == 0) {
-				dir = getcvdir(ne);
-				ne->y1 -= dy2;
+				dir = igetcvdir(ne);
+				ne->iy1 -= dy2;
 				fixcvdir(ne, dir);
 				dy2 = 0;
 			} else if (dx1 == 0 && dy2 != 0 && 5 * abs(dx2) / abs(dy2) == 0) {
 				/* the same but vertical */
-				dir = getcvdir(ne);
-				ne->x1 -= dx2;
+				dir = igetcvdir(ne);
+				ne->ix1 -= dx2;
 				fixcvdir(ne, dir);
 				dx2 = 0;
 			}
 		} else if (ge->type == GE_CURVE && ne->type == GE_LINE) {
 			fixcvends(ge);
 
-			dx1 = ge->x3 - ge->x2;
-			dy1 = ge->y3 - ge->y2;
-			dx2 = ne->x3 - ge->x3;
-			dy2 = ne->y3 - ge->y3;
+			dx1 = ge->ix3 - ge->ix2;
+			dy1 = ge->iy3 - ge->iy2;
+			dx2 = ne->ix3 - ge->ix3;
+			dy2 = ne->iy3 - ge->iy3;
 
 			/* if the line is nearly horizontal and we can fix it */
 			if (dx2 != 0 && 5 * abs(dy2) / abs(dx2) == 0
 			    && checkcv(ge, 0, dy2)
 			    && abs(dy2) <= 4) {
-				dir = getcvdir(ge);
-				ge->y3 += dy2;
-				ge->y2 += dy2;
+				dir = igetcvdir(ge);
+				ge->iy3 += dy2;
+				ge->iy2 += dy2;
 				fixcvdir(ge, dir);
 				if (ge->first)
-					ne->prev->y3 += dy2;
+					ne->prev->iy3 += dy2;
 				dy2 = 0;
 			} else if (dy2 != 0 && 5 * abs(dx2) / abs(dy2) == 0
 				   && checkcv(ge, dx2, 0)
 				   && abs(dx2) <= 4) {
 				/* the same but vertical */
-				dir = getcvdir(ge);
-				ge->x3 += dx2;
-				ge->x2 += dx2;
+				dir = igetcvdir(ge);
+				ge->ix3 += dx2;
+				ge->ix2 += dx2;
 				fixcvdir(ge, dir);
 				if (ge->first)
-					ne->prev->x3 += dx2;
+					ne->prev->ix3 += dx2;
 				dx2 = 0;
 			}
 			/*
@@ -1015,14 +1383,14 @@ smoothjoints(
 			 * horizontally
 			 */
 			if (dy2 == 0 && dx1 != 0 && 5 * abs(dy1) / abs(dx1) == 0) {
-				dir = getcvdir(ge);
-				ge->y2 += dy1;
+				dir = igetcvdir(ge);
+				ge->iy2 += dy1;
 				fixcvdir(ge, dir);
 				dy1 = 0;
 			} else if (dx2 == 0 && dy1 != 0 && 5 * abs(dx1) / abs(dy1) == 0) {
 				/* the same but vertical */
-				dir = getcvdir(ge);
-				ge->x2 += dx1;
+				dir = igetcvdir(ge);
+				ge->ix2 += dx1;
 				fixcvdir(ge, dir);
 				dx1 = 0;
 			}
@@ -1030,10 +1398,10 @@ smoothjoints(
 			fixcvends(ge);
 			fixcvends(ne);
 
-			dx1 = ge->x3 - ge->x2;
-			dy1 = ge->y3 - ge->y2;
-			dx2 = ne->x1 - ge->x3;
-			dy2 = ne->y1 - ge->y3;
+			dx1 = ge->ix3 - ge->ix2;
+			dy1 = ge->iy3 - ge->iy2;
+			dx2 = ne->ix1 - ge->ix3;
+			dy2 = ne->iy1 - ge->iy3;
 
 			/*
 			 * check if we have a rather smooth joint at extremal
@@ -1043,16 +1411,16 @@ smoothjoints(
 			if (abs(dx1) <= 4 && abs(dx2) <= 4
 			    && dy1 != 0 && 5 * abs(dx1) / abs(dy1) == 0
 			    && dy2 != 0 && 5 * abs(dx2) / abs(dy2) == 0
-			    && (ge->y3 < ge->prev->y3 && ne->y3 < ge->y3
-				|| ge->y3 > ge->prev->y3 && ne->y3 > ge->y3)
-			  && (ge->x3 - ge->prev->x3) * (ne->x3 - ge->x3) < 0
+			    && (ge->iy3 < ge->prev->iy3 && ne->iy3 < ge->iy3
+				|| ge->iy3 > ge->prev->iy3 && ne->iy3 > ge->iy3)
+			  && (ge->ix3 - ge->prev->ix3) * (ne->ix3 - ge->ix3) < 0
 				) {
-				dir = getcvdir(ge);
-				ge->x2 += dx1;
+				dir = igetcvdir(ge);
+				ge->ix2 += dx1;
 				dx1 = 0;
 				fixcvdir(ge, dir);
-				dir = getcvdir(ne);
-				ne->x1 -= dx2;
+				dir = igetcvdir(ne);
+				ne->ix1 -= dx2;
 				dx2 = 0;
 				fixcvdir(ne, dir);
 			}
@@ -1060,16 +1428,16 @@ smoothjoints(
 			else if (abs(dy1) <= 4 && abs(dy2) <= 4
 				 && dx1 != 0 && 5 * abs(dy1) / abs(dx1) == 0
 				 && dx2 != 0 && 5 * abs(dy2) / abs(dx2) == 0
-				 && (ge->x3 < ge->prev->x3 && ne->x3 < ge->x3
-				|| ge->x3 > ge->prev->x3 && ne->x3 > ge->x3)
-				 && (ge->y3 - ge->prev->y3) * (ne->y3 - ge->y3) < 0
+				 && (ge->ix3 < ge->prev->ix3 && ne->ix3 < ge->ix3
+				|| ge->ix3 > ge->prev->ix3 && ne->ix3 > ge->ix3)
+				 && (ge->iy3 - ge->prev->iy3) * (ne->iy3 - ge->iy3) < 0
 				) {
-				dir = getcvdir(ge);
-				ge->y2 += dy1;
+				dir = igetcvdir(ge);
+				ge->iy2 += dy1;
 				dy1 = 0;
 				fixcvdir(ge, dir);
-				dir = getcvdir(ne);
-				ne->y1 -= dy2;
+				dir = igetcvdir(ne);
+				ne->iy1 -= dy2;
 				dy2 = 0;
 				fixcvdir(ne, dir);
 			}
@@ -1127,13 +1495,13 @@ smoothjoints(
 				if (dx2 < 0)
 					tries[b][3] = -tries[b][3];
 
-				dir = getcvdir(ge);
-				ge->x2 -= tries[b][0];
-				ge->y2 -= tries[b][2];
+				dir = igetcvdir(ge);
+				ge->ix2 -= tries[b][0];
+				ge->iy2 -= tries[b][2];
 				fixcvdir(ge, dir);
-				dir = getcvdir(ne);
-				ne->x1 += tries[b][3];
-				ne->y1 += tries[b][1];
+				dir = igetcvdir(ne);
+				ne->ix1 += tries[b][3];
+				ne->iy1 += tries[b][1];
 				fixcvdir(ne, dir);
 			}
 		}
@@ -2363,8 +2731,8 @@ gssentry( /* crazy number of parameters */
 	 */
 
 	/* start with the common part, the first point */
-	x=ge->prev->x3;
-	y=ge->prev->y3;
+	x=ge->prev->ix3;
+	y=ge->prev->iy3;
 
 	if(*nextvsi == -2)
 		si[SI_VP]=findstemat(x, y, vs, vpairs, nvs, -1);
@@ -2386,10 +2754,10 @@ gssentry( /* crazy number of parameters */
 	 */
 
 	if(ge->type==GE_LINE) {
-		if(ge->x3==x) { /* vertical line */
-			*nextvsi=si[SI_VP]=findstemat(x, ge->y3, vs, vpairs, nvs, si[SI_VP]);
-		} else if(ge->y3==y) { /* horizontal line */
-			*nexthsi=si[SI_HP]=findstemat(y, ge->x3, hs, hpairs, nhs, si[SI_HP]);
+		if(ge->ix3==x) { /* vertical line */
+			*nextvsi=si[SI_VP]=findstemat(x, ge->iy3, vs, vpairs, nvs, si[SI_VP]);
+		} else if(ge->iy3==y) { /* horizontal line */
+			*nexthsi=si[SI_HP]=findstemat(y, ge->ix3, hs, hpairs, nhs, si[SI_HP]);
 		}
 	}
 
@@ -2729,107 +3097,107 @@ buildstems(
 
 			/* first check the beginning of curve */
 			/* if it is horizontal, add a hstem */
-			if (ge->y1 == ge->prev->y3) {
-				hs[g->nhs].value = ge->y1;
+			if (ge->iy1 == ge->prev->iy3) {
+				hs[g->nhs].value = ge->iy1;
 
-				if (ge->x1 < ge->prev->x3)
+				if (ge->ix1 < ge->prev->ix3)
 					hs[g->nhs].flags = ST_FLAT | ST_UP;
 				else
 					hs[g->nhs].flags = ST_FLAT;
 
-				hs[g->nhs].origin = ge->prev->x3;
+				hs[g->nhs].origin = ge->prev->ix3;
 
-				if (ge->x1 < ge->prev->x3) {
-					hs[g->nhs].from = ge->x1+1;
-					hs[g->nhs].to = ge->prev->x3;
+				if (ge->ix1 < ge->prev->ix3) {
+					hs[g->nhs].from = ge->ix1+1;
+					hs[g->nhs].to = ge->prev->ix3;
 					if(hs[g->nhs].from > hs[g->nhs].to)
 						hs[g->nhs].from--;
 				} else {
-					hs[g->nhs].from = ge->prev->x3;
-					hs[g->nhs].to = ge->x1-1;
+					hs[g->nhs].from = ge->prev->ix3;
+					hs[g->nhs].to = ge->ix1-1;
 					if(hs[g->nhs].from > hs[g->nhs].to)
 						hs[g->nhs].to++;
 				}
-				if (ge->x1 != ge->prev->x3)
+				if (ge->ix1 != ge->prev->ix3)
 					g->nhs++;
 			}
 			/* if it is vertical, add a vstem */
-			else if (ge->x1 == ge->prev->x3) {
-				vs[g->nvs].value = ge->x1;
+			else if (ge->ix1 == ge->prev->ix3) {
+				vs[g->nvs].value = ge->ix1;
 
-				if (ge->y1 > ge->prev->y3)
+				if (ge->iy1 > ge->prev->iy3)
 					vs[g->nvs].flags = ST_FLAT | ST_UP;
 				else
 					vs[g->nvs].flags = ST_FLAT;
 
-				vs[g->nvs].origin = ge->prev->y3;
+				vs[g->nvs].origin = ge->prev->iy3;
 
-				if (ge->y1 < ge->prev->y3) {
-					vs[g->nvs].from = ge->y1+1;
-					vs[g->nvs].to = ge->prev->y3;
+				if (ge->iy1 < ge->prev->iy3) {
+					vs[g->nvs].from = ge->iy1+1;
+					vs[g->nvs].to = ge->prev->iy3;
 					if(vs[g->nvs].from > vs[g->nvs].to)
 						vs[g->nvs].from--;
 				} else {
-					vs[g->nvs].from = ge->prev->y3;
-					vs[g->nvs].to = ge->y1-1;
+					vs[g->nvs].from = ge->prev->iy3;
+					vs[g->nvs].to = ge->iy1-1;
 					if(vs[g->nvs].from > vs[g->nvs].to)
 						vs[g->nvs].to++;
 				}
 
-				if (ge->y1 != ge->prev->y3)
+				if (ge->iy1 != ge->prev->iy3)
 					g->nvs++;
 			}
 			/* then check the end of curve */
 			/* if it is horizontal, add a hstem */
-			if (ge->y3 == ge->y2) {
-				hs[g->nhs].value = ge->y3;
+			if (ge->iy3 == ge->iy2) {
+				hs[g->nhs].value = ge->iy3;
 
-				if (ge->x3 < ge->x2)
+				if (ge->ix3 < ge->ix2)
 					hs[g->nhs].flags = ST_FLAT | ST_UP;
 				else
 					hs[g->nhs].flags = ST_FLAT;
 
-				hs[g->nhs].origin = ge->x3;
+				hs[g->nhs].origin = ge->ix3;
 
-				if (ge->x3 < ge->x2) {
-					hs[g->nhs].from = ge->x3;
-					hs[g->nhs].to = ge->x2-1;
+				if (ge->ix3 < ge->ix2) {
+					hs[g->nhs].from = ge->ix3;
+					hs[g->nhs].to = ge->ix2-1;
 					if( hs[g->nhs].from > hs[g->nhs].to )
 						hs[g->nhs].to++;
 				} else {
-					hs[g->nhs].from = ge->x2+1;
-					hs[g->nhs].to = ge->x3;
+					hs[g->nhs].from = ge->ix2+1;
+					hs[g->nhs].to = ge->ix3;
 					if( hs[g->nhs].from > hs[g->nhs].to )
 						hs[g->nhs].from--;
 				}
 
-				if (ge->x3 != ge->x2)
+				if (ge->ix3 != ge->ix2)
 					g->nhs++;
 			}
 			/* if it is vertical, add a vstem */
-			else if (ge->x3 == ge->x2) {
-				vs[g->nvs].value = ge->x3;
+			else if (ge->ix3 == ge->ix2) {
+				vs[g->nvs].value = ge->ix3;
 
-				if (ge->y3 > ge->y2)
+				if (ge->iy3 > ge->iy2)
 					vs[g->nvs].flags = ST_FLAT | ST_UP;
 				else
 					vs[g->nvs].flags = ST_FLAT;
 
-				vs[g->nvs].origin = ge->y3;
+				vs[g->nvs].origin = ge->iy3;
 
-				if (ge->y3 < ge->y2) {
-					vs[g->nvs].from = ge->y3;
-					vs[g->nvs].to = ge->y2-1;
+				if (ge->iy3 < ge->iy2) {
+					vs[g->nvs].from = ge->iy3;
+					vs[g->nvs].to = ge->iy2-1;
 					if( vs[g->nvs].from > vs[g->nvs].to )
 						vs[g->nvs].to++;
 				} else {
-					vs[g->nvs].from = ge->y2+1;
-					vs[g->nvs].to = ge->y3;
+					vs[g->nvs].from = ge->iy2+1;
+					vs[g->nvs].to = ge->iy3;
 					if( vs[g->nvs].from > vs[g->nvs].to )
 						vs[g->nvs].from--;
 				}
 
-				if (ge->y3 != ge->y2)
+				if (ge->iy3 != ge->iy2)
 					g->nvs++;
 			} else {
 
@@ -2845,29 +3213,29 @@ buildstems(
 				if (nge == 0)
 					continue;
 				else if (nge->type == GE_LINE) {
-					nx = nge->x3;
-					ny = nge->y3;
+					nx = nge->ix3;
+					ny = nge->iy3;
 				} else if (nge->type == GE_CURVE) {
-					nx = nge->x1;
-					ny = nge->y1;
+					nx = nge->ix1;
+					ny = nge->iy1;
 				} else
 					continue;
 
 				/* check for vertical extremums */
-				if (ge->y3 > ge->y2 && ge->y3 > ny
-				    || ge->y3 < ge->y2 && ge->y3 < ny) {
-					hs[g->nhs].value = ge->y3;
+				if (ge->iy3 > ge->iy2 && ge->iy3 > ny
+				    || ge->iy3 < ge->iy2 && ge->iy3 < ny) {
+					hs[g->nhs].value = ge->iy3;
 					hs[g->nhs].from
 						= hs[g->nhs].to
-						= hs[g->nhs].origin = ge->x3;
+						= hs[g->nhs].origin = ge->ix3;
 
-					if (ge->x3 < ge->x2
-					    || nx < ge->x3)
+					if (ge->ix3 < ge->ix2
+					    || nx < ge->ix3)
 						hs[g->nhs].flags = ST_UP;
 					else
 						hs[g->nhs].flags = 0;
 
-					if (ge->x3 != ge->x2 || nx != ge->x3)
+					if (ge->ix3 != ge->ix2 || nx != ge->ix3)
 						g->nhs++;
 				}
 				/*
@@ -2875,20 +3243,20 @@ buildstems(
 				 * vertical extremum
 				 */
 				/* check for horizontal extremums */
-				if (ge->x3 > ge->x2 && ge->x3 > nx
-				    || ge->x3 < ge->x2 && ge->x3 < nx) {
-					vs[g->nvs].value = ge->x3;
+				if (ge->ix3 > ge->ix2 && ge->ix3 > nx
+				    || ge->ix3 < ge->ix2 && ge->ix3 < nx) {
+					vs[g->nvs].value = ge->ix3;
 					vs[g->nvs].from
 						= vs[g->nvs].to
-						= vs[g->nvs].origin = ge->y3;
+						= vs[g->nvs].origin = ge->iy3;
 
-					if (ge->y3 > ge->y2
-					    || ny > ge->y3)
+					if (ge->iy3 > ge->iy2
+					    || ny > ge->iy3)
 						vs[g->nvs].flags = ST_UP;
 					else
 						vs[g->nvs].flags = 0;
 
-					if (ge->y3 != ge->y2 || ny != ge->y3)
+					if (ge->iy3 != ge->iy2 || ny != ge->iy3)
 						g->nvs++;
 				}
 			}
@@ -2901,19 +3269,19 @@ buildstems(
 
 			/* if it is horizontal, add a hstem */
 			/* and the ends as vstems if they brace the line */
-			if (ge->y3 == ge->prev->y3
-			&& ge->x3 != ge->prev->x3) {
-				hs[g->nhs].value = ge->y3;
-				if (ge->x3 < ge->prev->x3) {
+			if (ge->iy3 == ge->prev->iy3
+			&& ge->ix3 != ge->prev->ix3) {
+				hs[g->nhs].value = ge->iy3;
+				if (ge->ix3 < ge->prev->ix3) {
 					hs[g->nhs].flags = ST_FLAT | ST_UP;
-					hs[g->nhs].from = ge->x3;
-					hs[g->nhs].to = ge->prev->x3;
+					hs[g->nhs].from = ge->ix3;
+					hs[g->nhs].to = ge->prev->ix3;
 				} else {
 					hs[g->nhs].flags = ST_FLAT;
-					hs[g->nhs].from = ge->prev->x3;
-					hs[g->nhs].to = ge->x3;
+					hs[g->nhs].from = ge->prev->ix3;
+					hs[g->nhs].to = ge->ix3;
 				}
-				hs[g->nhs].origin = ge->x3;
+				hs[g->nhs].origin = ge->ix3;
 
 				pge = ge->prev;
 				if (pge->type == GE_MOVE) {
@@ -2921,19 +3289,19 @@ buildstems(
 					}
 				}
 				/* add beginning as vstem */
-				vs[g->nvs].value = pge->x3;
+				vs[g->nvs].value = pge->ix3;
 				vs[g->nvs].origin
 					= vs[g->nvs].from
-					= vs[g->nvs].to = pge->y3;
+					= vs[g->nvs].to = pge->iy3;
 
 				if(pge->type==GE_CURVE)
-					ovalue=pge->y2;
+					ovalue=pge->iy2;
 				else
-					ovalue=pge->prev->y3;
+					ovalue=pge->prev->iy3;
 
-				if (pge->y3 > ovalue)
+				if (pge->iy3 > ovalue)
 					vs[g->nvs].flags = ST_UP | ST_END;
-				else if (pge->y3 < ovalue)
+				else if (pge->iy3 < ovalue)
 					vs[g->nvs].flags = ST_END;
 				else
 					vs[g->nvs].flags = 0;
@@ -2942,19 +3310,19 @@ buildstems(
 					g->nvs++;
 
 				/* add end as vstem */
-				vs[g->nvs].value = ge->x3;
+				vs[g->nvs].value = ge->ix3;
 				vs[g->nvs].origin
 					= vs[g->nvs].from
-					= vs[g->nvs].to = ge->y3;
+					= vs[g->nvs].to = ge->iy3;
 
 				if(nge->type==GE_CURVE)
-					ovalue=nge->y1;
+					ovalue=nge->iy1;
 				else
-					ovalue=nge->y3;
+					ovalue=nge->iy3;
 
-				if (ovalue > ge->y3)
+				if (ovalue > ge->iy3)
 					vs[g->nvs].flags = ST_UP | ST_END;
-				else if (ovalue < ge->y3)
+				else if (ovalue < ge->iy3)
 					vs[g->nvs].flags = ST_END;
 				else
 					vs[g->nvs].flags = 0;
@@ -2966,19 +3334,19 @@ buildstems(
 			}
 			/* if it is vertical, add a vstem */
 			/* and the ends as hstems if they brace the line  */
-			else if (ge->x3 == ge->prev->x3 
-			&& ge->y3 != ge->prev->y3) {
-				vs[g->nvs].value = ge->x3;
-				if (ge->y3 > ge->prev->y3) {
+			else if (ge->ix3 == ge->prev->ix3 
+			&& ge->iy3 != ge->prev->iy3) {
+				vs[g->nvs].value = ge->ix3;
+				if (ge->iy3 > ge->prev->iy3) {
 					vs[g->nvs].flags = ST_FLAT | ST_UP;
-					vs[g->nvs].from = ge->prev->y3;
-					vs[g->nvs].to = ge->y3;
+					vs[g->nvs].from = ge->prev->iy3;
+					vs[g->nvs].to = ge->iy3;
 				} else {
 					vs[g->nvs].flags = ST_FLAT;
-					vs[g->nvs].from = ge->y3;
-					vs[g->nvs].to = ge->prev->y3;
+					vs[g->nvs].from = ge->iy3;
+					vs[g->nvs].to = ge->prev->iy3;
 				}
-				vs[g->nvs].origin = ge->y3;
+				vs[g->nvs].origin = ge->iy3;
 
 				pge = ge->prev;
 				if (pge->type == GE_MOVE) {
@@ -2986,19 +3354,19 @@ buildstems(
 					}
 				}
 				/* add beginning as hstem */
-				hs[g->nhs].value = pge->y3;
+				hs[g->nhs].value = pge->iy3;
 				hs[g->nhs].origin
 					= hs[g->nhs].from
-					= hs[g->nhs].to = pge->x3;
+					= hs[g->nhs].to = pge->ix3;
 
 				if(pge->type==GE_CURVE)
-					ovalue=pge->x2;
+					ovalue=pge->ix2;
 				else
-					ovalue=pge->prev->x3;
+					ovalue=pge->prev->ix3;
 
-				if (pge->x3 < ovalue)
+				if (pge->ix3 < ovalue)
 					hs[g->nhs].flags = ST_UP | ST_END;
-				else if (pge->x3 > ovalue)
+				else if (pge->ix3 > ovalue)
 					hs[g->nhs].flags = ST_END;
 				else
 					hs[g->nhs].flags = 0;
@@ -3007,19 +3375,19 @@ buildstems(
 					g->nhs++;
 
 				/* add end as hstem */
-				hs[g->nhs].value = ge->y3;
+				hs[g->nhs].value = ge->iy3;
 				hs[g->nhs].origin
 					= hs[g->nhs].from
-					= hs[g->nhs].to = ge->x3;
+					= hs[g->nhs].to = ge->ix3;
 
 				if(nge->type==GE_CURVE)
-					ovalue=nge->x1;
+					ovalue=nge->ix1;
 				else
-					ovalue=nge->x3;
+					ovalue=nge->ix3;
 
-				if (ovalue < ge->x3)
+				if (ovalue < ge->ix3)
 					hs[g->nhs].flags = ST_UP | ST_END;
-				else if (ovalue > ge->x3)
+				else if (ovalue > ge->ix3)
 					hs[g->nhs].flags = ST_END;
 				else
 					hs[g->nhs].flags = 0;
@@ -3041,29 +3409,29 @@ buildstems(
 			if (nge == 0)
 				continue;
 			else if (nge->type == GE_LINE) {
-				nx = nge->x3;
-				ny = nge->y3;
+				nx = nge->ix3;
+				ny = nge->iy3;
 			} else if (nge->type == GE_CURVE) {
-				nx = nge->x1;
-				ny = nge->y1;
+				nx = nge->ix1;
+				ny = nge->iy1;
 			} else
 				continue;
 
 			/* check for vertical extremums */
-			if (ge->y3 > ge->prev->y3 && ge->y3 > ny
-			    || ge->y3 < ge->prev->y3 && ge->y3 < ny) {
-				hs[g->nhs].value = ge->y3;
+			if (ge->iy3 > ge->prev->iy3 && ge->iy3 > ny
+			    || ge->iy3 < ge->prev->iy3 && ge->iy3 < ny) {
+				hs[g->nhs].value = ge->iy3;
 				hs[g->nhs].from
 					= hs[g->nhs].to
-					= hs[g->nhs].origin = ge->x3;
+					= hs[g->nhs].origin = ge->ix3;
 
-				if (ge->x3 < ge->prev->x3
-				    || nx < ge->x3)
+				if (ge->ix3 < ge->prev->ix3
+				    || nx < ge->ix3)
 					hs[g->nhs].flags = ST_UP;
 				else
 					hs[g->nhs].flags = 0;
 
-				if (ge->x3 != ge->prev->x3 || nx != ge->x3)
+				if (ge->ix3 != ge->prev->ix3 || nx != ge->ix3)
 					g->nhs++;
 			}
 			/*
@@ -3071,20 +3439,20 @@ buildstems(
 			 * extremum
 			 */
 			/* check for horizontal extremums */
-			if (ge->x3 > ge->prev->x3 && ge->x3 > nx
-			    || ge->x3 < ge->prev->x3 && ge->x3 < nx) {
-				vs[g->nvs].value = ge->x3;
+			if (ge->ix3 > ge->prev->ix3 && ge->ix3 > nx
+			    || ge->ix3 < ge->prev->ix3 && ge->ix3 < nx) {
+				vs[g->nvs].value = ge->ix3;
 				vs[g->nvs].from
 					= vs[g->nvs].to
-					= vs[g->nvs].origin = ge->y3;
+					= vs[g->nvs].origin = ge->iy3;
 
-				if (ge->y3 > ge->prev->y3
-				    || ny > ge->y3)
+				if (ge->iy3 > ge->prev->iy3
+				    || ny > ge->iy3)
 					vs[g->nvs].flags = ST_UP;
 				else
 					vs[g->nvs].flags = 0;
 
-				if (ge->y3 != ge->prev->y3 || ny != ge->y3)
+				if (ge->iy3 != ge->prev->iy3 || ny != ge->iy3)
 					g->nvs++;
 			}
 		}
@@ -3241,16 +3609,16 @@ straighten(
 		 * doesn't begin or end horizontally (and the prev/next
 		 * line doesn't join smoothly ?)
 		 */
-		if (ge->y3 != ge->y2 && ge->y1 != pge->y3
-		    && abs(ge->x3 - pge->x3) <= 2
-		    && (!zigonly && (abs(ge->x3 - pge->x3) <= 1 || abs(ge->y3 - pge->y3) >= 10)
-		     || sign(ge->x1 - pge->x3) + sign(ge->x2 - ge->x3) == 0)
+		if (ge->iy3 != ge->iy2 && ge->iy1 != pge->iy3
+		    && abs(ge->ix3 - pge->ix3) <= 2
+		    && (!zigonly && (abs(ge->ix3 - pge->ix3) <= 1 || abs(ge->iy3 - pge->iy3) >= 10)
+		     || sign(ge->ix1 - pge->ix3) + sign(ge->ix2 - ge->ix3) == 0)
 			) {
 
 			if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten almost vertical\n");
 
-			dx = ge->x3 - pge->x3;
-			dir = sign(ge->y3 - pge->y3);
+			dx = ge->ix3 - pge->ix3;
+			dir = sign(ge->iy3 - pge->iy3);
 			ge->type = GE_LINE;
 
 			/*
@@ -3260,13 +3628,13 @@ straighten(
 			 */
 
 			while (abs(dx) <= 5 && nge->type == GE_CURVE
-			       && nge->y3 != nge->y2 && nge->y1 != ge->y3
-			       && abs(nge->x3 - ge->x3) <= 2
-			       && (!zigonly && (abs(nge->x3 - ge->x3) <= 1 || abs(nge->y3 - ge->y3) >= 10)
-				   || sign(nge->x1 - ge->x3) + sign(nge->x2 - nge->x3) == 0)
-			       && dir == sign(nge->y3 - ge->y3)) {
-				ge->y3 = nge->y3;
-				ge->x3 = nge->x3;
+			       && nge->iy3 != nge->iy2 && nge->iy1 != ge->iy3
+			       && abs(nge->ix3 - ge->ix3) <= 2
+			       && (!zigonly && (abs(nge->ix3 - ge->ix3) <= 1 || abs(nge->iy3 - ge->iy3) >= 10)
+				   || sign(nge->ix1 - ge->ix3) + sign(nge->ix2 - nge->ix3) == 0)
+			       && dir == sign(nge->iy3 - ge->iy3)) {
+				ge->iy3 = nge->iy3;
+				ge->ix3 = nge->ix3;
 
 				if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten collapsing vertical\n");
 				if (ge->first) {
@@ -3274,8 +3642,8 @@ straighten(
 					 * move the start point of the
 					 * contour
 					 */
-					nge->prev->x3 = nge->x3;
-					nge->prev->y3 = nge->y3;
+					nge->prev->ix3 = nge->ix3;
+					nge->prev->iy3 = nge->iy3;
 					nge->prev->next = nge->next;
 					nge->next->prev = nge->prev;
 					ge->first = nge->next;
@@ -3292,31 +3660,31 @@ straighten(
 						nge = ge->next;
 				}
 
-				dx = ge->x3 - pge->x3;
+				dx = ge->ix3 - pge->ix3;
 			}
 
 			/* now check what do we have as previous/next line */
 
-			if (pge->type == GE_LINE && pge->x3 == pge->prev->x3)
-				prevlen = abs(pge->y3 - pge->prev->y3);
-			if (nge->type == GE_LINE && nge->x3 == ge->x3)
-				nextlen = abs(nge->y3 - ge->y3);
+			if (pge->type == GE_LINE && pge->ix3 == pge->prev->ix3)
+				prevlen = abs(pge->iy3 - pge->prev->iy3);
+			if (nge->type == GE_LINE && nge->ix3 == ge->ix3)
+				nextlen = abs(nge->iy3 - ge->iy3);
 		}
 		/*
 		 * if current curve is almost a horizontal line, and it 
 		 * doesn't begin or end vertucally (and the prev/next line
 		 * doesn't join smoothly ?)
 		 */
-		else if (ge->x3 != ge->x2 && ge->x1 != pge->x3
-			 && abs(ge->y3 - pge->y3) <= 2
-			 && (!zigonly && (abs(ge->y3 - pge->y3) <= 1 || abs(ge->x3 - pge->x3) >= 10)
-			     || sign(ge->y1 - pge->y3) + sign(ge->y2 - ge->y3) == 0)
+		else if (ge->ix3 != ge->ix2 && ge->ix1 != pge->ix3
+			 && abs(ge->iy3 - pge->iy3) <= 2
+			 && (!zigonly && (abs(ge->iy3 - pge->iy3) <= 1 || abs(ge->ix3 - pge->ix3) >= 10)
+			     || sign(ge->iy1 - pge->iy3) + sign(ge->iy2 - ge->iy3) == 0)
 			) {
 
 			if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten almost horizontal\n");
 
-			dy = ge->y3 - pge->y3;
-			dir = sign(ge->x3 - pge->x3);
+			dy = ge->iy3 - pge->iy3;
+			dir = sign(ge->ix3 - pge->ix3);
 			ge->type = GE_LINE;
 
 			/*
@@ -3326,13 +3694,13 @@ straighten(
 			 */
 
 			while (abs(dy) <= 5 && nge->type == GE_CURVE
-			       && nge->x3 != nge->x2 && nge->x1 != ge->x3
-			       && abs(nge->y3 - ge->y3) <= 2
-			       && (!zigonly && (abs(nge->y3 - ge->y3) <= 1 || abs(nge->x3 - ge->x3) >= 10)
-				   || sign(nge->y1 - ge->y3) + sign(nge->y2 - nge->y3) == 0)
-			       && dir == sign(nge->x3 - ge->x3)) {
-				ge->x3 = nge->x3;
-				ge->y3 = nge->y3;
+			       && nge->ix3 != nge->ix2 && nge->ix1 != ge->ix3
+			       && abs(nge->iy3 - ge->iy3) <= 2
+			       && (!zigonly && (abs(nge->iy3 - ge->iy3) <= 1 || abs(nge->ix3 - ge->ix3) >= 10)
+				   || sign(nge->iy1 - ge->iy3) + sign(nge->iy2 - nge->iy3) == 0)
+			       && dir == sign(nge->ix3 - ge->ix3)) {
+				ge->ix3 = nge->ix3;
+				ge->iy3 = nge->iy3;
 
 				if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten collapsing horizontal\n");
 
@@ -3341,8 +3709,8 @@ straighten(
 					/*
 					 * move the start point of the contour
 					 */
-					nge->prev->y3 = nge->y3;
-					nge->prev->x3 = nge->x3;
+					nge->prev->iy3 = nge->iy3;
+					nge->prev->ix3 = nge->ix3;
 					nge->prev->next = nge->next;
 					nge->next->prev = nge->prev;
 					ge->first = nge->next;
@@ -3360,17 +3728,17 @@ straighten(
 						nge = ge->next;
 				}
 
-				dy = ge->y3 - pge->y3;
+				dy = ge->iy3 - pge->iy3;
 				if(ISDBG(STRAIGHTEN) && ge->next->type == GE_PATH && ge->next->prev->first == 0)
 						fprintf(stderr,"*** straighten horiz: broken backlink 0x%x\n", fr);
 			}
 
 			/* now check what do we have as previous/next line */
 
-			if (pge->type == GE_LINE && pge->y3 == pge->prev->y3)
-				prevlen = abs(pge->x3 - pge->prev->x3);
-			if (nge->type == GE_LINE && nge->y3 == ge->y3)
-				nextlen = abs(nge->x3 - ge->x3);
+			if (pge->type == GE_LINE && pge->iy3 == pge->prev->iy3)
+				prevlen = abs(pge->ix3 - pge->prev->ix3);
+			if (nge->type == GE_LINE && nge->iy3 == ge->iy3)
+				nextlen = abs(nge->ix3 - ge->ix3);
 		}
 		if(ISDBG(STRAIGHTEN) && ge->next->type == GE_PATH && ge->next->prev->first == 0)
 				fprintf(stderr,"*** straighten before join: broken backlink 0x%x\n", fr);
@@ -3381,8 +3749,8 @@ straighten(
 			pge->next = ge->next;
 			pge->first = ge->first;
 
-			pge->x3 = ge->x3;
-			pge->y3 = ge->y3;
+			pge->ix3 = ge->ix3;
+			pge->iy3 = ge->iy3;
 
 			free(ge);
 			ge = pge;
@@ -3393,13 +3761,13 @@ straighten(
 		if (nextlen != 0 && ge != nge) {
 			if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten join with next 0x%x 0x%x\n", ge, nge);
 			/* join the next line with current */
-			ge->x3 = nge->x3;
-			ge->y3 = nge->y3;
+			ge->ix3 = nge->ix3;
+			ge->iy3 = nge->iy3;
 
 			if (ge->first) {
 				ge->first = nge->next;
-				nge->prev->x3 = nge->x3;
-				nge->prev->y3 = nge->y3;
+				nge->prev->ix3 = nge->ix3;
+				nge->prev->iy3 = nge->iy3;
 				nge->next->prev = nge->prev;
 				nge->prev->next = nge->next;
 				free(nge);
@@ -3424,11 +3792,11 @@ straighten(
 
 			/* find the stretchability limits of prev element */
 			if (pge->type == GE_LINE) {
-				psx = pge->x3 - pge->prev->x3;
-				psy = pge->y3 - pge->prev->y3;
+				psx = pge->ix3 - pge->prev->ix3;
+				psy = pge->iy3 - pge->prev->iy3;
 			} else if (pge->type == GE_CURVE) {
-				psx = pge->x2 - pge->x1;
-				psy = pge->y2 - pge->y1;
+				psx = pge->ix2 - pge->ix1;
+				psy = pge->iy2 - pge->iy1;
 			} else {/* beginning of contour, can't stretch */
 				psx = psy = 0;
 			}
@@ -3443,11 +3811,11 @@ straighten(
 
 			/* find the stretchability limits of next element */
 			if (nge->type == GE_LINE) {
-				nsx = nge->x3 - ge->x3;
-				nsy = nge->y3 - ge->y3;
+				nsx = nge->ix3 - ge->ix3;
+				nsy = nge->iy3 - ge->iy3;
 			} else if (pge->type == GE_CURVE) {
-				nsx = nge->x2 - nge->x1;
-				nsy = nge->y2 - nge->y1;
+				nsx = nge->ix2 - nge->ix1;
+				nsy = nge->iy2 - nge->iy1;
 			} else {/* beginning of contour, can't stretch */
 				nsx = nsy = 0;
 			}
@@ -3488,8 +3856,8 @@ straighten(
 
 					zzge = newgentry();
 					zzge->type = GE_LINE;
-					zzge->x3 = ge->x3;
-					zzge->y3 = ge->y3;
+					zzge->ix3 = ge->ix3;
+					zzge->iy3 = ge->iy3;
 					zzge->next = ge->next;
 					zzge->prev = ge;
 					zzge->first = ge->first;
@@ -3497,11 +3865,11 @@ straighten(
 					ge->next->prev = zzge;
 					ge->next = zzge;
 					ge->first = 0;
-					ge->x3 -= dx;
-					if (abs(ge->y3 - pge->y3) >= 10)
-						ge->y3 -= 5 * sign(ge->y3 - pge->y3);
+					ge->ix3 -= dx;
+					if (abs(ge->iy3 - pge->iy3) >= 10)
+						ge->iy3 -= 5 * sign(ge->iy3 - pge->iy3);
 					else
-						ge->y3 -= (ge->y3 - pge->y3) / 2;
+						ge->iy3 -= (ge->iy3 - pge->iy3) / 2;
 
 					pge = ge;
 					ge = zzge;
@@ -3556,8 +3924,8 @@ straighten(
 
 					zzge = newgentry();
 					zzge->type = GE_LINE;
-					zzge->x3 = ge->x3;
-					zzge->y3 = ge->y3;
+					zzge->ix3 = ge->ix3;
+					zzge->iy3 = ge->iy3;
 					zzge->next = ge->next;
 					zzge->prev = ge;
 					zzge->first = ge->first;
@@ -3565,11 +3933,11 @@ straighten(
 					ge->next->prev = zzge;
 					ge->next = zzge;
 					ge->first = 0;
-					ge->y3 -= dy;
-					if (abs(ge->x3 - pge->x3) >= 10)
-						ge->x3 -= 5 * sign(ge->x3 - pge->x3);
+					ge->iy3 -= dy;
+					if (abs(ge->ix3 - pge->ix3) >= 10)
+						ge->ix3 -= 5 * sign(ge->ix3 - pge->ix3);
 					else
-						ge->x3 -= (ge->x3 - pge->x3) / 2;
+						ge->ix3 -= (ge->ix3 - pge->ix3) / 2;
 
 					pge = ge;
 					ge = zzge;
@@ -3602,20 +3970,20 @@ straighten(
 				dx = sign(dx);
 
 				if (nsx != 0) {
-					ge->x3 -= dx * nsx;
+					ge->ix3 -= dx * nsx;
 					if (ge->first)
-						nge->prev->x3 -= dx * nsx;
+						nge->prev->ix3 -= dx * nsx;
 					if (nge->type == GE_CURVE) {
-						svdir = getcvdir(nge);
-						nge->x1 -= dx * nsx;
+						svdir = igetcvdir(nge);
+						nge->ix1 -= dx * nsx;
 						fixcvdir(nge, svdir);
 					}
 				}
 				if (psx != 0) {
-					pge->x3 += dx * psx;
+					pge->ix3 += dx * psx;
 					if (pge->type == GE_CURVE) {
-						svdir = getcvdir(pge);
-						pge->x2 += dx * psx;
+						svdir = igetcvdir(pge);
+						pge->ix2 += dx * psx;
 						fixcvdir(pge, svdir);
 					}
 				}
@@ -3624,20 +3992,20 @@ straighten(
 				dy = sign(dy);
 
 				if (nsy != 0) {
-					ge->y3 -= dy * nsy;
+					ge->iy3 -= dy * nsy;
 					if (ge->first)
-						nge->prev->y3 -= dy * nsy;
+						nge->prev->iy3 -= dy * nsy;
 					if (nge->type == GE_CURVE) {
-						svdir = getcvdir(nge);
-						nge->y1 -= dy * nsy;
+						svdir = igetcvdir(nge);
+						nge->iy1 -= dy * nsy;
 						fixcvdir(nge, svdir);
 					}
 				}
 				if (psy != 0) {
-					pge->y3 += dy * psy;
+					pge->iy3 += dy * psy;
 					if (pge->type == GE_CURVE) {
-						svdir = getcvdir(pge);
-						pge->y2 += dy * psy;
+						svdir = igetcvdir(pge);
+						pge->iy2 += dy * psy;
 						fixcvdir(pge, svdir);
 					}
 				}
@@ -3700,14 +4068,14 @@ splitzigzags(
 		if (ge->type != GE_CURVE)
 			continue;
 
-		a = ge->y2 - ge->y1;
-		b = ge->x2 - ge->x1;
+		a = ge->iy2 - ge->iy1;
+		b = ge->ix2 - ge->ix1;
 		k = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : (double) b / (double) a);
-		a = ge->y1 - ge->prev->y3;
-		b = ge->x1 - ge->prev->x3;
+		a = ge->iy1 - ge->prev->iy3;
+		b = ge->ix1 - ge->prev->ix3;
 		k1 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : (double) b / (double) a);
-		a = ge->y3 - ge->y2;
-		b = ge->x3 - ge->x2;
+		a = ge->iy3 - ge->iy2;
+		b = ge->ix3 - ge->ix2;
 		k2 = fabs(a == 0 ? (b == 0 ? 1. : 100000.) : (double) b / (double) a);
 
 		/* if the curve is not a zigzag */
@@ -3737,35 +4105,35 @@ splitzigzags(
 		 * 2000 is for predictable truncating/rounding of negative
 		 * values
 		 */
-		a = ge->prev->x3;
-		b = ge->x1;
-		c = ge->x2;
-		d = ge->x3;
-		nge->x3 = d;
-		nge->x2 = (c + d + 4001) / 2 - 2000;
-		nge->x1 = (b + 2 * c + d + 8002) / 4 - 2000;
-		ge->x3 = (a + b * 3 + c * 3 + d + 16004) / 8 - 2000;
-		ge->x2 = (a + 2 * b + c + 8002) / 4 - 2000;
-		ge->x1 = (a + b + 4001) / 2 - 2000;
+		a = ge->prev->ix3;
+		b = ge->ix1;
+		c = ge->ix2;
+		d = ge->ix3;
+		nge->ix3 = d;
+		nge->ix2 = (c + d + 4001) / 2 - 2000;
+		nge->ix1 = (b + 2 * c + d + 8002) / 4 - 2000;
+		ge->ix3 = (a + b * 3 + c * 3 + d + 16004) / 8 - 2000;
+		ge->ix2 = (a + 2 * b + c + 8002) / 4 - 2000;
+		ge->ix1 = (a + b + 4001) / 2 - 2000;
 
-		a = ge->prev->y3;
-		b = ge->y1;
-		c = ge->y2;
-		d = ge->y3;
-		nge->y3 = d;
-		nge->y2 = (c + d + 4001) / 2 - 2000;
-		nge->y1 = (b + 2 * c + d + 8002) / 4 - 2000;
-		ge->y3 = (a + b * 3 + c * 3 + d + 16004) / 8 - 2000;
-		ge->y2 = (a + 2 * b + c + 8002) / 4 - 2000;
-		ge->y1 = (a + b + 4001) / 2 - 2000;
+		a = ge->prev->iy3;
+		b = ge->iy1;
+		c = ge->iy2;
+		d = ge->iy3;
+		nge->iy3 = d;
+		nge->iy2 = (c + d + 4001) / 2 - 2000;
+		nge->iy1 = (b + 2 * c + d + 8002) / 4 - 2000;
+		ge->iy3 = (a + b * 3 + c * 3 + d + 16004) / 8 - 2000;
+		ge->iy2 = (a + 2 * b + c + 8002) / 4 - 2000;
+		ge->iy1 = (a + b + 4001) / 2 - 2000;
 
-		if (nge->x3 == ge->x3 && nge->y3 == ge->y3) {
+		if (nge->ix3 == ge->ix3 && nge->iy3 == ge->iy3) {
 			/* oops, the curve is too small to split */
 			ge->first = nge->first;
 			ge->next = nge->next;
 			nge->next->prev = ge;
 			free(nge);
-		} else if (ge->x3 == ge->prev->x3 && ge->y3 == ge->prev->y3) {
+		} else if (ge->ix3 == ge->prev->ix3 && ge->iy3 == ge->prev->iy3) {
 			/* oops again, the curve is too small to split */
 			nge->prev = ge->prev;
 			*ge = *nge;
@@ -3815,19 +4183,19 @@ forceconcise(
 		n = 1;
 
 		/* the whole direction of curve */
-		dxw1 = ge->x3 - ge->prev->x3;
-		dyw1 = ge->y3 - ge->prev->y3;
+		dxw1 = ge->ix3 - ge->prev->ix3;
+		dyw1 = ge->iy3 - ge->prev->iy3;
 
 		while (1) {
 			/* the whole direction of curve */
-			dxw1 = ge->x3 - ge->prev->x3;
-			dyw1 = ge->y3 - ge->prev->y3;
+			dxw1 = ge->ix3 - ge->prev->ix3;
+			dyw1 = ge->iy3 - ge->prev->iy3;
 
 			/* directions of  ends of curve */
-			dxb1 = ge->x1 - ge->prev->x3;
-			dyb1 = ge->y1 - ge->prev->y3;
-			dxe1 = ge->x3 - ge->x2;
-			dye1 = ge->y3 - ge->y2;
+			dxb1 = ge->ix1 - ge->prev->ix3;
+			dyb1 = ge->iy1 - ge->prev->iy3;
+			dxe1 = ge->ix3 - ge->ix2;
+			dye1 = ge->iy3 - ge->iy2;
 
 			/* if this curve ends horizontally or vertically */
 			/* or crosses quadrant boundaries */
@@ -3842,13 +4210,13 @@ forceconcise(
 			if (nge->type != GE_CURVE)
 				break;
 
-			dxw2 = nge->x3 - ge->x3;
-			dyw2 = nge->y3 - ge->y3;
+			dxw2 = nge->ix3 - ge->ix3;
+			dyw2 = nge->iy3 - ge->iy3;
 
-			dxb2 = nge->x1 - ge->x3;
-			dyb2 = nge->y1 - ge->y3;
-			dxe2 = nge->x3 - nge->x2;
-			dye2 = nge->y3 - nge->y2;
+			dxb2 = nge->ix1 - ge->ix3;
+			dyb2 = nge->iy1 - ge->iy3;
+			dxe2 = nge->ix3 - nge->ix2;
+			dye2 = nge->iy3 - nge->iy2;
 
 			/* if curve changes direction */
 			if (sign(dxw1) != sign(dxw2) || sign(dyw1) != sign(dyw2))
@@ -3875,22 +4243,22 @@ forceconcise(
 
 			/* OK, it seeme like we can join these two curves */
 			if (n == 1) {
-				firstlen = sumlen = curvelen(ge->prev->x3, ge->prev->y3,
-							     ge->x1, ge->y1, ge->x2, ge->y2, ge->x3, ge->y3);
+				firstlen = sumlen = curvelen(ge->prev->ix3, ge->prev->iy3,
+							     ge->ix1, ge->iy1, ge->ix2, ge->iy2, ge->ix3, ge->iy3);
 			}
-			lastlen = curvelen(ge->x3, ge->y3,
-					   nge->x1, nge->y1, nge->x2, nge->y2, nge->x3, nge->y3);
+			lastlen = curvelen(ge->ix3, ge->iy3,
+					   nge->ix1, nge->iy1, nge->ix2, nge->iy2, nge->ix3, nge->iy3);
 			sumlen += lastlen;
 			n++;
 
-			ge->x2 = nge->x2;
-			ge->y2 = nge->y2;
-			ge->x3 = nge->x3;
-			ge->y3 = nge->y3;
+			ge->ix2 = nge->ix2;
+			ge->iy2 = nge->iy2;
+			ge->ix3 = nge->ix3;
+			ge->iy3 = nge->iy3;
 
 			if (ge->first) {
-				nge->prev->x3 = ge->x3;
-				nge->prev->y3 = ge->y3;
+				nge->prev->ix3 = ge->ix3;
+				nge->prev->iy3 = ge->iy3;
 				nge->prev->next = nge->next;
 				nge->next->prev = nge->prev;
 				ge->first = nge->next;
@@ -3903,20 +4271,20 @@ forceconcise(
 		}
 
 		if (n > 1) {	/* we got something to do */
-			dxb1 = ge->x1 - ge->prev->x3;
-			dyb1 = ge->y1 - ge->prev->y3;
-			dxe1 = ge->x3 - ge->x2;
-			dye1 = ge->y3 - ge->y2;
+			dxb1 = ge->ix1 - ge->prev->ix3;
+			dyb1 = ge->iy1 - ge->prev->iy3;
+			dxe1 = ge->ix3 - ge->ix2;
+			dye1 = ge->iy3 - ge->iy2;
 
 			/* scale the first segment */
 			scale = sumlen / firstlen;
-			ge->x1 = ge->prev->x3 + (int) (0.5 + scale * dxb1);
-			ge->y1 = ge->prev->y3 + (int) (0.5 + scale * dyb1);
+			ge->ix1 = ge->prev->ix3 + (int) (0.5 + scale * dxb1);
+			ge->iy1 = ge->prev->iy3 + (int) (0.5 + scale * dyb1);
 
 			/* scale the last segment */
 			scale = sumlen / lastlen;
-			ge->x2 = ge->x3 - (int) (0.5 + scale * dxe1);
-			ge->y2 = ge->y3 - (int) (0.5 + scale * dye1);
+			ge->ix2 = ge->ix3 - (int) (0.5 + scale * dxe1);
+			ge->iy2 = ge->iy3 - (int) (0.5 + scale * dye1);
 		}
 	}
 }
@@ -4006,33 +4374,33 @@ print_glyph(
 		switch (ge->type) {
 		case GE_MOVE:
 			if (absolute)
-				fprintf(pfa_file, "%d %d amoveto\n", ge->x3, ge->y3);
+				fprintf(pfa_file, "%d %d amoveto\n", ge->ix3, ge->iy3);
 			else
-				rmoveto(ge->x3 - x, ge->y3 - y);
+				rmoveto(ge->ix3 - x, ge->iy3 - y);
 			if (0)
 				fprintf(stderr, "Glyph %s: print moveto(%d, %d)\n",
-					g->name, ge->x3, ge->y3);
-			x = ge->x3;
-			y = ge->y3;
+					g->name, ge->ix3, ge->iy3);
+			x = ge->ix3;
+			y = ge->iy3;
 			break;
 		case GE_LINE:
 			if (absolute)
-				fprintf(pfa_file, "%d %d alineto\n", ge->x3, ge->y3);
+				fprintf(pfa_file, "%d %d alineto\n", ge->ix3, ge->iy3);
 			else
-				rlineto(ge->x3 - x, ge->y3 - y);
-			x = ge->x3;
-			y = ge->y3;
+				rlineto(ge->ix3 - x, ge->iy3 - y);
+			x = ge->ix3;
+			y = ge->iy3;
 			break;
 		case GE_CURVE:
 			if (absolute)
 				fprintf(pfa_file, "%d %d %d %d %d %d arcurveto\n",
-					ge->x1, ge->y1, ge->x2, ge->y2, ge->x3, ge->y3);
+					ge->ix1, ge->iy1, ge->ix2, ge->iy2, ge->ix3, ge->iy3);
 			else
-				rrcurveto(ge->x1 - x, ge->y1 - y,
-					  ge->x2 - ge->x1, ge->y2 - ge->y1,
-					  ge->x3 - ge->x2, ge->y3 - ge->y2);
-			x = ge->x3;
-			y = ge->y3;
+				rrcurveto(ge->ix1 - x, ge->iy1 - y,
+					  ge->ix2 - ge->ix1, ge->iy2 - ge->iy1,
+					  ge->ix3 - ge->ix2, ge->iy3 - ge->iy2);
+			x = ge->ix3;
+			y = ge->iy3;
 			break;
 		case GE_PATH:
 			closepath();
@@ -4092,10 +4460,10 @@ print_glyph_metrics(
 		  code,
 		  glyph_list[glyphno].scaledwidth,
 		  glyph_list[glyphno].name,
-		  scale((short)ntohs(glyf_table->xMin)),
-		  scale((short)ntohs(glyf_table->yMin)),
-		  scale((short)ntohs(glyf_table->xMax)),
-		  scale((short)ntohs(glyf_table->yMax)));
+		  iscale((short)ntohs(glyf_table->xMin)),
+		  iscale((short)ntohs(glyf_table->yMin)),
+		  iscale((short)ntohs(glyf_table->xMax)),
+		  iscale((short)ntohs(glyf_table->yMax)));
 	else
 	  fprintf(afm_file, "C %d ; WX %d ; N %s ; B %d %d %d %d ;\n",
 		  code,
@@ -4338,8 +4706,8 @@ findblues(void)
 			for (ge = g->entries; ge != 0; ge = ge->next) {
 				if (ge->type == GE_LINE) {
 
-					j = ge->y3 - ge->prev->y3;
-					k = ge->x3 - ge->prev->x3;
+					j = ge->iy3 - ge->prev->iy3;
+					k = ge->ix3 - ge->prev->ix3;
 					if (j > 0)
 						ang = atan2(-k, j) * 180.0 / M_PI;
 					else
@@ -4354,44 +4722,44 @@ findblues(void)
 						 */
 						hystl[HYSTBASE + (int) (ang * 10.0)] += (k * k + j * j) / 4;
 					}
-					if (ge->y3 == ge->prev->y3) {
-						if (ge->y3 <= g->rymin) {
-							g->rymin = ge->y3;
+					if (ge->iy3 == ge->prev->iy3) {
+						if (ge->iy3 <= g->rymin) {
+							g->rymin = ge->iy3;
 							g->flatymin = 1;
 						}
-						if (ge->y3 >= g->rymax) {
-							g->rymax = ge->y3;
+						if (ge->iy3 >= g->rymax) {
+							g->rymax = ge->iy3;
 							g->flatymax = 1;
 						}
 					} else {
-						if (ge->y3 < g->rymin) {
-							g->rymin = ge->y3;
+						if (ge->iy3 < g->rymin) {
+							g->rymin = ge->iy3;
 							g->flatymin = 0;
 						}
-						if (ge->y3 > g->rymax) {
-							g->rymax = ge->y3;
+						if (ge->iy3 > g->rymax) {
+							g->rymax = ge->iy3;
 							g->flatymax = 0;
 						}
 					}
 				} else if (ge->type == GE_CURVE) {
-					if (ge->y3 < g->rymin) {
-						g->rymin = ge->y3;
+					if (ge->iy3 < g->rymin) {
+						g->rymin = ge->iy3;
 						g->flatymin = 0;
 					}
-					if (ge->y3 > g->rymax) {
-						g->rymax = ge->y3;
+					if (ge->iy3 > g->rymax) {
+						g->rymax = ge->iy3;
 						g->flatymax = 0;
 					}
 				}
 				if (ge->type == GE_LINE || ge->type == GE_CURVE) {
-					if (ge->x3 < bbox[0])
-						bbox[0] = ge->x3;
-					if (ge->x3 > bbox[2])
-						bbox[2] = ge->x3;
-					if (ge->y3 < bbox[1])
-						bbox[1] = ge->y3;
-					if (ge->y3 > bbox[3])
-						bbox[3] = ge->y3;
+					if (ge->ix3 < bbox[0])
+						bbox[0] = ge->ix3;
+					if (ge->ix3 > bbox[2])
+						bbox[2] = ge->ix3;
+					if (ge->iy3 < bbox[1])
+						bbox[1] = ge->iy3;
+					if (ge->iy3 > bbox[3])
+						bbox[3] = ge->iy3;
 				}
 			}
 		}
@@ -4518,11 +4886,11 @@ docorrectwidth(void)
 				if (ge->type != GE_LINE && ge->type != GE_CURVE) 
 					continue;
 
-				if (ge->x3 <= xmin) {
-					xmin = ge->x3;
+				if (ge->ix3 <= xmin) {
+					xmin = ge->ix3;
 				}
-				if (ge->x3 >= xmax) {
-					xmax = ge->x3;
+				if (ge->ix3 >= xmax) {
+					xmax = ge->ix3;
 				}
 			}
 
@@ -4666,17 +5034,35 @@ reversepathsfromto(
 			for (co = ge; co != pge; co = co->prev) {
 				cn = newgentry();
 
-				cn->type = co->type;
-				if (co->type == GE_CURVE) {
-					cn->x1 = co->x2;
-					cn->y1 = co->y2;
-					cn->x2 = co->x1;
-					cn->y2 = co->y1;
-				}
-				cn->x3 = co->prev->x3;
-				cn->y3 = co->prev->y3;
-				cn->stemid = co->stemid;
 				cn->flags = co->flags;
+				cn->type = co->type;
+
+				if( (co->flags ^ co->prev->flags) & GEF_FLOAT )  {
+					fprintf(stderr, "**! trying to reverse partially floating path\n");
+					exit(1);
+				}
+
+				if(co->flags & GEF_FLOAT) {
+					if (co->type == GE_CURVE) {
+						cn->fx1 = co->fx2;
+						cn->fy1 = co->fy2;
+						cn->fx2 = co->fx1;
+						cn->fy2 = co->fy1;
+					}
+					cn->fx3 = co->prev->fx3;
+					cn->fy3 = co->prev->fy3;
+				} else {
+					if (co->type == GE_CURVE) {
+						cn->ix1 = co->ix2;
+						cn->iy1 = co->iy2;
+						cn->ix2 = co->ix1;
+						cn->iy2 = co->iy1;
+					}
+					cn->ix3 = co->prev->ix3;
+					cn->iy3 = co->prev->iy3;
+				}
+
+				cn->stemid = co->stemid;
 
 				cn->first = 0;
 				last->next = cn;
@@ -4690,8 +5076,18 @@ reversepathsfromto(
 			nge->prev = last;
 
 			/* neccessary for open paths */
-			pge->x3 = ge->x3;
-			pge->y3 = ge->y3;
+			if( (ge->flags ^ pge->flags) & GEF_FLOAT )  {
+				fprintf(stderr, "**! trying to reverse partially floating path\n");
+				exit(1);
+			}
+
+			if(ge->flags & GEF_FLOAT) {
+				pge->fx3 = ge->fx3;
+				pge->fy3 = ge->fy3;
+			} else {
+				pge->ix3 = ge->ix3;
+				pge->iy3 = ge->iy3;
+			}
 
 			/* cut the old path from list of entries */
 			fge->prev = 0;
@@ -4765,14 +5161,14 @@ fixcontours(
 	ymin[0] = 5000;
 	for (ge = g->entries; ge != 0; ge = ge->next) {
 		if (ge->type == GE_LINE || ge->type == GE_CURVE) {
-			if (ge->y3 > ymax[ncont]) {
-				ymax[ncont] = ge->y3;
-				xofmax[ncont] = ge->x3;
+			if (ge->iy3 > ymax[ncont]) {
+				ymax[ncont] = ge->iy3;
+				xofmax[ncont] = ge->ix3;
 				maxptr[ncont] = ge;
 			}
-			if (ge->y3 < ymin[ncont]) {
-				ymin[ncont] = ge->y3;
-				xofmin[ncont] = ge->x3;
+			if (ge->iy3 < ymin[ncont]) {
+				ymin[ncont] = ge->iy3;
+				xofmin[ncont] = ge->ix3;
 				minptr[ncont] = ge;
 			}
 		}
@@ -4792,37 +5188,37 @@ fixcontours(
 			nge = ge->next;
 
 		if (ge->type == GE_CURVE) {
-			dx1 = ge->x3 - ge->x2;
-			dy1 = ge->y3 - ge->y2;
+			dx1 = ge->ix3 - ge->ix2;
+			dy1 = ge->iy3 - ge->iy2;
 
 			if (dx1 == 0 && dy1 == 0) {	/* a pathological case */
-				dx1 = ge->x3 - ge->x1;
-				dy1 = ge->y3 - ge->y1;
+				dx1 = ge->ix3 - ge->ix1;
+				dy1 = ge->iy3 - ge->iy1;
 			}
 			if (dx1 == 0 && dy1 == 0) {	/* a more pathological
 							 * case */
-				dx1 = ge->x3 - ge->prev->x3;
-				dy1 = ge->y3 - ge->prev->y3;
+				dx1 = ge->ix3 - ge->prev->ix3;
+				dy1 = ge->iy3 - ge->prev->iy3;
 			}
 		} else {
-			dx1 = ge->x3 - ge->prev->x3;
-			dy1 = ge->y3 - ge->prev->y3;
+			dx1 = ge->ix3 - ge->prev->ix3;
+			dy1 = ge->iy3 - ge->prev->iy3;
 		}
 		if (nge->type == GE_CURVE) {
-			dx2 = ge->x3 - nge->x1;
-			dy2 = ge->y3 - nge->y1;
+			dx2 = ge->ix3 - nge->ix1;
+			dy2 = ge->iy3 - nge->iy1;
 			if (dx1 == 0 && dy1 == 0) {	/* a pathological case */
-				dx2 = ge->x3 - nge->x2;
-				dy2 = ge->y3 - nge->y2;
+				dx2 = ge->ix3 - nge->ix2;
+				dy2 = ge->iy3 - nge->iy2;
 			}
 			if (dx1 == 0 && dy1 == 0) {	/* a more pathological
 							 * case */
-				dx2 = ge->x3 - nge->x3;
-				dy2 = ge->y3 - nge->y3;
+				dx2 = ge->ix3 - nge->ix3;
+				dy2 = ge->iy3 - nge->iy3;
 			}
 		} else {
-			dx2 = ge->x3 - nge->x3;
-			dy2 = ge->y3 - nge->y3;
+			dx2 = ge->ix3 - nge->ix3;
+			dy2 = ge->iy3 - nge->iy3;
 		}
 
 		/* compare angles */

@@ -122,7 +122,7 @@ static char    *strUID = 0;	/* user-supplied UniqueID */
 static unsigned long numUID;	/* auto-generated UniqueID */
 
 static int      ps_fmt_3 = 0;
-static double   scale_factor;
+static double   scale_factor, original_scale_factor;
 
 static char	*glyph_rename[256];
 
@@ -395,9 +395,6 @@ static uni_conv_t unicode_latin5;
 static uni_conv_t unicode_russian;
 static uni_conv_t unicode_adobestd;
 
-static uni_init_t unicode_init_GBK;
-static uni_conv_t unicode_GBK;
-
 static uni_init_t unicode_init_user;
 static uni_conv_t unicode_user;
 
@@ -558,7 +555,7 @@ unicode_init_user(
 		if(sscanf(buffer, "plane %s",&name)==1) {
 			if(arg == 0) {
 				fprintf(stderr, "**** map file '%s' requires plane name\n", path);
-				fprintf(stderr, "for example:\n", path);
+				fprintf(stderr, "for example:\n");
 				fprintf(stderr, "  ttf2pt1 -L %s%c%s ...\n", path, LANG_ARG_SEP, name);
 				fprintf(stderr, "to select plane '%s'\n", name);
 				exit(1);
@@ -1566,8 +1563,16 @@ unicode_to_win31(
  * Scale the values according to the scale_factor
  */
 
+double
+fscale(
+      double val
+)
+{
+	return scale_factor * val;
+}
+
 int
-scale(
+iscale(
       int val
 )
 {
@@ -1629,18 +1634,17 @@ convert_glyf(
 	g = &glyph_list[glyphno];
 
 
-	if (transform) {
-		g->scaledwidth = scale(g->width);
-	} else {
-		g->scaledwidth = g->width;
-	}
+	g->scaledwidth = iscale(g->width);
 
 	g->entries = 0;
 	g->lastentry = 0;
 	g->path = 0;
 	if (g->ttf_pathlen != 0) {
 		ncurves = cursw->glpath(glyphno, glyph_list);
+		assertpath(g->entries, __FILE__, __LINE__, g->name);
 
+		pathtoint(g); 
+		/* all processing past this point expects integer path */
 		assertpath(g->entries, __FILE__, __LINE__, g->name);
 
 		closepaths(g);
@@ -1684,12 +1688,7 @@ convert_glyf(
 static void
 handle_gnames(void)
 {
-	int             i, len, n, found, npost;
-	unsigned int    format;
-	unsigned short *name_index;
-	char           *ptr, *p;
-	char          **ps_name_ptr = (char **) malloc(numglyphs * sizeof(char *));
-	int             n_ps_names;
+	int             i, n, found;
 
 	/* get the names from the font file */
 	ps_fmt_3 = cursw->glnames(glyph_list);
@@ -2092,6 +2091,7 @@ main(
 		glyph_list[i].char_no = -1;
 		glyph_list[i].orig_code = -1;
 		glyph_list[i].name = "UNKNOWN";
+		glyph_list[i].flags = GF_FLOAT; /* we start with float representation */
 	}
 
 	handle_gnames();
@@ -2099,7 +2099,12 @@ main(
 	cursw->glmetrics(glyph_list);
 	cursw->fnmetrics(&fontm);
  
-	scale_factor = 1000.0 / (double) fontm.units_per_em;
+	original_scale_factor = 1000.0 / (double) fontm.units_per_em;
+
+	if(transform == 0)
+		scale_factor = 1.0; /* don't transform */
+	else
+		scale_factor = original_scale_factor;
 
 	if(correctvsize && uni_sample!=0) { /* only for known languages */
 		/* try to adjust the scale factor to make a typical
@@ -2109,13 +2114,11 @@ main(
 		 */
 		int ysz;
 
-		ysz = scale(glyph_list[encoding[uni_sample]].yMax);
+		ysz = iscale(glyph_list[encoding[uni_sample]].yMax);
 		if( ysz<correctvsize ) {
 			scale_factor *= (double)correctvsize / ysz;
 		}
 	}
-	if (scale_factor == 1.0)
-		transform = 0;	/* nothing to transform */
 
 	if(allglyphs) {
 		for (i = 0; i < numglyphs; i++) {
@@ -2159,13 +2162,8 @@ main(
 		}
 		stemstatistics();
 	} else {
-		if (transform) {
-			for(i=0; i<4; i++)
-				bbox[i] = scale(fontm.bbox[i]);
-		} else {
-			for(i=0; i<4; i++)
-				bbox[i] = fontm.bbox[i];
-		}
+		for(i=0; i<4; i++)
+			bbox[i] = iscale(fontm.bbox[i]);
 	}
 	/* don't touch the width of fixed width fonts */
 	if( fontm.is_fixed_pitch )
@@ -2261,32 +2259,17 @@ main(
     fprintf(afm_file, "Ascender %d\n", fontm.ascender);
     fprintf(afm_file, "Descender %d\n", fontm.descender);
 
-	if (transform) {
-		fprintf(pfa_file, "/UnderlinePosition %d def\n",
-			scale(fontm.underline_position));
+	fprintf(pfa_file, "/UnderlinePosition %d def\n",
+		iscale(fontm.underline_position));
 
-		fprintf(pfa_file, "/UnderlineThickness %hd def\nend readonly def\n",
-			scale(fontm.underline_thickness));
+	fprintf(pfa_file, "/UnderlineThickness %hd def\nend readonly def\n",
+		iscale(fontm.underline_thickness));
 
-		fprintf(afm_file, "UnderlineThickness %d\n",
-			scale(fontm.underline_thickness));
+	fprintf(afm_file, "UnderlineThickness %d\n",
+		iscale(fontm.underline_thickness));
 
-		fprintf(afm_file, "UnderlinePosition %d\n",
-			scale(fontm.underline_position));
-
-	} else {
-		fprintf(pfa_file, "/UnderlinePosition %hd def\n",
-			fontm.underline_position);
-
-		fprintf(pfa_file, "/UnderlineThickness %hd def\nend readonly def\n",
-			fontm.underline_thickness);
-
-		fprintf(afm_file, "UnderlineThickness %d\n",
-			fontm.underline_thickness);
-
-		fprintf(afm_file, "UnderlinePosition %d\n",
-			fontm.underline_position);
-	}
+	fprintf(afm_file, "UnderlinePosition %d\n",
+		iscale(fontm.underline_position));
 
     fprintf(afm_file, "IsFixedPitch %s\n",
 		fontm.is_fixed_pitch ? "true" : "false");
@@ -2302,7 +2285,7 @@ main(
 		fprintf(pfa_file, "/FontMatrix [0.001 0 0 0.001 0 0] def\n");
 	} else {
 		fprintf(pfa_file, "/FontMatrix [%9.7f 0 0 %9.7f 0 0] def\n",
-			scale_factor / 1000.0, scale_factor / 1000.0);
+			original_scale_factor / 1000.0, original_scale_factor / 1000.0);
 	}
 
 	fprintf(pfa_file, "/FontBBox {%d %d %d %d} readonly def\n",

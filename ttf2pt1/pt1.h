@@ -8,8 +8,47 @@ typedef struct gentry {
 	struct gentry  *next;	/* double linked list */
 	struct gentry  *prev;
 	struct gentry  *first;	/* first entry in path */
-	int             x1, y1, x2, y2, x3, y3;	/* absolute values, NOT
-						 * deltas */
+	union {
+		struct {
+			int  x[3], y[3];	/* integer values */
+		} i;
+		struct {
+			double  x[3], y[3];	/* floating values */
+		} f;
+	} points; /* absolute values, NOT deltas */
+/* convenience handles */
+#define ix1	points.i.x[0]
+#define ix2 points.i.x[1]
+#define ix3 points.i.x[2]
+#define iy1	points.i.y[0]
+#define iy2 points.i.y[1]
+#define iy3 points.i.y[2]
+#define fx1	points.f.x[0]
+#define fx2 points.f.x[1]
+#define fx3 points.f.x[2]
+#define fy1	points.f.y[0]
+#define fy2 points.f.y[1]
+#define fy3 points.f.y[2]
+
+	char            flags; 
+#define GEF_FLOAT	0x02 /* entry contains floating point data */
+
+	unsigned char	dir; /* used to temporarily store the values for
+				* the directions of the ends of curves */
+/* front end */
+#define CVDIR_FUP	0x02	/* goes over the line connecting the ends */
+#define CVDIR_FEQUAL	0x01	/* coincides with the line connecting the
+				 * ends */
+#define CVDIR_FDOWN	0x00	/* goes under the line connecting the ends */
+#define CVDIR_FRONT	0x0F	/* mask of all front directions */
+/* rear end */
+#define CVDIR_RSAME	0x30	/* is the same as for the front end */
+#define CVDIR_RUP	0x20	/* goes over the line connecting the ends */
+#define CVDIR_REQUAL	0x10	/* coincides with the line connecting the
+				 * ends */
+#define CVDIR_RDOWN	0x00	/* goes under the line connecting the ends */
+#define CVDIR_REAR	0xF0	/* mask of all rear directions */
+
 	signed char     stemid; /* connection to the substituted stem group */
 	char            type;
 #define GE_HSBW	'B'
@@ -17,7 +56,6 @@ typedef struct gentry {
 #define GE_LINE 'L'
 #define GE_CURVE 'C'
 #define GE_PATH 'P'
-	char            flags; /* not used yet, for future development */
 }               GENTRY;
 
 /* stem structure, describes one [hv]stem  */
@@ -82,6 +120,7 @@ typedef struct glyph {
 	short           width;
 	short           flags;
 #define GF_USED	0x0001		/* whether is this glyph used in T1 font */
+#define GF_FLOAT 0x0002		/* thys glyph contains floating point entries */
 
 	GENTRY         *entries;/* doube linked list of entries */
 	GENTRY         *lastentry;	/* the last inserted entry */
@@ -122,16 +161,23 @@ extern GLYPH   *glyph_list;
 extern int    encoding[256];	/* inverse of glyph[].char_no */
 
 /* prototypes of functions */
-int sign( int x);
 void rmoveto( int dx, int dy);
 void rlineto( int dx, int dy);
 void rrcurveto( int dx1, int dy1, int dx2, int dy2, int dx3, int dy3);
 void assertpath( GENTRY * from, char *file, int line, char *name);
+
+void fg_rmoveto( GLYPH * g, double x, double y);
+void ig_rmoveto( GLYPH * g, int x, int y);
+void fg_rlineto( GLYPH * g, double x, double y);
+void ig_rlineto( GLYPH * g, int x, int y);
+void fg_rrcurveto( GLYPH * g, double x1, double y1,
+	double x2, double y2, double x3, double y3);
+void ig_rrcurveto( GLYPH * g, int x1, int y1,
+	int x2, int y2, int x3, int y3);
 void g_closepath( GLYPH * g);
-void fixcvends( GENTRY * ge);
+
+void pathtoint( GLYPH *g);
 void flattencurves( GLYPH * g);
-void fixcvdir( GENTRY * ge, int dir);
-int getcvdir( GENTRY * ge);
 int checkcv( GENTRY * ge, int dx, int dy);
 void closepaths( GLYPH * g);
 void smoothjoints( GLYPH * g);

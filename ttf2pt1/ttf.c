@@ -87,13 +87,6 @@ static union {
 static short    cmap_n_segs;
 static USHORT  *cmap_seg_start, *cmap_seg_end;
 static short   *cmap_idDelta, *cmap_idRangeOffset;
-static int      ps_fmt_3 = 0, unicode = 0;
-static double   scale_factor;
-
-static char	*glyph_rename[256];
-
-
-static char    *Unknown_glyph = "UNKN";
 
 static char     name_buffer[2000];
 static char    *name_fields[8];
@@ -322,21 +315,21 @@ draw_glyf(
 	GLYPH *g,
 	GLYPH *glyph_list,
 	int glyphno,
-	short *xoff,
-	short *yoff,
+	double *xoff,
+	double *yoff,
 	double *matrix
 )
 {
 	int             i, j, k, k1, len, first, cs, ce;
 	/* We assume that hsbw always sets to(0, 0) */
-	int             xlast = 0, ylast = 0;
-	int             dx1, dy1, dx2, dy2, dx3, dy3;
+	double          xlast = 0, ylast = 0;
 	int             finished, nguide, contour_start, contour_end;
 	short           ncontours, n_inst, last_point;
 	USHORT         *contour_end_pt;
 	BYTE           *ptr;
 #define GLYFSZ	2000
-	short           xcoord[GLYFSZ], ycoord[GLYFSZ], xrel[GLYFSZ], yrel[GLYFSZ];
+	short           xabs[GLYFSZ], yabs[GLYFSZ], xrel[GLYFSZ], yrel[GLYFSZ];
+	double          xcoord[GLYFSZ], ycoord[GLYFSZ];
 	BYTE            flags[GLYFSZ];
 	short           txoff, tyoff;
 	double          tx, ty;
@@ -346,6 +339,12 @@ draw_glyf(
 
 	lge = g->lastentry;
 
+#if 0
+	for (i = 0; i < GLYFSZ; i++) {
+		xcoord[i] = 0;
+		ycoord[i] = 0;
+	}
+#endif
 	/*
 	 * fprintf (stderr,"draw glyf: Matrx offset %d %d\n",xoff,yoff);
 	 */
@@ -397,15 +396,15 @@ draw_glyf(
 			}
 			j++;
 		} else if (flags[k] & XSAME) {
-			xrel[k] = 0;
+			xrel[k] = 0.0;
 		} else {
-			xrel[k] = ptr[j] * 256 + ptr[j + 1];
+			xrel[k] = (short)( ptr[j] * 256 + ptr[j + 1] );
 			j += 2;
 		}
 		if (k == 0) {
-			xcoord[k] = xrel[k];
+			xabs[k] = xrel[k];
 		} else {
-			xcoord[k] = xrel[k] + xcoord[k - 1];
+			xabs[k] = xrel[k] + xabs[k - 1];
 		}
 
 	}
@@ -425,41 +424,25 @@ draw_glyf(
 			j += 2;
 		}
 		if (k == 0) {
-			ycoord[k] = yrel[k];
+			yabs[k] = yrel[k];
 		} else {
-			ycoord[k] = yrel[k] + ycoord[k - 1];
+			yabs[k] = yrel[k] + yabs[k - 1];
 		}
 	}
 
 	txoff = *xoff;
 	tyoff = *yoff;
-	if (transform) {
-		if (matrix) {
-			for (i = 0; i < GLYFSZ; i++) {
-				tx = xcoord[i];
-				ty = ycoord[i];
-				xcoord[i] = scale((int) (matrix[0] * tx + matrix[2] * ty + txoff));
-				ycoord[i] = scale((int) (matrix[1] * tx + matrix[3] * ty + tyoff));
-			}
-		} else {
-			for (i = 0; i < GLYFSZ; i++) {
-				xcoord[i] = scale(xcoord[i] + txoff);
-				ycoord[i] = scale(ycoord[i] + tyoff);
-			}
+	if (matrix) {
+		for (i = 0; i <= last_point; i++) {
+			tx = xabs[i];
+			ty = yabs[i];
+			xcoord[i] = fscale(matrix[0] * tx + matrix[2] * ty + txoff);
+			ycoord[i] = fscale(matrix[1] * tx + matrix[3] * ty + tyoff);
 		}
 	} else {
-		if (matrix) {
-			for (i = 0; i < GLYFSZ; i++) {
-				tx = xcoord[i];
-				ty = ycoord[i];
-				xcoord[i] = (matrix[0] * tx + matrix[2] * ty) + txoff;
-				ycoord[i] = (matrix[1] * tx + matrix[3] * ty) + tyoff;
-			}
-		} else {
-			for (i = 0; i < GLYFSZ; i++) {
-				xcoord[i] += txoff;
-				ycoord[i] += tyoff;
-			}
+		for (i = 0; i <= last_point; i++) {
+			xcoord[i] = fscale(xabs[i] + txoff);
+			ycoord[i] = fscale(yabs[i] + tyoff);
 		}
 	}
 
@@ -470,14 +453,14 @@ draw_glyf(
 		contour_end = ntohs(contour_end_pt[j]);
 
 		if (first) {
-			g_rmoveto(g, xcoord[i], ycoord[i]);
+			fg_rmoveto(g, xcoord[i], ycoord[i]);
 			xlast = xcoord[i];
 			ylast = ycoord[i];
 			ncurves++;
 			contour_start = i;
 			first = 0;
 		} else if (flags[i] & ONOROFF) {
-			g_rlineto(g, xcoord[i], ycoord[i]);
+			fg_rlineto(g, xcoord[i], ycoord[i]);
 			xlast = xcoord[i];
 			ylast = ycoord[i];
 			ncurves++;
@@ -499,18 +482,18 @@ draw_glyf(
 
 			switch (nguide) {
 			case 0:
-				g_rlineto(g, xcoord[ce], ycoord[ce]);
+				fg_rlineto(g, xcoord[ce], ycoord[ce]);
 				xlast = xcoord[ce];
 				ylast = ycoord[ce];
 				ncurves++;
 				break;
 
 			case 1:
-				g_rrcurveto(g,
-				      (xcoord[cs] + 2 * xcoord[cs + 1]) / 3,
-				      (ycoord[cs] + 2 * ycoord[cs + 1]) / 3,
-				      (2 * xcoord[cs + 1] + xcoord[ce]) / 3,
-				      (2 * ycoord[cs + 1] + ycoord[ce]) / 3,
+				fg_rrcurveto(g,
+				      (xcoord[cs] + 2.0 * xcoord[cs + 1]) / 3.0,
+				      (ycoord[cs] + 2.0 * ycoord[cs + 1]) / 3.0,
+				      (2.0 * xcoord[cs + 1] + xcoord[ce]) / 3.0,
+				      (2.0 * ycoord[cs + 1] + ycoord[ce]) / 3.0,
 					    xcoord[ce],
 					    ycoord[ce]
 					);
@@ -521,11 +504,11 @@ draw_glyf(
 				break;
 
 			case 2:
-				g_rrcurveto(g,
-				     (-xcoord[cs] + 4 * xcoord[cs + 1]) / 3,
-				     (-ycoord[cs] + 4 * ycoord[cs + 1]) / 3,
-				      (4 * xcoord[cs + 2] - xcoord[ce]) / 3,
-				      (4 * ycoord[cs + 2] - ycoord[ce]) / 3,
+				fg_rrcurveto(g,
+				     (-xcoord[cs] + 4.0 * xcoord[cs + 1]) / 3.0,
+				     (-ycoord[cs] + 4.0 * ycoord[cs + 1]) / 3.0,
+				      (4.0 * xcoord[cs + 2] - xcoord[ce]) / 3.0,
+				      (4.0 * ycoord[cs + 2] - ycoord[ce]) / 3.0,
 					    xcoord[ce],
 					    ycoord[ce]
 					);
@@ -535,29 +518,29 @@ draw_glyf(
 				break;
 
 			case 3:
-				g_rrcurveto(g,
-				      (xcoord[cs] + 2 * xcoord[cs + 1]) / 3,
-				      (ycoord[cs] + 2 * ycoord[cs + 1]) / 3,
-				  (5 * xcoord[cs + 1] + xcoord[cs + 2]) / 6,
-				  (5 * ycoord[cs + 1] + ycoord[cs + 2]) / 6,
-				      (xcoord[cs + 1] + xcoord[cs + 2]) / 2,
-				       (ycoord[cs + 1] + ycoord[cs + 2]) / 2
+				fg_rrcurveto(g,
+				      (xcoord[cs] + 2.0 * xcoord[cs + 1]) / 3.0,
+				      (ycoord[cs] + 2.0 * ycoord[cs + 1]) / 3.0,
+				  (5.0 * xcoord[cs + 1] + xcoord[cs + 2]) / 6.0,
+				  (5.0 * ycoord[cs + 1] + ycoord[cs + 2]) / 6.0,
+				      (xcoord[cs + 1] + xcoord[cs + 2]) / 2.0,
+				      (ycoord[cs + 1] + ycoord[cs + 2]) / 2.0
 					);
 
-				g_rrcurveto(g,
-				  (xcoord[cs + 1] + 5 * xcoord[cs + 2]) / 6,
-				  (ycoord[cs + 1] + 5 * ycoord[cs + 2]) / 6,
-				  (5 * xcoord[cs + 2] + xcoord[cs + 3]) / 6,
-				  (5 * ycoord[cs + 2] + ycoord[cs + 3]) / 6,
-				      (xcoord[cs + 3] + xcoord[cs + 2]) / 2,
-				       (ycoord[cs + 3] + ycoord[cs + 2]) / 2
+				fg_rrcurveto(g,
+				  (xcoord[cs + 1] + 5.0 * xcoord[cs + 2]) / 6.0,
+				  (ycoord[cs + 1] + 5.0 * ycoord[cs + 2]) / 6.0,
+				  (5.0 * xcoord[cs + 2] + xcoord[cs + 3]) / 6.0,
+				  (5.0 * ycoord[cs + 2] + ycoord[cs + 3]) / 6.0,
+				      (xcoord[cs + 3] + xcoord[cs + 2]) / 2.0,
+				      (ycoord[cs + 3] + ycoord[cs + 2]) / 2.0
 					);
 
-				g_rrcurveto(g,
-				  (xcoord[cs + 2] + 5 * xcoord[cs + 3]) / 6,
-				  (ycoord[cs + 2] + 5 * ycoord[cs + 3]) / 6,
-				      (2 * xcoord[cs + 3] + xcoord[ce]) / 3,
-				      (2 * ycoord[cs + 3] + ycoord[ce]) / 3,
+				fg_rrcurveto(g,
+				  (xcoord[cs + 2] + 5.0 * xcoord[cs + 3]) / 6.0,
+				  (ycoord[cs + 2] + 5.0 * ycoord[cs + 3]) / 6.0,
+				      (2.0 * xcoord[cs + 3] + xcoord[ce]) / 3.0,
+				      (2.0 * ycoord[cs + 3] + ycoord[ce]) / 3.0,
 					    xcoord[ce],
 					    ycoord[ce]
 					);
@@ -569,32 +552,32 @@ draw_glyf(
 
 			default:
 				k1 = cs + nguide;
-				g_rrcurveto(g,
-				      (xcoord[cs] + 2 * xcoord[cs + 1]) / 3,
-				      (ycoord[cs] + 2 * ycoord[cs + 1]) / 3,
-				  (5 * xcoord[cs + 1] + xcoord[cs + 2]) / 6,
-				  (5 * ycoord[cs + 1] + ycoord[cs + 2]) / 6,
-				      (xcoord[cs + 1] + xcoord[cs + 2]) / 2,
-				       (ycoord[cs + 1] + ycoord[cs + 2]) / 2
+				fg_rrcurveto(g,
+				      (xcoord[cs] + 2.0 * xcoord[cs + 1]) / 3.0,
+				      (ycoord[cs] + 2.0 * ycoord[cs + 1]) / 3.0,
+				  (5.0 * xcoord[cs + 1] + xcoord[cs + 2]) / 6.0,
+				  (5.0 * ycoord[cs + 1] + ycoord[cs + 2]) / 6.0,
+				      (xcoord[cs + 1] + xcoord[cs + 2]) / 2.0,
+				      (ycoord[cs + 1] + ycoord[cs + 2]) / 2.0
 					);
 
 				for (k = cs + 2; k <= k1 - 1; k++) {
-					g_rrcurveto(g,
-					(xcoord[k - 1] + 5 * xcoord[k]) / 6,
-					(ycoord[k - 1] + 5 * ycoord[k]) / 6,
-					(5 * xcoord[k] + xcoord[k + 1]) / 6,
-					(5 * ycoord[k] + ycoord[k + 1]) / 6,
-					    (xcoord[k] + xcoord[k + 1]) / 2,
-					     (ycoord[k] + ycoord[k + 1]) / 2
+					fg_rrcurveto(g,
+					(xcoord[k - 1] + 5.0 * xcoord[k]) / 6.0,
+					(ycoord[k - 1] + 5.0 * ycoord[k]) / 6.0,
+					(5.0 * xcoord[k] + xcoord[k + 1]) / 6.0,
+					(5.0 * ycoord[k] + ycoord[k + 1]) / 6.0,
+					    (xcoord[k] + xcoord[k + 1]) / 2.0,
+					     (ycoord[k] + ycoord[k + 1]) / 2.0
 						);
 
 				}
 
-				g_rrcurveto(g,
-				      (xcoord[k1 - 1] + 5 * xcoord[k1]) / 6,
-				      (ycoord[k1 - 1] + 5 * ycoord[k1]) / 6,
-					  (2 * xcoord[k1] + xcoord[ce]) / 3,
-					  (2 * ycoord[k1] + ycoord[ce]) / 3,
+				fg_rrcurveto(g,
+				      (xcoord[k1 - 1] + 5.0 * xcoord[k1]) / 6.0,
+				      (ycoord[k1 - 1] + 5.0 * ycoord[k1]) / 6.0,
+					  (2.0 * xcoord[k1] + xcoord[ce]) / 3.0,
+					  (2.0 * ycoord[k1] + ycoord[ce]) / 3.0,
 					    xcoord[ce],
 					    ycoord[ce]
 					);
@@ -620,8 +603,8 @@ draw_glyf(
 	if (matrix) {
 		/* guess whether do we need to reverse the results */
 
-		int             x[3], y[3];
-		int             max = 0, from, to;
+		double             x[3], y[3];
+		int                max = 0, from, to;
 
 		/* transform a triangle going in proper direction */
 		/*
@@ -1285,7 +1268,7 @@ glpath(
 	short           ncontours;
 	USHORT          flagbyte, glyphindex, xscale, yscale, scale01,
 	                scale10;
-	SHORT           arg1, arg2, xoff, yoff;
+	double          arg1, arg2, xoff, yoff;
 	BYTE           *ptr;
 	char           *bptr;
 	SHORT          *sptr;
@@ -1312,9 +1295,9 @@ glpath(
 				sptr++;
 
 				if (flagbyte & ARG_1_AND_2_ARE_WORDS) {
-					arg1 = ntohs(*sptr);
+					arg1 = (short)ntohs(*sptr);
 					sptr++;
-					arg2 = ntohs(*sptr);
+					arg2 = (short)ntohs(*sptr);
 					sptr++;
 				} else {
 					bptr = (char *) sptr;
@@ -1373,7 +1356,7 @@ glpath(
 				fprintf(stderr, "Matrix: %f %f %f %f %f %f\n",
 				 matrix[0], matrix[1], matrix[2], matrix[3],
 					matrix[4], matrix[5]);
-				fprintf(stderr, "Offset: %d %d (%s)\n",
+				fprintf(stderr, "Offset: %f %f (%s)\n",
 					arg1, arg2,
 					((flagbyte & ARGS_ARE_XY_VALUES) ? "XY" : "index"));
 #endif
@@ -1466,10 +1449,8 @@ prkern(
 			  if (gl->flags & GF_USED && gr->flags & GF_USED)
 			    fprintf(afm_file, "KPX %s %s %d\n",
 				    gl->name, gr->name,
-					( transform ?
-						scale((short) ntohs(kern_entry->value))
-						: (short) ntohs(kern_entry->value)
-					) - (gl->scaledwidth - gl->oldwidth)
+					iscale((short) ntohs(kern_entry->value))
+						- (gl->scaledwidth - gl->oldwidth)
 					);
 			  kern_entry++;
 			}

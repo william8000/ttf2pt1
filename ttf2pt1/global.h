@@ -49,15 +49,17 @@ extern int      numglyphs, long_offsets, ncurves;
 #define DEBUG_BLUESTEMS	0x00000040 /* markbluestems() */
 #define DEBUG_STRAIGHTEN	0x00000080 /* markbluestems() */
 #define DEBUG_EXTMAP	0x00000100 /* parsing of external map */
+#define DEBUG_TOINT	0x00000200 /* conversion of path to integer */
+#define DEBUG_BUILDG	0x00000400 /* building of glyph path */
 #define DEBUG_DISABLED	0x80000000 /* special flag: temporary disable debugging */
 
 /* at what we want to look now */
 #ifndef DEBUG
-#	define DEBUG (0)
+#	define DEBUG (0|DEBUG_TOINT)
 #endif
 
 /* uncomment the next line if debugging data is wanted for one glyph only */
-/* #define DBG_GLYPH	"thorn"  /* */
+#define DBG_GLYPH	"O"  /* */
 
 #if DEBUG==0
 #	define ISDBG(name)	(0)
@@ -80,7 +82,8 @@ extern int      numglyphs, long_offsets, ncurves;
 #endif
 
 /* prototypes */
-int scale( int val);
+int iscale( int val);
+double fscale( double val);
 int unicode_to_win31( int unival, char *name);
 
 /* global metrics for a font */
