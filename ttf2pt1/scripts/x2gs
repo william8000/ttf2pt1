@@ -21,7 +21,12 @@
 
 # path to the configuration file
 
-CFGFILE=`pwd`/convert.cfg
+if [ $# -eq 1 ]
+then
+	CFGFILE=$1
+else
+	CFGFILE=`pwd`/convert.cfg
+fi
 
 MYSELF=x2gs
 

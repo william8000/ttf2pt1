@@ -19,29 +19,54 @@
 #  Sergey A. Babkin (sab123@hotmail.com, babkin@bellatlantic.net)
 # 
 
+# Use : convert [cfgfile]
+
 # Convert TTF fonts from source directory to Type1 fonts in the destination
 # directory, converted to the specified encodings. Also generate the
 # fonts.scale, fonts.dir and fonts.alias files in the destination directory.
 
+# clean some variables so that they won't be inherited from environment
+
+ENCDIR=
+MAPDIR=
+
 # path to the configuration file
 
-CFGFILE=`pwd`/convert.cfg
+if [ $# -eq 1 ]
+then
+	CFGFILE=$1
+else
+	CFGFILE=`pwd`/convert.cfg
+fi
 
-# path to the directory with descriptions of encodings
-ENCDIR=`pwd`/../encodings
+# these setting would be edited during installation
 
-# directory with the external Unicode maps
-MAPDIR=`pwd`/../maps
+TTF2PT1_LIBDIR=
+TTF2PT1_BINDIR=
+
+[ -z "$TTF2PT1_LIBDIR" ] && {
+	TTF2PT1_LIBDIR=`pwd`/..
+}
+[ -z "$TTF2PT1_BINDIR" ] && {
+	TTF2PT1_BINDIR=`pwd`/..
+}
+
+# directory from where we are started
+
+RUNDIR=`pwd`
 
 # paths to various utilities
 
-RUNDIR=`pwd`
-T1ASM=`pwd`/../t1asm
-TTF2PT1=`pwd`/../ttf2pt1
-TRANS=`pwd`/trans
-T1FDIR=`pwd`/t1fdir
-FORCEISO=`pwd`/forceiso
-X2GS=`pwd`/x2gs
+T1ASM=$TTF2PT1_LIBDIR/t1asm
+[ -f $T1ASM -a -x $T1ASM ] || {
+	# if it's not in libdir, use whatever t1asm the system provides
+	T1ASM=t1asm
+}
+TTF2PT1=$TTF2PT1_BINDIR/ttf2pt1
+TRANS=$TTF2PT1_LIBDIR/scripts/trans
+T1FDIR=$TTF2PT1_LIBDIR/scripts/t1fdir
+FORCEISO=$TTF2PT1_LIBDIR/scripts/forceiso
+X2GS=$TTF2PT1_LIBDIR/scripts/x2gs
 SUFFIX="pfa"
 
 MYSELF=convert
@@ -60,6 +85,16 @@ copy it to convert.cfg and modify for
 you actual configuration." >&2
 	exit 1
 } fi
+
+# path to the directory with descriptions of encodings
+[ -z "$ENCDIR" ] && {
+	ENCDIR=$TTF2PT1_LIBDIR/encodings
+}
+
+# directory with the external Unicode maps
+[ -z "$MAPDIR" ] && {
+	MAPDIR=$TTF2PT1_LIBDIR/maps
+}
 
 LOG=$DSTDIR/convert.log
 
@@ -321,7 +356,7 @@ mkfontdir
 
 echo "Installing the Ghostscript fonts"
 cd $RUNDIR
-$X2GS || {
+$X2GS $CFGFILE || {
 	echo "$MYSELF: Installation of the Ghostscript fonts has failed.\n" >&2
 	echo "$MYSELF: You can correct the problem and run x2gs to repeat\n" >&2
 	exit 0

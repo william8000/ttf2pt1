@@ -109,7 +109,7 @@ GSFONTDIR=$GSDIR/fonts
 # installation stores the Fontmap files in the same directory as fonts
 # (like Debian Linux does - isn't Linux wonderful in its differences?)
 # then set it to the same value as GSFONTDIR.
-GSCONFDIR=$GSDIR/6.0/lib
+GSCONFDIR=$GSDIR/6.0
 
 # The encodings of generated files by languages
 # (see the whole list of possible encodings for each
@@ -132,6 +132,12 @@ DSTENCadobestd="adobe-std"
 # (for HP-UX or if you just want to use an 
 # honest name change to "misc")
 FOUNDRY=fromttf
+
+# If you want to use non-standard directories with encoding
+# maps and tables then set these values 
+
+MAPDIR=
+ENCDIR=
 
 # Options:
 # set the value to YES to enable, NO (or anything else) to disable
