@@ -1527,6 +1527,7 @@ main(
 	char           *lang;
 	int             oc;
 	int             subid;
+	char           *cmdline;
 #ifdef _GNU_SOURCE
 #	define ttf2pt1_getopt(a, b, c, d, e)	getopt_long(a, b, c, d, e)
 	static struct option longopts[] = {
@@ -1557,6 +1558,28 @@ main(
 		opotbl[i].enbl = toupper(opotbl[i].disbl);
 		*(opotbl[i].valp) = opotbl[i].dflt;
 	}
+
+	/* save the command line for the record 
+	 * (we don't bother about escaping the shell special characters)
+	 */
+
+	j = 0;
+	for(i=1; i<argc; i++) {
+		j += strlen(argv[i])+1;
+	}
+	if ((cmdline = malloc(j+1)) == NULL) {
+		fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
+		exit(255);
+	}
+	cmdline[0] = 0;
+	for(i=1; i<argc; i++) {
+		strcat(cmdline, argv[i]);
+		strcat(cmdline, " ");
+	}
+	for(i=0; (j=cmdline[i])!=0; i++)
+		if(j == '\n')
+			cmdline[i] = ' ';
+
 
 	while(( oc=ttf2pt1_getopt(argc, argv, "FaoebAsthHfwVv:p:l:d:u:L:m:W:O:",
 			longopts, NULL) )!= -1) {
@@ -2094,7 +2117,8 @@ main(
 	fprintf(pfa_file, "%%!PS-AdobeFont-1.0: %s %s\n", fontm.name_ps, fontm.name_copyright);
 	time(&now);
 	fprintf(pfa_file, "%%%%CreationDate: %s", ctime(&now));
-	fprintf(pfa_file, "%% Converted from TrueType font %s by ttf2pt1 %s/%s\n%%\n", argv[1], TTF2PT1_VERSION, cursw->name);
+	fprintf(pfa_file, "%% Converted by ttf2pt1 %s/%s\n", TTF2PT1_VERSION, cursw->name);
+	fprintf(pfa_file, "%% Args: %s\n", cmdline);
 	fprintf(pfa_file, "%%%%EndComments\n");
 	fprintf(pfa_file, "12 dict begin\n/FontInfo 9 dict dup begin\n");
 
