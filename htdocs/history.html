@@ -25,6 +25,32 @@
 </th></tr></table> </td></tr></table>
 
 <table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>June 13th 2002 v 3.4.1</font>
+</th></tr><tr><td>
+Packaged by
+Sergey Babkin
+<h2><font face=helvetica>New Features</font></h2>
+<ul>
+<li> Added Autotrace support for the bitmap fonts (<b>-OZ</b>). It's horrible.
+<li> Added vectorization of bitmap fonts (<b>-OV</b>) - functionally the same thing as 
+  autotrace but home-grown. Works mostly decently but still with large
+  space for impprovement.
+<li> Relaxed the conditions for warnings about long glyphs.
+</ul>
+<h2><font face=helvetica>Bug fixes:</font></h2>
+<ul>
+<li> Fix by Rob Kolstad for a crash in the new outline smoothing
+  code (on small thin contours) and diagnostic for another crash.
+<li> Fix by Holger Huesing for a crash on degenerate contours.
+<li> Fix for bitmaps of zero dimensions.
+<li> The BDF reader does not fail on redefintion of the properties.
+<li> Fix for reading of BDF glyphs with 0 size.
+<li> Fix for a hang when guessing the boldness of some fonts.
+<li> Fix by Adriano Konzen for scaling coefficients in composite glyphs.
+</ul>
+</th></tr></table> </td></tr></table>
+
+<table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
 <font face=helvetica>November 24th 2001 v 3.4.0</font>
 </th></tr><tr><td>
 Packaged by
