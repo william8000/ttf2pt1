@@ -23,6 +23,13 @@ current
 <b>New features:</b>
 <ul>
 <li> Improved the auto-vectoring (-OV) alrogithm.
+<li> Allow use of any encoding table of format 4 in the ttf parser.
+<li> Take the first available format 4 encoding table if no known
+  table is found in the ttf parser.
+<li> The ttf parser lists the available encodings if no supported
+  encoding table is found. This can be used to list the encodings in
+  any font by specifying a bogus explicit PID/EID, such as
+  with option <b>-l plane+pid=50,eid=50</b>.
 </ul>
 
 <b>Bug fixes:</b>

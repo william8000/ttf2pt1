@@ -1267,11 +1267,6 @@ glenc(
 		return 0;
 	}
 
-	if(force_pid != -1 && force_pid != 3) {
-		fputs("*** Only platform ID == 3 is supported\n", stderr);
-		exit(1);
-	}
-
 	enc_type = 0;
 	found = 0;
 
@@ -1283,14 +1278,17 @@ glenc(
 		platform = ntohs(table_entry->platformID);
 		encoding_id = ntohs(table_entry->encodingID);
 
-		if (platform == 3 && format == 4) {
-			if(force_pid == 3) {
-				if(encoding_id != force_eid)
-					continue;
-				WARNING_1 fprintf(stderr, "Found Encoding PID=%d/EID=%d\n", 
-					force_pid, force_eid);
-				enc_type = 1;
-			} else {
+		if (format != 4)
+			continue;
+
+		if(force_pid != -1) {
+			if(force_pid != platform || encoding_id != force_eid)
+				continue;
+			WARNING_1 fprintf(stderr, "Found Encoding PID=%d/EID=%d\n", 
+				force_pid, force_eid);
+			enc_type = 1;
+		} else {
+			if (platform == 3 ) {
 				switch (encoding_id) {
 				case 0:
 					WARNING_1 fputs("Found Symbol Encoding\n", stderr);
@@ -1308,29 +1306,24 @@ glenc(
 					}
 					break;
 				}
-			}
-
-			found = 1;
-			seg_c2 = ntohs(encoding4->segCountX2);
-			cmap_n_segs = seg_c2 >> 1;
-			ptr = (BYTE *) encoding4 + 14;
-			cmap_seg_end = (USHORT *) ptr;
-			cmap_seg_start = (USHORT *) (ptr + seg_c2 + 2);
-			cmap_idDelta = (short *) (ptr + (seg_c2 * 2) + 2);
-			cmap_idRangeOffset = (short *) (ptr + (seg_c2 * 3) + 2);
-			enc_found_ms = 1;
-
-			handle_ms_encoding(glyph_list, encoding, unimap);
+			} else
+				continue;
 		}
+
+		found = 1;
+		seg_c2 = ntohs(encoding4->segCountX2);
+		cmap_n_segs = seg_c2 >> 1;
+		ptr = (BYTE *) encoding4 + 14;
+		cmap_seg_end = (USHORT *) ptr;
+		cmap_seg_start = (USHORT *) (ptr + seg_c2 + 2);
+		cmap_idDelta = (short *) (ptr + (seg_c2 * 2) + 2);
+		cmap_idRangeOffset = (short *) (ptr + (seg_c2 * 3) + 2);
+		enc_found_ms = 1;
+
+		handle_ms_encoding(glyph_list, encoding, unimap);
 	}
 
-	if (!found) {
-		if(force_pid != -1) {
-			fprintf(stderr, "*** TTF encoding table PID=%d/EID=%d not found\n", 
-				force_pid, force_eid);
-			exit(1);
-		}
-
+	if (!found && force_pid == -1) {
 		WARNING_1 fputs("No Microsoft encoding, looking for MAC encoding\n", stderr);
 		for (i = 0; i < num_tables && !found; i++) {
 			table_entry = &(cmap_table->encodingTable[i]);
@@ -1348,8 +1341,58 @@ glenc(
 			}
 		}
 	}
+
+	if (!found && force_pid == -1) {
+		WARNING_1 fputs("No MAC encoding either, looking for any format 4 encoding\n", stderr);
+		for (i = 0; i < num_tables && !found; i++) {
+			table_entry = &(cmap_table->encodingTable[i]);
+			offset = ntohl(table_entry->offset);
+			encoding4 = (TTF_CMAP_FMT4 *) ((BYTE *) cmap_table + offset);
+			format = ntohs(encoding4->format);
+			platform = ntohs(table_entry->platformID);
+			encoding_id = ntohs(table_entry->encodingID);
+
+			if (format != 4)
+				continue;
+
+			WARNING_1 fprintf(stderr, "Found a last ditch encoding PID=%d/EID=%d, treating it as Unicode.\n", 
+				platform, encoding_id);
+			found = 1;
+			enc_type = 1;
+			seg_c2 = ntohs(encoding4->segCountX2);
+			cmap_n_segs = seg_c2 >> 1;
+			ptr = (BYTE *) encoding4 + 14;
+			cmap_seg_end = (USHORT *) ptr;
+			cmap_seg_start = (USHORT *) (ptr + seg_c2 + 2);
+			cmap_idDelta = (short *) (ptr + (seg_c2 * 2) + 2);
+			cmap_idRangeOffset = (short *) (ptr + (seg_c2 * 3) + 2);
+			enc_found_ms = 1;
+
+			handle_ms_encoding(glyph_list, encoding, unimap);
+		
+		}
+	}
+
 	if (!found) {
+		if(force_pid != -1) {
+			fprintf(stderr, "*** TTF encoding table PID=%d/EID=%d not found\n", 
+				force_pid, force_eid);
+		}
 		fprintf(stderr, "**** No Recognised Encoding Table ****\n");
+		if(warnlevel >= 2) {
+			fprintf(stderr, "Font contains the following unsupported encoding tables:\n");
+			for (i = 0; i < num_tables && !found; i++) {
+				table_entry = &(cmap_table->encodingTable[i]);
+				offset = ntohl(table_entry->offset);
+				encoding0 = (TTF_CMAP_FMT0 *) ((BYTE *) cmap_table + offset);
+				format = ntohs(encoding0->format);
+				platform = ntohs(table_entry->platformID);
+				encoding_id = ntohs(table_entry->encodingID);
+
+				fprintf(stderr, "  format=%d platform=%d encoding_id=%d\n",
+					format, platform, encoding_id);
+			}
+		}
 		exit(1);
 	}
 
