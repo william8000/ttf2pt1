@@ -1028,6 +1028,9 @@ unicode_plane(
 	int nchars;
 	int c1, c2, i;
 
+	if(uni_lang_selected == 0)
+		return; /* don't participate in auto-guessing */
+
 	plane = 0; force_pid = force_eid = -1;
 
 	c1 = sscanf(arg, "pid=%d,eid=%d%n", &force_pid, &force_eid, &nchars);
@@ -1044,7 +1047,7 @@ unicode_plane(
 	}
 
 	if( (c1!=2 && c1!=0) || (c1==0 && c2==0) ) {
-		fprintf(stderr, "**** option -l plane requires expects one of the following formats:\n");
+		fprintf(stderr, "**** option -l plane expects one of the following formats:\n");
 		fprintf(stderr, "  -l plane+0xNN - select hexadecimal number of plane of Unicode\n");
 		fprintf(stderr, "  -l plane+NN - select decimal number of plane of Unicode\n");
 		fprintf(stderr, "  -l plane+pid=N,eid=N - select plane 0 of specified encoding\n");
