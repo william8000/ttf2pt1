@@ -2071,7 +2071,7 @@ main(
 	fprintf(pfa_file, "%%!PS-AdobeFont-1.0: %s %s\n", fontm.name_ps, fontm.name_copyright);
 	time(&now);
 	fprintf(pfa_file, "%%%%CreationDate: %s", ctime(&now));
-	fprintf(pfa_file, "%% Converted from TrueType font %s by ttf2pt1 %s\n%%\n", argv[1], TTF2PT1_VERSION);
+	fprintf(pfa_file, "%% Converted from TrueType font %s by ttf2pt1 %s/%s\n%%\n", argv[1], TTF2PT1_VERSION, cursw->name);
 	fprintf(pfa_file, "%%%%EndComments\n");
 	fprintf(pfa_file, "12 dict begin\n/FontInfo 9 dict dup begin\n");
 
