@@ -131,6 +131,7 @@ int      hints;	/* enables autogeneration of hints */
 int      subhints;	/* enables autogeneration of substituted hints */
 int      trybold;	/* try to guess whether the font is bold */
 int      correctwidth;	/* try to correct the character width */
+int      use_autotrace;	/* use the autotrace library on bitmap */
 /* options - suboptions of File Generation, defaults are set in table */
 int      gen_pfa;	/* generate the font file */
 int      gen_afm;	/* generate the metrics file */
@@ -1683,6 +1684,9 @@ main(
 		{ 's', 0/*auto-set*/, &smooth, 1, "smoothing and repair of outlines" },
 		{ 't', 0/*auto-set*/, &transform, 1, "auto-scaling to the standard matrix 1000x1000" },
 		{ 'w', 0/*auto-set*/, &correctwidth, 0, "correct the glyph widths (use only for buggy fonts)" },
+#ifdef USE_AUTOTRACE
+		{ 'z', 0/*auto-set*/, &use_autotrace, 0, "use the autotrace library on bitmaps (works badly)" },
+#endif /*USE_AUTOTRACE*/
 		{ 0, 0, 0, 0, 0} /* terminator */
 	};
 	/* table of the File Generation options */

@@ -51,8 +51,8 @@ LIBS_SYS= -lm
 
 #
 # The flags for C compiler for the FreeType-2 library (disabled by default). 
-# This WON'T BUILD with FT2-beta8, use the FreeType release 2.0.
-# http://download.sourceforge.net/freetype/freetype-2.0.tar.gz
+# This WON'T BUILD with FT2-beta8, use the FreeType release 2.0.4
+# http://download.sourceforge.net/freetype/freetype-2.0.4.tar.gz
 
 CFLAGS_FT= 
 
@@ -69,9 +69,34 @@ LIBS_FT=
 
 # To enable use of the FreeType-2 library
 # (if the include and lib directory do not match your installation,
-# modify them), also uncomment LIBS_FT
+# modify them), also uncomment CFLAGS_FT
 #
 #LIBS_FT= -L/usr/local/lib -lfreetype
+
+#
+# The flags for C compiler for the Autotrace library (disabled by default). 
+# The tested version is 0.29a (and it still does not work well at all,
+# in fact it sucks horribly).
+# http://download.sourceforge.net/autotrace/autotrace-0.29.tar.gz
+
+CFLAGS_AT= 
+
+# To enable use of the Autotrace library
+# (if the include and lib directory do not match your installation,
+# modify them), also uncomment LIBS_AT
+#
+#CFLAGS_AT = -DUSE_AUTOTRACE -I/usr/local/include
+
+# 
+# The Autotrace library flags (disabled by default)
+
+LIBS_AT=
+
+# To enable use of the Autotrace library
+# (if the include and lib directory do not match your installation,
+# modify them), also uncomment CFLAGS_AT
+#
+#LIBS_AT= -L/usr/local/lib -lautotrace
 
 #
 # Preference of front-ends if multiple parsers match a file
@@ -87,8 +112,8 @@ CFLAGS_PREF=
 CFLAGS_EXTT1ASM=
 #CFLAGS_EXTT1ASM= -DEXTERNAL_T1ASM
 
-CFLAGS= $(CFLAGS_SYS) $(CFLAGS_FT) $(CFLAGS_PREF)
-LIBS= $(LIBS_SYS) $(LIBS_FT)
+CFLAGS= $(CFLAGS_SYS) $(CFLAGS_FT) $(CFLAGS_AT) $(CFLAGS_PREF)
+LIBS= $(LIBS_SYS) $(LIBS_FT) $(LIBS_AT)
 
 # Installation-related stuff
 # 

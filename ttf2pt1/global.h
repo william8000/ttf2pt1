@@ -26,6 +26,7 @@ extern int      hints;	/* enables autogeneration of hints */
 extern int      subhints;	/* enables autogeneration of substituted hints */
 extern int      trybold;	/* try to guess whether the font is bold */
 extern int      correctwidth;	/* try to correct the character width */
+extern int      use_autotrace;	/* use the autotrace library on bitmap */
 /* options - suboptions of File Generation */
 extern int      gen_pfa;	/* generate the font file */
 extern int      gen_afm;	/* generate the metrics file */
@@ -110,6 +111,8 @@ extern int      numglyphs;
 int iscale( int val);
 double fscale( double val);
 int unicode_rev_lookup( int unival);
+void bmp_outline( GLYPH *g, int scale, char *bmap,
+	int xsz, int ysz, int xoff, int yoff);
 
 /* global metrics for a font */
 

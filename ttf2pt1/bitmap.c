@@ -19,6 +19,104 @@
 
 static int warnedhints = 0;
 
+
+#ifdef USE_AUTOTRACE
+#include <autotrace/autotrace.h>
+
+/*
+ * Produce an autotraced outline from a bitmap.
+ * scale - factor to scale the sizes
+ * bmap - array of dots by lines, xsz * ysz
+ * xoff, yoff - offset of the bitmap's lower left corner
+ *              from the logical position (0,0)
+ */
+
+static void
+autotraced_bmp_outline(
+	GLYPH *g,
+	int scale,
+	char *bmap,
+	int xsz,
+	int ysz,
+	int xoff,
+	int yoff
+)
+{
+	at_bitmap_type atb;
+	at_splines_type *atsp;
+	at_fitting_opts_type *atoptsp;
+	at_spline_list_type *slp;
+	at_spline_type *sp;
+	int i, j, k;
+	double lastx, lasty;
+	double fscale;
+	char *xbmap;
+
+	fscale = (double)scale;
+
+	/* provide a white margin around the bitmap */
+	xbmap = malloc((ysz+2)*(xsz+2));
+	if(xbmap == 0)  {
+		fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
+		exit(255);
+	}
+	memset(xbmap, 0, xsz+2);  /* top margin */
+	for(i=0, j=xsz+2; i<ysz; i++, j+=xsz+2) {
+		xbmap[j] = 0; /* left margin */
+		memcpy(&xbmap[j+1], &bmap[xsz*(ysz-1-i)], xsz); /* a line of bitmap */
+		xbmap[j+xsz+1] = 0; /* right margin */
+	}
+	memset(xbmap+j, 0, xsz+2);  /* bottom margin */
+	xoff--; yoff-=2; /* compensate for the margins */
+
+	atoptsp = at_fitting_opts_new();
+
+	atb.width = xsz+2;
+	atb.height = ysz+2;
+	atb.np = 1;
+	atb.bitmap = xbmap;
+
+	atsp = at_splines_new(&atb, atoptsp);
+
+	lastx = lasty = -1.;
+	for(i=0; i<atsp->length; i++) {
+		slp = &atsp->data[i];
+#if 0
+		fprintf(stderr, "%s: contour %d: %d entries clockwise=%d color=%02X%02X%02X\n",
+			g->name, i, slp->length, slp->clockwise, slp->color.r, slp->color.g, slp->color.b);
+#endif
+		if(slp->length == 0)
+			continue;
+#if 0
+		if(slp->color.r + slp->color.g + slp->color.b == 0)
+			continue;
+#endif
+		fg_rmoveto(g, fscale*(slp->data[0].v[0].x+xoff), fscale*(slp->data[0].v[0].y+yoff));
+		for(j=0; j<slp->length; j++) {
+#if 0
+			fprintf(stderr, "  ");
+			for(k=0; k<4; k++)
+				fprintf(stderr, "(%g %g) ", 
+					fscale*(slp->data[j].v[k].x+xoff), 
+					fscale*(ysz-slp->data[j].v[k].y+yoff)
+					);
+			fprintf(stderr, "\n");
+#endif
+			fg_rrcurveto(g,
+				fscale*(slp->data[j].v[1].x+xoff), fscale*(slp->data[j].v[1].y+yoff),
+				fscale*(slp->data[j].v[2].x+xoff), fscale*(slp->data[j].v[2].y+yoff),
+				fscale*(slp->data[j].v[3].x+xoff), fscale*(slp->data[j].v[3].y+yoff) );
+		}
+		g_closepath(g);
+	}
+
+	at_splines_free(atsp);
+	at_fitting_opts_free(atoptsp);
+	free(xbmap);
+}
+
+#endif /*USE_AUTOTRACE*/
+
 /*
  * Produce an outline from a bitmap.
  * scale - factor to scale the sizes
@@ -27,6 +125,7 @@ static int warnedhints = 0;
  *              from the logical position (0,0)
  */
 
+void
 bmp_outline(
 	GLYPH *g,
 	int scale,
@@ -42,6 +141,13 @@ bmp_outline(
 	int x, y;
 	char *ip, *op;
 	double fscale;
+
+#ifdef USE_AUTOTRACE
+	if(use_autotrace) {
+		autotraced_bmp_outline(g, scale, bmap, xsz, ysz, xoff, yoff);
+		return;
+	}
+#endif /*USE_AUTOTRACE*/
 
 	fscale = (double)scale;
 
