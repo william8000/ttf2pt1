@@ -119,6 +119,11 @@ typedef struct stembounds {
 	char already; /* temp. flag: is aleready included */
 } STEMBOUNDS;
 
+struct kern {
+	unsigned id; /* ID of the second glyph */
+	int val; /* kerning value */
+};
+
 typedef struct contour {
 	short           ymin, xofmin;
 	short           inside;	/* inside which contour */
@@ -145,6 +150,10 @@ typedef struct glyph {
 	int             oldwidth; /* actually also scaled */
 	int             scaledwidth;
 #define	MAXLEGALWIDTH	10000 
+
+	struct kern    *kern; /* kerning data */
+	int             kerncount; /* number of kerning pairs */
+	int             kernalloc; /* for how many pairs we have space */
 
 	STEM           *hstems; /* global horiz. and vert. stems */
 	STEM           *vstems;
@@ -216,4 +225,5 @@ void print_glyph_metrics( int code, int glyphno);
 void findblues(void);
 void stemstatistics(void);
 void docorrectwidth(void);
-
+void addkernpair( unsigned id1, unsigned id2, int unscval);
+void print_kerning( FILE *afm_file);

@@ -37,7 +37,7 @@ static void glmetrics( GLYPH *glyph_list);
 static int glenc( GLYPH *glyph_list, int *encoding, int *unimap);
 static void fnmetrics( struct font_metrics *fm);
 static void glpath( int glyphno, GLYPH *glyph_list);
-static void prkern( GLYPH *glyph_list, FILE *afm_file);
+static void kerning( GLYPH *glyph_list);
 
 /* globals */
 
@@ -54,7 +54,7 @@ struct frontsw ttf_sw = {
 	/*glenc*/      glenc,
 	/*fnmetrics*/  fnmetrics,
 	/*glpath*/     glpath,
-	/*prkern*/     prkern,
+	/*kerning*/    kerning,
 };
 
 /* statics */
@@ -1414,21 +1414,19 @@ glpath(
 }
 
 /*
- * Print out the kerning tables.
+ * Get the kerning data.
  */
 
 static void
-prkern(
-	GLYPH *glyph_list,
-	FILE *afm_file
+kerning(
+	GLYPH *glyph_list
 )
 {
 	TTF_KERN_SUB   *subtable;
 	TTF_KERN_ENTRY *kern_entry;
 	int             i, j;
-	GLYPH          *gl, *gr;
 	int             ntables;
-	int             npairs,npairs_used;
+	int             npairs;
 	char           *ptr;
 
 	if(kern_table == NULL) {
@@ -1443,40 +1441,21 @@ prkern(
 	ntables = ntohs(kern_table->nTables);
 	ptr = (char *) kern_table + 4;
 
-	fprintf(afm_file, "StartKernData\n");
 	for (i = 0; i < ntables; i++) {
 		subtable = (TTF_KERN_SUB *) ptr;
 		if ((ntohs(subtable->coverage) & 0xff00) == 0) {
 			npairs = (short) ntohs(subtable->nPairs);
 			kern_entry = (TTF_KERN_ENTRY *) (ptr + sizeof(TTF_KERN_SUB));
 
-			npairs_used = 0;
-			for (j = 0; j < npairs; j++) {
-				if (glyph_list[ntohs(kern_entry->left)].flags & GF_USED 
-				&& glyph_list[ntohs(kern_entry->right)].flags & GF_USED
-				&& kern_entry->value != 0)
-					npairs_used ++;
-				kern_entry++;
-			}
-
-			fprintf(afm_file, "StartKernPairs %hd\n", npairs_used);
 			kern_entry = (TTF_KERN_ENTRY *) (ptr + sizeof(TTF_KERN_SUB));
 			for (j = 0; j < npairs; j++) {
-				gl=&glyph_list[ntohs(kern_entry->left)];
-				gr=&glyph_list[ntohs(kern_entry->right)];
-				if( (gl->flags & GF_USED) && (gr->flags & GF_USED)
-				&& kern_entry->value != 0)
-					fprintf(afm_file, "KPX %s %s %d\n",
-						gl->name, gr->name,
-						iscale((short) ntohs(kern_entry->value))
-							- (gl->scaledwidth - gl->oldwidth)
-					);
+				if( kern_entry->value != 0)
+					addkernpair(ntohs(kern_entry->left), 
+						ntohs(kern_entry->right), (short)ntohs(kern_entry->value));
 				kern_entry++;
 			}
-			fprintf(afm_file, "EndKernPairs\n");
 		}
 		ptr += subtable->length;
 	}
-	fprintf(afm_file, "EndKernData\n");
 }
 

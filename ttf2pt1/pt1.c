@@ -39,6 +39,7 @@ double   italic_angle;
 
 GLYPH   *glyph_list;
 int    encoding[256];	/* inverse of glyph[].char_no */
+int    kerning_pairs = 0;
 
 /* prototypes */
 static int isign( int x);
@@ -5639,6 +5640,101 @@ reversepaths(
 {
 	reversepathsfromto(g->entries, NULL);
 }
+
+/* add a kerning pair information, scales the value */
+
+void
+addkernpair(
+	unsigned id1,
+	unsigned id2,
+	int unscval
+)
+{
+	static unsigned char *bits = 0;
+	static int lastid;
+	GLYPH *g = &glyph_list[id1];
+	int i, n;
+	struct kern *p;
+
+	if(unscval == 0 || id1 >= numglyphs || id2 >= numglyphs)
+		return;
+
+	if( (glyph_list[id1].flags & GF_USED)==0
+	|| (glyph_list[id2].flags & GF_USED)==0 )
+		return;
+
+	if(bits == 0) {
+		bits = calloc( BITMAP_BYTES(numglyphs), 1);
+		if (bits == NULL) {
+			fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
+			exit(255);
+		}
+		lastid = id1;
+	}
+
+	if(lastid != id1) {
+		/* refill the bitmap cache */
+		memset(bits, 0,BITMAP_BYTES(numglyphs));
+		p = g->kern;
+		for(i=g->kerncount; i>0; i--) {
+			n = (p++)->id;
+			SET_BITMAP(bits, n);
+		}
+		lastid = id1;
+	}
+
+	if(IS_BITMAP(bits, id2))
+		return; /* duplicate */
+
+	if(g->kerncount <= g->kernalloc) {
+		g->kernalloc += 8;
+		p = realloc(g->kern, sizeof(struct kern) * g->kernalloc);
+		if(p == 0) {
+			fprintf (stderr, "** realloc failed, kerning data will be incomplete\n");
+		}
+		g->kern = p;
+	}
+
+	SET_BITMAP(bits, id2);
+	p = &g->kern[g->kerncount];
+	p->id = id2;
+	p->val = iscale(unscval) - (g->scaledwidth - g->oldwidth);
+	g->kerncount++;
+	kerning_pairs++;
+}
+
+/* print out the kerning information */
+
+void
+print_kerning(
+	FILE *afm_file
+)
+{
+	int	i, j, n;
+	GLYPH *g;
+	struct kern *p;
+
+	if( kerning_pairs == 0 ) 
+		return;
+
+	fprintf(afm_file, "StartKernData\n");
+	fprintf(afm_file, "StartKernPairs %hd\n", kerning_pairs);
+
+	for(i=0; i<numglyphs; i++)  {
+		g = &glyph_list[i];
+		if( (g->flags & GF_USED) ==0)
+			continue;
+		p = g->kern;
+		for(j=g->kerncount; j>0; j--, p++) {
+			fprintf(afm_file, "KPX %s %s %d\n", g->name, 
+				glyph_list[ p->id ].name, p->val );
+		}
+	}
+
+	fprintf(afm_file, "EndKernPairs\n");
+	fprintf(afm_file, "EndKernData\n");
+}
+
 
 #if 0
 

@@ -535,15 +535,6 @@ static char *uni_lang_arg=""; /* user-supplied language-dependent argument */
 extern int      runt1asm(int);
 
 /*
- * Bitmap control macros
- */
-
-#define DEF_BITMAP(name, size)	unsigned char name[((size)+7)/8]
-#define SET_BITMAP(name, bit)	( name[(bit)/8] |= (1<<((bit)%8)) )
-#define CLR_BITMAP(name, bit)	( name[(bit)/8] &= ~(1<<((bit)%8)) )
-#define IS_BITMAP(name, bit)	( name[(bit)/8] & (1<<((bit)%8)) )
-
-/*
  * user-defined loadable maps
  */
 
@@ -1938,11 +1929,15 @@ main(
 
 	glyph_list = (GLYPH *) calloc(numglyphs,  sizeof(GLYPH));
 
+	/* initialize non-0 fields */
 	for (i = 0; i < numglyphs; i++) {
-		glyph_list[i].char_no = -1;
-		glyph_list[i].orig_code = -1;
-		glyph_list[i].name = "UNKNOWN";
-		glyph_list[i].flags = GF_FLOAT; /* we start with float representation */
+		GLYPH *g;
+
+		g = &glyph_list[i];
+		g->char_no = -1;
+		g->orig_code = -1;
+		g->name = "UNKNOWN";
+		g->flags = GF_FLOAT; /* we start with float representation */
 	}
 
 	handle_gnames();
@@ -2265,7 +2260,8 @@ main(
     fprintf(afm_file, "EndCharMetrics\n");
 
 	/* print the kerning data if present */
-	cursw->prkern(glyph_list, afm_file);
+	cursw->kerning(glyph_list);
+	print_kerning(afm_file);
 
     fprintf(afm_file, "EndFontMetrics\n");
     fclose(afm_file);

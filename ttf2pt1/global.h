@@ -38,6 +38,16 @@ extern int      numglyphs;
 #define WARNING_3	if(warnlevel >= 3)
 #define WARNING_4	if(warnlevel >= 4)
 
+/*
+ * Bitmap control macros
+ */
+
+#define BITMAP_BYTES(size)	(((size)+7)>>3)
+#define DEF_BITMAP(name, size)	unsigned char name[BITMAP_BYTES(size)]
+#define SET_BITMAP(name, bit)	( name[(bit)>>3] |= (1<<((bit)&7)) )
+#define CLR_BITMAP(name, bit)	( name[(bit)>>3] &= ~(1<<((bit)&7)) )
+#define IS_BITMAP(name, bit)	( name[(bit)>>3] & (1<<((bit)&7)) )
+
 /* debugging */
 
 /* debug flags */
@@ -139,5 +149,5 @@ struct frontsw {
 	int   (*glenc)(GLYPH *glyphs, int *enc, int *unimap); /* get the encoding */
 	void  (*fnmetrics)(struct font_metrics *fm); /* get the font metrics */
 	void  (*glpath)(int glyphno, GLYPH *glyphs); /* get the glyph path */
-	void  (*prkern)(GLYPH *glyphs, FILE *afm_file); /* print the kerning data */
+	void  (*kerning)(GLYPH *glyph_list); /* extract the kerning data */
 };

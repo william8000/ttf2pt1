@@ -29,7 +29,7 @@ static void glmetrics( GLYPH *glyph_list);
 static int glenc( GLYPH *glyph_list, int *encoding, int *unimap);
 static void fnmetrics( struct font_metrics *fm);
 static void glpath( int glyphno, GLYPH *glyph_list);
-static void prkern( GLYPH *glyph_list, FILE *afm_file);
+static void kerning( GLYPH *glyph_list);
 
 /* globals */
 
@@ -46,7 +46,7 @@ struct frontsw freetype_sw = {
 	/*glenc*/      glenc,
 	/*fnmetrics*/  fnmetrics,
 	/*glpath*/     glpath,
-	/*prkern*/     prkern,
+	/*kerning*/    kerning,
 };
 
 /* statics */
@@ -559,18 +559,16 @@ glpath(
 }
 
 /*
- * Print out the kerning tables.
+ * Get the kerning data.
  */
 
 static void
-prkern(
-	GLYPH *glyph_list,
-	FILE *afm_file
+kerning(
+	GLYPH *glyph_list
 )
 {
-	int	npairs_used, i, j, n;
+	int	i, j, n;
 	int	nglyphs = face->num_glyphs;
-	char	*hashl, *hashr;
 	FT_Vector k;
 	GLYPH *gl;
 
@@ -579,13 +577,6 @@ prkern(
 		return;
 	}
 
-	if(( hashl = calloc(nglyphs, 1) )==NULL
-	|| ( hashr = calloc(nglyphs, 1) )==NULL ) {
-		fprintf (stderr, "****malloc failed %s line %d\n", __FILE__, __LINE__);
-		exit(255);
-	}
-
-	npairs_used = 0;
 	for(i=0; i<nglyphs; i++)  {
 		if( (glyph_list[i].flags & GF_USED) ==0)
 			continue;
@@ -597,35 +588,9 @@ prkern(
 			if( k.x == 0 )
 				continue;
 
-			hashl[i] = 1; hashr[j] = 1;
-			npairs_used++;
+			addkernpair(i, j, k.x);
 		}
 	}
-
-	fprintf(afm_file, "StartKernData\n");
-	fprintf(afm_file, "StartKernPairs %hd\n", npairs_used);
-
-	for(i=0; i<nglyphs; i++)  {
-		if( !hashl[i] )
-			continue;
-		gl = &glyph_list[i];
-		for(j=0; j<nglyphs; j++) {
-			if( !hashr[j] )
-				continue;
-			if( FT_Get_Kerning(face, i, j, ft_kerning_unscaled, &k) )
-				continue;
-			if( k.x == 0 )
-				continue;
-
-			fprintf(afm_file, "KPX %s %s %d\n",
-				gl->name, glyph_list[j].name,
-				iscale(k.x) - (gl->scaledwidth - gl->oldwidth)
-			);
-		}
-	}
-
-	fprintf(afm_file, "EndKernPairs\n");
-	fprintf(afm_file, "EndKernData\n");
 }
 
 #endif
