@@ -1,0 +1,288 @@
+<!-- X-URL: http://ttf2pt1.sourceforge.net/history.html -->
+<!-- Date: Sat, 15 Apr 2000 14:19:07 GMT -->
+<BASE HREF="http://ttf2pt1.sourceforge.net/history.html">
+
+<!DOCTYPE HTML PUBLIC "-//AdvaSoft//DTD HTML 3.2 extended 961018//EN">
+<HTML>
+<HEAD>
+ <TITLE>True Type Font to Postscript type 1 Converter - history</TITLE>
+</HEAD>
+
+<BODY bgcolor="#90b0a8">
+<table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white> <tr><td align=center>
+<img src="ttf2pt2.jpg">
+</td></tr><tr><th bgcolor=#70b0a0>
+<font face=helvetica>History</font>
+</th></tr></table> </td></tr></table>
+
+<table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>Feb 28th 2000 v 3.21</font>
+</th></tr><tr><td>
+Submitted by
+Sergey Babkin
+<h2><font face=helvetica>New Features</font></h2>
+<ul>
+<li> New Unicode map format with glyph names, by Petr Titera. 
+<li> Option to force the Unicode encoding by Petr Titera (I 
+changed it to work on any MS encoding, not only Symbol). 
+<li> Slightly tweaked the calculation of hints, should be better now. 
+</ul>
+<h2><font face=helvetica> Bux fixes:</font></h2>
+<ul>
+<li> The unicode-sample.map with description of the map formats 
+was lost in the release process, restored and enhanced. 
+<li> Renamed the table ISOLatin1Encoding to Fmt3Encoding to 
+reflect the way it is used. Saved the original one for 
+reference purposes.
+In the new table renamed "quoteright" to "quotesingle" as 
+Thomas Henlich suggested (and he was right). 
+<li> In the ISOLatinEncoding table renamed the glyph "grave" 
+at octal 0140 to "quoteleft", "quotesingle" at octal 047 
+to "quoteright" to conform to the standard (as suggested by 
+Martin Trautner). 
+<li> Fixed bug in scripts/trans that corrupted the UniqueID 
+record in the translated fonts. 
+<li> Fixed bug in interaction of substituted hints with 
+BlueZones. Now the fonts with hint substitution seem to 
+be always at least not worse than without it (well, when 
+they fit in the X11 file size limit). 
+</ul>
+
+</th></tr></table> </td></tr></table>
+<table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>Jan 15th 2000 v 3.2</font>
+</th></tr><tr><td>
+Submitted by
+Sergey Babkin: combined changes with the changes by
+Thomas Henlich. The result deserves a not-so-minor version
+increase.
+<h2><font face=helvetica>New Features</font></h2>
+<ul>
+<li> Support of the external Unicode re-encoding maps
+  (by Thomas).
+<li> Support for inclusion of all the glyphs from the
+  source file into the resulting file (inspired by
+  Thomas but I re-implemented it to remove the limitation
+  of his implementation: not more than 1024 glyphs).
+<li> The hints substitution. It's an experimental feature
+  yet and needs further work.
+<li> Support for UniqueID and its auto-generation.
+<li> Support for the name-based conversions from Unicode
+  in general and the adobestd "language" in particular.
+<li> Started the split of the source code into multiple
+  files. This needs more work to do it in a cleaner
+  way.
+<li> Better framework for the debugging printout
+  in the converter.
+<li> Utilities to install the fonts in Netscape 
+  Navigator/Communicator 4.x.
+<li> Patches for bigger font files in the X11 rasterizer.
+<li> Linux RPM spec-file (by Johan Vromans).
+<li> Added the COPYRIGHT file (BSD-style, as we discussed
+  on the mailing list earlier) and the CHANGES file.
+<li> Creation of the .pfb files from the convert
+  script.
+<li> Changed the .notdef-s in the built-in
+  ISOLatin1Encoding table to some valid names (by Thomas).
+  Thomas also suggested replacing `quoteright' by
+  `quotesingle' but this seems to be against the
+  Adobe ISOLatin1 table.
+<li> New aliases windows-1251 and cp-866 for
+  the Russian encodings: those are expected by Netscape
+  navigator.
+<li> The font comparison program other/cmpf.
+<li> The "magnifying glass" program for glyph outlines:
+  other/showg.
+<li> Other updates of the tools in the `other' subdirectory.
+<li> Added a link to T1LIB in README.
+<li> A few new options in convert.cfg.
+</ul>
+<h2><font face=helvetica> Bux fixes:</font></h2>
+<ul>
+<li> A bug in the outline smoothing code that corrupted some
+  of the fonts (for example, Microsoft Verdana).
+<li> Added explicit `cleartomark' to the end of file,
+  this seems to be compatible with both old and new version
+  of t1asm (suggested by Thomas).
+<li> Added the FontEncoding statement to the AFM files
+  (techincally this was not a bug because this statement
+  is optional but some programs want it).
+<li> A coredump when the converter tried to print a warning
+  (rather ironically) about a weird glyph width.
+<li> Changed the underscores in the font names to dashes (this
+  has been proposed long time ago by someone, can't find
+  now by whom - probably by Thomas henlich or Johan Vromans).
+<li> No more glyph names of font names staring with a digit.
+<li> The names of the fonts in font and AFM files are now the
+  same as in the generated Ghostscript Fontmap file.
+  Warning: the names in Fontmap have been
+  changed.
+<li> The forceiso script does not corrupt the character
+  and kerning pairs counts any more, and is optional at all.
+<li> Fix for a loop going to 254 instead of 255 (by Thomas).
+<li> Added ':' in the font header (by Thomas).
+<li> A coredump when wrong language name is given (this was
+  also fixed by Thomas but I noticed it too late, after
+  I already fixed it by myself).
+<li> Fixed the links to the Adobe documents in README.
+
+</ul>
+
+</th></tr></table> </td></tr></table>
+<table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>Oct 18th 1999 v 3.13</font>
+</th></tr><tr><td>
+Submitted by Sergey Babkin
+<ul>
+<li> Latin2 language support by Szalay Tamas. 
+<li> Fix for the bug that made possible calls of malloc(0). 
+<li> Refinement of the option -w to prevent extra wide spacing 
+<li> New option -v for automatic re-scaling based on the vertical size of the font 
+<li> Updated docs 
+<li> Changed the code to use getopt() instead of a home-made version of it.
+</ul>
+
+</th></tr></table> </td></tr></table>
+
+<table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>Oct 2nd 1999 v 3.12</font>
+</th></tr><tr><td>
+Submitted by Sergey Babkin
+<ul>
+<li> (FINALLY!!!) a correct fix for the infamous Red Hat 6.0 stdio "feature",
+<li> a number of little bugs discovered by a picky SGI compiler (well, maybe
+some day I'll try to run it through the UnixWare lint and see what happens),    
+<li> a diagnostic message about the empty encodings in the convert script was
+made less cryptic and a bug in the awk sub-script was fixed,                    
+<li> the .afm creation code now considers the option -t.                           
+Features:                                                                       
+<li> added support for the Bulgarian language (actually, for now just an alias
+of Russian),                                                                    
+<li> added option -w that tries to make sure that the character widths are not
+too narrow,                                                                     
+<li> added the concept of aliased encodings,
+<li> now the conversion scripts create and install the .afm files too,
+<li> the conversion script removes the intermediate files after installation,
+<li> added tunables to the conversion script,
+<li> installation of the Ghostscript fonts can now be done automatically
+together with the X11 fonts.  Updated the docs.
+</ul>
+</th></tr></table> </td></tr></table>
+
+<table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>May 24th 1999 v 3.11</font>
+</th></tr><tr><td>
+Submitted by Sergey Babkin
+<ul>
+<li>It includes the Turkish (Latin5, ISO8859/9) 
+language support by Turgut Uyar and Baltic (ISO8859/4) languages support by
+Rihardas Hepas. 
+<li>Also the installation script got updated: the configuration parameters 
+are moved to a separate file and the generated fonts.dir files should now be
+compatible with Xfsft.
+</ul>
+
+</th></tr></table> </td></tr></table> <table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>March 28th 1999</font>
+</th></tr><tr><td>
+From Sergey Babkin
+<ul>
+<li>Improved the interaction of 
+the character-level hints and font-level hints</li>
+
+</th></tr></table> </td></tr></table> <table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+</ul>
+<font face=helvetica>March 6th 1999</font>
+</th></tr><tr><td>
+From Sergey Babkin
+<ul><li>Added HTML documents</li></ul>
+</th></tr></table> </td></tr></table> <table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>February 14th 1999</font>
+</th></tr><tr><td>
+From Sergey Babkin
+<UL>
+<LI>Adds ability to print the .afm file instead of the font to STDOUT
+<LI>Removes the force-fixed option that proved to be troublesome and adds
+the guessing of the /ForceBold parameter that proved to be useful.
+<LI>Updates to the README file.
+</UL>
+
+</th></tr></table> </td></tr></table> <table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>December 11th, 1998</font>
+</th></tr><tr><td>
+From Andrew Weeks
+<UL>
+<LI>Versions of handle_post and handle_cmap that deal with some
+problems with buggy fonts.
+<LI>Added option (passed to t1asm) to create a compressed binary
+version of the font (A PFB file).
+<LI>Minor Bug Fixes.
+</UL>
+</th></tr></table> </td></tr></table> <table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>December 5th, 1998</font>
+</th></tr><tr><td>
+From Thomas Henlich
+<UL><LI>Integration of AFM file creation.
+</UL>
+</th></tr></table> </td></tr></table> <table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>November 15th, 1998</font>
+</th></tr><tr><td>
+From Serge Babkin
+<UL><LI>fixed a couple of bugs.
+<LI>added the auto-calculation of the italic angle.
+</UL>
+
+</th></tr></table> </td></tr></table> <table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>October 18, 1998</font>
+</th></tr><tr><td>
+From Serge Babkin
+<UL>
+<LI> improved (although still not perfect) handling of
+scaling in composite glyphs
+<LI> scaling of fonts to 1000x1000 M-square required by
+Type1 standard
+<LI> printing out the contours in reverse direction, because
+TTF directions are different from Type1 ones (that was
+the major reason why the fonts generated by
+version 2.2 were rendered so badly in small sizes)
+<LI>automatic correction of outlines to make them more
+smooth (to correct both rounding errors introduced
+during conversion and present in the original font)
+<LI>automatic generation of hints (still has lots of
+space for improvement)
+<LI>automatic generation of BlueValues etc.
+</UL>
+</th></tr></table> </td></tr></table> <table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>June 22nd, 1998</font>
+</th></tr><tr><td>
+From Thomas Henlich
+<UL><LI>"width" should be "short int" because otherwise:
+characters with negative widths (e.g. -4) become *very* wide (65532)
+<LI>the number of /CharStrings is numglyphs and not numglyphs+1
+</UL>
+</th></tr></table> </td></tr></table> <table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>February 13th, 1998</font>
+</th></tr><tr><td>
+<UL>
+	<LI>An original Bug Reported by Frank, which was just incorrect syntax in the 
+	Type 1 header, managed to creep back into the Feb 04 Version. This has been
+	Fixed in the Feb 13 Version.
+	
+</UL>
+
+</th></tr></table> </td></tr></table> <table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>February 4th, 1998</font>
+</th></tr><tr><td>
+From Andrew Weeks
+<UL>
+	<LI>There is a problem with accented characters. The accents
+	are appearing in the wrong places.
+	<LI>A workaround was implemented in ttf2pfa by altering the matrix. I suspect 
+	I will have to calculate the correct values, as matrix ops are probably not
+	allowed in Type 1 format.
+</UL>
+
+</td></tr></table></td></tr></table>
+
+</BODY>
+</HTML>
