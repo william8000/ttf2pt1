@@ -1848,19 +1848,19 @@ main(
 	/* open the input file */
 	cursw->open(argv[1], front_arg);
 
-        /* Get base name of output file (if not specified)
+	/* Get base name of output file (if not specified)
 	 * by removing (known) suffixes
 	 */
-        if (argc == 2) {
-	        char *p;
-                argv[2] = strdup (argv[1]);
+	if (argc == 2) {
+		char *p;
+		argv[2] = strdup (argv[1]);
 		p = strrchr(argv[2], '.');
-	        if (p != NULL)
-		  for (j = 0; (j < MAXSUFFIX) && (cursw->suffix[j]); j++)
- 		    if (!strcmp(p+1, cursw->suffix[j])) {
-		      *p = '\0';
-		      break;
-		    }
+		if (p != NULL)
+			for (j = 0; (j < MAXSUFFIX) && (cursw->suffix[j]); j++)
+				if (!strcmp(p+1, cursw->suffix[j])) {
+					*p = '\0';
+					break;
+				}
 	}
 
 	if (argv[2][0] == '-' && argv[2][1] == 0) {
