@@ -25,6 +25,31 @@
 </th></tr></table> </td></tr></table>
 
 <table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
+<font face=helvetica>December 31st 2003 v 3.4.4</font>
+</th></tr><tr><td>
+Packaged by
+Sergey Babkin
+<h2><font face=helvetica>New Features</font></h2>
+<ul>
+<li> Improved the auto-vectoring (-OV) alrogithm.
+<li> Allow use of any encoding table of format 4 in the ttf parser.
+<li> Take the first available format 4 encoding table if no known
+  table is found in the ttf parser.
+<li> The ttf parser lists the available encodings if no supported
+  encoding table is found. This can be used to list the encodings in
+  any font by specifying a bogus explicit PID/EID, such as
+  with option <b>-l plane+pid=50,eid=50</b>.
+</ul>
+<h2><font face=helvetica>Bug fixes:</font></h2>
+<ul>
+<li> Fix to build all the features on Windows MS C++, by Tomoo Amano.
+<li> Fix for a null pointer in the encodings, bad inner loop variable.
+<li> Unified the parsing of font name strings and improved the checks 
+  against invalid characters.
+</ul>
+</th></tr></table> </td></tr></table>
+
+<table width=100% bgcolor="black"><tr><td> <table width=100% bgcolor=white><tr><th bgcolor=70b0a0>
 <font face=helvetica>December 2nd 2002 v 3.4.3</font>
 </th></tr><tr><td>
 Packaged by
