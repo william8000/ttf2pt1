@@ -233,11 +233,12 @@ glenc(
 	int i, e;
 	unsigned code;
 
-	for(e=0; e < face->num_charmaps; e++) {
-		fprintf(stderr, "found encoding pid=%d eid=%d\n", 
-			face->charmaps[e]->platform_id,
-			face->charmaps[e]->encoding_id);
-	}
+	if(ISDBG(FT)) 
+		for(e=0; e < face->num_charmaps; e++) {
+			fprintf(stderr, "found encoding pid=%d eid=%d\n", 
+				face->charmaps[e]->platform_id,
+				face->charmaps[e]->encoding_id);
+		}
 
 	if(enc_found)
 		goto populate_map;
