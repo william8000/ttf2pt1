@@ -51,10 +51,8 @@ LIBS_SYS= -lm
 
 #
 # The flags for C compiler for the FreeType-2 library (disabled by default). 
-# This code was tested with FreeType-current. It WON'T BUILD with FT2-beta8.
-# Though it probably will work fine with later betas.
-# FreeType can be downloaded from 
-# ftp://freetype.sourceforge.net/pub/freetype/unstable/freetype2-current.tar.gz
+# This WON'T BUILD with FT2-beta8, use the FreeType release 2.0.
+# http://download.sourceforge.net/freetype/freetype-2.0.tar.gz
 
 CFLAGS_FT= 
 
