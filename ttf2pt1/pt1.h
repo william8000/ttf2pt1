@@ -82,11 +82,16 @@ typedef struct gentry {
 typedef struct stem {
 	short           value;	/* value of X or Y coordinate */
 	short           origin;	/* point of origin for curve stems */
-		/* also for all the stems the tuple (value, origin, flags & ST_UP)
+	GENTRY         *ge; /* entry that has (value, origin) as its first dot */
+		/* also for all the stems the couple (value, origin)
 		 * is used to determine whether a stem is relevant for a
 		 * line, it's considered revelant if this tuple is
-		 * equal to any of the ends of the line
+		 * equal to any of the ends of the line.
+		 * ge is also used to resolve ambiguity if there is more than
+		 * one line going through certain pointi, it is used to 
+		 * distinguish these lines.
 		 */
+	 
 	short           from, to;	/* values of other coordinate between
 					 * which this stem is valid */
 

@@ -125,10 +125,7 @@ rmoveto(
 	int dy
 )
 {
-	if (optimize && dx == 0 && dy == 0)	/* for special pathologic
-						 * case */
-		return;
-	else if (optimize && dx == 0)
+	if (optimize && dx == 0)
 		fprintf(pfa_file, "%d vmoveto\n", dy);
 	else if (optimize && dy == 0)
 		fprintf(pfa_file, "%d hmoveto\n", dx);
@@ -2566,7 +2563,8 @@ joinsubstems(
 }
 
 /* 
- * Find the best stem in the array at the specified (value, origin) .
+ * Find the best stem in the array at the specified (value, origin),
+ * related to the entry ge.
  * Returns its index in the array sp, -1 means "none".
  * prevbest is the result for the other end of the line, we must 
  * find something better than it or leave it as it is.
@@ -2575,6 +2573,7 @@ static int
 findstemat(
 	int value,
 	int origin,
+	GENTRY *ge,
 	STEM *sp,
 	short *pairs,
 	int ns,
@@ -2622,8 +2621,16 @@ findstemat(
 		si--;
 
 	for(; si<ns && sp[si].value==value; si++) {
-		if(sp[si].origin != origin)
+		if(sp[si].origin != origin) 
 			continue;
+		if(sp[si].ge != ge) {
+			if(ISDBG(SUBSTEMS)) {
+				fprintf(stderr, 
+					"dbg: possible self-intersection at v=%d o=%d exp_ge=0x%x ge=0x%x\n",
+					value, origin, ge, sp[si].ge);
+			}
+			continue;
+		}
 		i=pairs[si]; /* the other side of this stem */
 		if(i<0)
 			continue; /* oops, no other side */
@@ -2697,12 +2704,12 @@ gssentry( /* crazy number of parameters */
 	y=ge->prev->iy3;
 
 	if(*nextvsi == -2)
-		si[SI_VP]=findstemat(x, y, vs, vpairs, nvs, -1);
+		si[SI_VP]=findstemat(x, y, ge, vs, vpairs, nvs, -1);
 	else {
 		si[SI_VP]= *nextvsi; *nextvsi= -2;
 	}
 	if(*nexthsi == -2)
-		si[SI_HP]=findstemat(y, x, hs, hpairs, nhs, -1);
+		si[SI_HP]=findstemat(y, x, ge, hs, hpairs, nhs, -1);
 	else {
 		si[SI_HP]= *nexthsi; *nexthsi= -2;
 	}
@@ -2717,9 +2724,9 @@ gssentry( /* crazy number of parameters */
 
 	if(ge->type==GE_LINE) {
 		if(ge->ix3==x) { /* vertical line */
-			*nextvsi=si[SI_VP]=findstemat(x, ge->iy3, vs, vpairs, nvs, si[SI_VP]);
+			*nextvsi=si[SI_VP]=findstemat(x, ge->iy3, ge->frwd, vs, vpairs, nvs, si[SI_VP]);
 		} else if(ge->iy3==y) { /* horizontal line */
-			*nexthsi=si[SI_HP]=findstemat(y, ge->ix3, hs, hpairs, nhs, si[SI_HP]);
+			*nexthsi=si[SI_HP]=findstemat(y, ge->ix3, ge->frwd, hs, hpairs, nhs, si[SI_HP]);
 		}
 	}
 
@@ -3044,6 +3051,8 @@ buildstems(
 	assertisint(g, "buildstems int");
 
 	g->nhs = g->nvs = 0;
+	memset(hs, 0, sizeof hs);
+	memset(vs, 0, sizeof vs);
 
 	/* first search the whole character for possible stem points */
 
@@ -3052,7 +3061,7 @@ buildstems(
 
 			/*
 			 * SURPRISE! 
-			 * We consider the stems bounded by the
+			 * We consider the stems bound by the
 			 * H/V ends of the curves as flat ones.
 			 *
 			 * But we don't include the point on the
@@ -3070,6 +3079,7 @@ buildstems(
 					hs[g->nhs].flags = ST_FLAT;
 
 				hs[g->nhs].origin = ge->prev->ix3;
+				hs[g->nhs].ge = ge;
 
 				if (ge->ix1 < ge->prev->ix3) {
 					hs[g->nhs].from = ge->ix1+1;
@@ -3095,6 +3105,7 @@ buildstems(
 					vs[g->nvs].flags = ST_FLAT;
 
 				vs[g->nvs].origin = ge->prev->iy3;
+				vs[g->nvs].ge = ge;
 
 				if (ge->iy1 < ge->prev->iy3) {
 					vs[g->nvs].from = ge->iy1+1;
@@ -3122,6 +3133,7 @@ buildstems(
 					hs[g->nhs].flags = ST_FLAT;
 
 				hs[g->nhs].origin = ge->ix3;
+				hs[g->nhs].ge = ge->frwd;
 
 				if (ge->ix3 < ge->ix2) {
 					hs[g->nhs].from = ge->ix3;
@@ -3148,6 +3160,7 @@ buildstems(
 					vs[g->nvs].flags = ST_FLAT;
 
 				vs[g->nvs].origin = ge->iy3;
+				vs[g->nvs].ge = ge->frwd;
 
 				if (ge->iy3 < ge->iy2) {
 					vs[g->nvs].from = ge->iy3;
@@ -3184,11 +3197,12 @@ buildstems(
 
 				/* check for vertical extremums */
 				if (ge->iy3 > ge->iy2 && ge->iy3 > ny
-				    || ge->iy3 < ge->iy2 && ge->iy3 < ny) {
+				|| ge->iy3 < ge->iy2 && ge->iy3 < ny) {
 					hs[g->nhs].value = ge->iy3;
 					hs[g->nhs].from
 						= hs[g->nhs].to
 						= hs[g->nhs].origin = ge->ix3;
+					hs[g->nhs].ge = ge->frwd;
 
 					if (ge->ix3 < ge->ix2
 					    || nx < ge->ix3)
@@ -3205,11 +3219,12 @@ buildstems(
 				 */
 				/* check for horizontal extremums */
 				if (ge->ix3 > ge->ix2 && ge->ix3 > nx
-				    || ge->ix3 < ge->ix2 && ge->ix3 < nx) {
+				|| ge->ix3 < ge->ix2 && ge->ix3 < nx) {
 					vs[g->nvs].value = ge->ix3;
 					vs[g->nvs].from
 						= vs[g->nvs].to
 						= vs[g->nvs].origin = ge->iy3;
+					vs[g->nvs].ge = ge->frwd;
 
 					if (ge->iy3 > ge->iy2
 					    || ny > ge->iy3)
@@ -3240,6 +3255,7 @@ buildstems(
 					hs[g->nhs].to = ge->ix3;
 				}
 				hs[g->nhs].origin = ge->ix3;
+				hs[g->nhs].ge = ge->frwd;
 
 				pge = ge->bkwd;
 
@@ -3248,6 +3264,7 @@ buildstems(
 				vs[g->nvs].origin
 					= vs[g->nvs].from
 					= vs[g->nvs].to = pge->iy3;
+				vs[g->nvs].ge = ge;
 
 				if(pge->type==GE_CURVE)
 					ovalue=pge->iy2;
@@ -3269,6 +3286,7 @@ buildstems(
 				vs[g->nvs].origin
 					= vs[g->nvs].from
 					= vs[g->nvs].to = ge->iy3;
+				vs[g->nvs].ge = ge->frwd;
 
 				if(nge->type==GE_CURVE)
 					ovalue=nge->iy1;
@@ -3302,6 +3320,7 @@ buildstems(
 					vs[g->nvs].to = ge->prev->iy3;
 				}
 				vs[g->nvs].origin = ge->iy3;
+				vs[g->nvs].ge = ge->frwd;
 
 				pge = ge->bkwd;
 
@@ -3310,6 +3329,7 @@ buildstems(
 				hs[g->nhs].origin
 					= hs[g->nhs].from
 					= hs[g->nhs].to = pge->ix3;
+				hs[g->nhs].ge = ge;
 
 				if(pge->type==GE_CURVE)
 					ovalue=pge->ix2;
@@ -3331,6 +3351,7 @@ buildstems(
 				hs[g->nhs].origin
 					= hs[g->nhs].from
 					= hs[g->nhs].to = ge->ix3;
+				hs[g->nhs].ge = ge->frwd;
 
 				if(nge->type==GE_CURVE)
 					ovalue=nge->ix1;
@@ -3368,11 +3389,12 @@ buildstems(
 
 			/* check for vertical extremums */
 			if (ge->iy3 > ge->prev->iy3 && ge->iy3 > ny
-			    || ge->iy3 < ge->prev->iy3 && ge->iy3 < ny) {
+			|| ge->iy3 < ge->prev->iy3 && ge->iy3 < ny) {
 				hs[g->nhs].value = ge->iy3;
 				hs[g->nhs].from
 					= hs[g->nhs].to
 					= hs[g->nhs].origin = ge->ix3;
+				hs[g->nhs].ge = ge->frwd;
 
 				if (ge->ix3 < ge->prev->ix3
 				    || nx < ge->ix3)
@@ -3389,11 +3411,12 @@ buildstems(
 			 */
 			/* check for horizontal extremums */
 			if (ge->ix3 > ge->prev->ix3 && ge->ix3 > nx
-			    || ge->ix3 < ge->prev->ix3 && ge->ix3 < nx) {
+			|| ge->ix3 < ge->prev->ix3 && ge->ix3 < nx) {
 				vs[g->nvs].value = ge->ix3;
 				vs[g->nvs].from
 					= vs[g->nvs].to
 					= vs[g->nvs].origin = ge->iy3;
+				vs[g->nvs].ge = ge->frwd;
 
 				if (ge->iy3 > ge->prev->iy3
 				    || ny > ge->iy3)
