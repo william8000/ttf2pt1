@@ -312,7 +312,7 @@ $XDSTENC"
 			enc="$SRCENC"
 			echo "******* $name -> $enc ************" >>$LOG
 
-			sed 's|^\/FontName.*$|/FontName '$psname$enc' def|' <./$name.$SRCENC.t1a \
+			sed 's|^\/FontName.*$|/FontName /'$psname$enc' def|' <./$name.$SRCENC.t1a \
 				| $FORCEISO | $T1ASM >./$name.$enc.$SUFFIX
 			[ -s ./$name.$enc.$SUFFIX ] || {
 				echo "$MYSELF: can't convert/assemble Type1 file for $name.$enc" >&2
