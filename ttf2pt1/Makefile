@@ -99,12 +99,12 @@ warning: docs
 DOCS=CHANGES README INSTALL INSTALL.hpux encodings/README other/README \
 	app/X11/README app/netscape/README
 
-all:	t1asm ttf2pfa ttf2pt1 docs rpm
+all:	t1asm ttf2pt1 docs rpm
 
 docs: $(DOCS)
 
 clean:
-	rm -f t1asm ttf2pfa ttf2pt1 *.o app/RPM/Makefile app/RPM/*.spec *.core core.* core
+	rm -f t1asm ttf2pt1 *.o app/RPM/Makefile app/RPM/*.spec *.core core.* core
 	( cd other && make clean; )
 
 veryclean: clean
@@ -120,9 +120,6 @@ app/RPM/ttf2pt1.spec: app/RPM/ttf2pt1.spec.src version.h
 
 t1asm: t1asm.c
 	$(CC) $(CFLAGS) -o t1asm -DSTANDALONE t1asm.c $(LIBS)
-
-ttf2pfa:	ttf2pfa.c ttf.h
-	$(CC) $(CFLAGS) -o ttf2pfa ttf2pfa.c $(LIBS)
 
 ttf2pt1.o: ttf2pt1.c ttf.h pt1.h global.h version.h
 	$(CC) $(CFLAGS) -c ttf2pt1.c
