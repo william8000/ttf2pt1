@@ -56,6 +56,7 @@ static char portnotice[] =
 
 #ifdef WINDOWS
 #	ifdef STANDALONE
+#		define WINDOWS_FUNCTIONS
 #		include "windows.h"
 #	endif
 #endif

@@ -10,7 +10,7 @@
 #undef ntohl
 #undef htonl
 
-#ifdef WINDOWS_FUNCTONS
+#ifdef WINDOWS_FUNCTIONS
 /* byte order */
 
 static unsigned short StoM(unsigned short inv) {
