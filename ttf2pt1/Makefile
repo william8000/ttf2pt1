@@ -143,7 +143,7 @@ warning: docs
 	@echo >&2
 
 DOCS=CHANGES README FONTS FONTS.hpux encodings/README other/README \
-	app/X11/README app/netscape/README app/TeX/README
+	app/X11/README app/netscape/README app/TeX/README ../README.md
 
 SUBDIRS = app encodings maps scripts other
 TXTFILES = README* FONTS* CHANGES* COPYRIGHT
@@ -154,6 +154,9 @@ MANS=$(MANS1) $(MANS5)
 all:	t1asm ttf2pt1 docs mans rpm
 
 docs: $(DOCS)
+
+../README.md: README.html
+	pandoc -f html -t gfm -o ../README.md README.html
 
 mans: $(MANS) 
 
