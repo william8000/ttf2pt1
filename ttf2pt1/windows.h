@@ -23,7 +23,7 @@ static unsigned short StoM(unsigned short inv) {
 
     outv.uc[0] = inp->uc[1];
     outv.uc[1] = inp->uc[0];
- 
+
     return (outv.ui);
 }
 
@@ -53,7 +53,7 @@ int optind=1;
 char getopt(int argc, char **argv, char *args) {
 	int n,nlen=strlen(args),nLen=0;
 	char nCmd;
-	
+
 	if (argv[optind] && *argv[optind]=='-') {
 		nCmd=*((argv[optind]+1));
 
@@ -75,7 +75,7 @@ char getopt(int argc, char **argv, char *args) {
 					return retVal;
 				}
 			}
-		}	
+		}
 	}
 	return -1;
 }

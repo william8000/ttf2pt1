@@ -125,7 +125,7 @@ readfile(
 }
 
 /*
- * Parse the header of the font file. 
+ * Parse the header of the font file.
  * Stop after the line CHARS is encountered. Ignore the unknown lines.
  */
 
@@ -142,11 +142,11 @@ struct line {
 	int nvals; /* number of values to be read by sscanf */
 	void *vp[4]; /* pointers to values to be read */
 };
-		
+
 static struct line header[] = {
 	{ GETLEN("FONT "), 0, " %200s", 1, {&xlfdname} },
 	{ GETLEN("SIZE "), MUST_SEE, " %d", 1, {&pixel_size} },
-	{ GETLEN("FONTBOUNDINGBOX "), MUST_SEE, " %hd %hd %hd %hd", 4, 
+	{ GETLEN("FONTBOUNDINGBOX "), MUST_SEE, " %hd %hd %hd %hd", 4,
 		{&fmet.bbox[2], &fmet.bbox[3], &fmet.bbox[0], &fmet.bbox[1]} },
 	{ GETLEN("FAMILY_NAME "), MUST_SEE, NULL, 1, {&fmet.name_family} },
 	{ GETLEN("WEIGHT_NAME "), MUST_SEE, NULL, 1, {&fmet.name_style} },
@@ -190,7 +190,7 @@ handle_header(
 		if(cl->flags & IS_SEEN) {
 			if(cl->flags & ALLOW_REPEAT)
 				continue;
-			
+
 			fprintf(stderr, "**** input line %d redefines the property %s\n", lineno, cl->name);
 			exit(1);
 		}
@@ -224,7 +224,7 @@ handle_header(
 		} else {
 			c = sscanf(str+cl->namelen, cl->fmt, cl->vp[0], cl->vp[1], cl->vp[2], cl->vp[3]);
 			if(c != cl->nvals) {
-				fprintf(stderr, "**** property %s at input line %d must have %d arguments\n", 
+				fprintf(stderr, "**** property %s at input line %d must have %d arguments\n",
 					cl->name, lineno, cl->nvals);
 				exit(1);
 			}
@@ -267,7 +267,7 @@ handle_glyphs(
 	}
 	if(!LENCMP(str, "STARTCHAR")) {
 		/* sizeof will count \0 instead of ' ' */
-		for(i=sizeof("STARTCHAR"); str[i] == ' '; i++) 
+		for(i=sizeof("STARTCHAR"); str[i] == ' '; i++)
 			{}
 
 		glyphs[curgl].name = strdup(str + i);
@@ -306,7 +306,7 @@ handle_glyphs(
 		glyphs[curgl].yMin = -yoff*scale;
 		glyphs[curgl].yMax = (ysz-xoff)*scale;
 	} else if(!LENCMP(str, "BITMAP")) {
-		inbmap=1; 
+		inbmap=1;
 		curln=ysz-1; /* the lowest line has index 0 */
 	} else if(!LENCMP(str, "ENDCHAR")) {
 		inbmap=0;
@@ -342,10 +342,10 @@ handle_glyphs(
 			}
 			if(c<='9')
 				c-='0';
-			else 
+			else
 				c= tolower(c)-'a'+10;
 
-			for(plim=p+4; p<psz && p<plim; c<<=1) 
+			for(plim=p+4; p<psz && p<plim; c<<=1)
 				*p++ = (( c & 0x08 )!=0);
 		}
 		if(p<psz) {
@@ -445,7 +445,7 @@ openfont(
 	}
 	for(cl = header; cl->name != 0; cl++) {
 		if( (cl->flags & MUST_SEE) && !(cl->flags & IS_SEEN) ) {
-			fprintf(stderr, "**** mandatory property %sis not found in the input line\n", 
+			fprintf(stderr, "**** mandatory property %sis not found in the input line\n",
 				cl->name); /* cl->name has a space at the end */
 			exit(1);
 		}
@@ -489,7 +489,7 @@ openfont(
 	}
 
 	fmet.italic_angle = 0.0;
-	if(spacing == 0 /* possibly an old font */ 
+	if(spacing == 0 /* possibly an old font */
 	|| toupper(spacing[0]) != 'P') /* or anything non-proportional */
 		fmet.is_fixed_pitch = 1;
 	else
@@ -497,9 +497,9 @@ openfont(
 
 	if(fmet.name_copyright==NULL)
 		fmet.name_copyright = "";
-	
+
 	/* create the full name */
-	l = strlen(fmet.name_family) 
+	l = strlen(fmet.name_family)
 		+ (fmet.name_style? strlen(fmet.name_style) : 0)
 		+ (fnwidth? strlen(fnwidth) : 0)
 		+ strlen("Oblique") + 1;
@@ -586,7 +586,7 @@ glnames(
 }
 
 /*
- * Get the original encoding of the font. 
+ * Get the original encoding of the font.
  * Returns 1 for if the original encoding is Unicode, 2 if the
  * original encoding is other 16-bit, 0 if 8-bit.
  */
@@ -620,11 +620,11 @@ glenc(
 	else
 		return 0;
 }
-	
+
 /*
  * Get the font metrics
  */
-static void 
+static void
 fnmetrics(
 	struct font_metrics *fm
 )

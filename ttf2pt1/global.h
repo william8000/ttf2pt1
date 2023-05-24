@@ -130,7 +130,7 @@ struct font_metrics {
 	short	is_fixed_pitch;
 
 	/* hhea */
-	short	ascender; 
+	short	ascender;
 	short	descender;
 
 	/* head */

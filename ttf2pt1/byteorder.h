@@ -15,10 +15,10 @@
 #else
 #define ntohs(x) \
     ((USHORT)((((USHORT)(x) & 0x00ff) << 8) | \
-              (((USHORT)(x) & 0xff00) >> 8))) 
+              (((USHORT)(x) & 0xff00) >> 8)))
 #define ntohl(x) \
     ((ULONG)((((ULONG)(x) & 0x000000ffU) << 24) | \
              (((ULONG)(x) & 0x0000ff00U) <<  8) | \
              (((ULONG)(x) & 0x00ff0000U) >>  8) | \
-             (((ULONG)(x) & 0xff000000U) >> 24)))  
+             (((ULONG)(x) & 0xff000000U) >> 24)))
 #endif

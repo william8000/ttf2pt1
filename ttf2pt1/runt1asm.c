@@ -20,7 +20,7 @@
 FILE *ifp;
 FILE *ofp;
 
-int 
+int
 runt1asm(
 	int pfbflag
 )
@@ -57,7 +57,7 @@ runt1asm(
 		error = execlp("t1asm", "t1asm", NULL);
 
 	perror("** Calling t1asm");
-	
+
 	exit(1);
 }
 
