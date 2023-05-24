@@ -119,6 +119,7 @@ int      wantuid = 0;	/* user wants UniqueID entry in the font */
 int      allglyphs = 0;	/* convert all glyphs, not only 256 of them */
 int      warnlevel = 3;	/* the level of permitted warnings */
 int      forcemap = 0; /* do mapping even on non-Unicode fonts */
+int	 adddashes = 0;	/* add dashes in the ps font name */
 /* options - maximal limits */
 int      max_stemdepth = 128;	/* maximal depth of stem stack in interpreter (128 - limit from X11) */
 /* options - debugging */
@@ -644,7 +645,7 @@ unicode_init_user(
 			continue;
 		}
 
-		if(sscanf(buffer, "id %d %d", pid, eid)==2) {
+		if(sscanf(buffer, "id %d %d", &pid, &eid)==2) {
 			if( !overid /* only if the user has not overriden */
 			&& (enabled || !sawplane) ) { 
 				force_pid = pid; force_eid = eid;
@@ -1148,7 +1149,7 @@ unicode_prepare_buckets(
 
 static char *
 nametoprint(
-	unsigned char *s
+	const char *s
 )
 {
 	static char res[50];
@@ -1192,6 +1193,7 @@ iscale(
 		      : scale_factor * val - 0.5);
 }
 
+#if 0
 /*
  * Try to force fixed width of characters
  */
@@ -1235,6 +1237,7 @@ alignwidths(void)
 		fontm.is_fixed_pitch = 1;
 	}
 }
+#endif
 
 static void
 convert_glyf(
@@ -1316,6 +1319,9 @@ handle_gnames(void)
 {
 	int             i, n, found, c, type;
 
+	/* initialize */
+	type = 0;
+
 	/* get the names from the font file */
 	ps_fmt_3 = cursw->glnames(glyph_list);
 
@@ -1324,7 +1330,7 @@ handle_gnames(void)
 		int             c;
 		for (i = 0; (c = glyph_list[n].name[i]) != 0; i++) {
 			if (!(isalnum(c) || c == '.' || c == '_' || c == '-') 
-			|| i==0 && isdigit(c)) { /* must not start with a digit */
+			|| (i==0 && isdigit(c))) { /* must not start with a digit */
 				WARNING_3 fprintf(stderr, "Glyph %d %s (%s), ",
 					n, isdigit(c) ? "name starts with a digit" : 
 						"has bad characters in name",
@@ -1477,8 +1483,19 @@ handle_gnames(void)
 	/* enforce two special cases defined in TTF manual */
 	if(numglyphs > 0)
 		glyph_list[0].name = ".notdef";
-	if(numglyphs > 1)
-		glyph_list[1].name = ".null";
+	if(numglyphs > 1) {
+		if (numglyphs > 2 &&
+		    glyph_list[1].name != NULL &&
+		    glyph_list[2].name != NULL &&
+		    strlen(glyph_list[1].name) == 1 &&
+		    strlen(glyph_list[2].name) == 1 &&
+		    glyph_list[2].name[0] == (char) (glyph_list[1].name[0] + 1)) {
+			/* avoid breaking non-ttf fonts */
+			/* otf fonts can have 1 A, 2 B, etc. */
+		} else {
+			glyph_list[1].name = ".null";
+		}
+	}
 
  	for (i = 0; i < ENCTABSZ; i++) {
  		if ((encoding[i] != 0) && glyph_rename[i]) {
@@ -1562,6 +1579,8 @@ usage(void)
 	fputs("  -a - include all glyphs, even those not in the encoding table\n", stderr);
 	fplop(" --pfb\n");
 	fputs("  -b - produce a compressed .pfb file\n", stderr);
+	fplop(" --add-dashes\n");
+	fputs("  -D - add dashes in postscript font names\n", stderr);
 	fplop(" --debug dbg_suboptions\n");
 	fputs("  -d dbg_suboptions - debugging options, run ttf2pt1 -d? for help\n", stderr);
 	fplop(" --encode\n");
@@ -1707,6 +1726,7 @@ main(
 	static struct option longopts[] = {
 		{ "afm", 0, NULL, 'A' },
 		{ "all-glyphs", 0, NULL, 'a' },
+		{ "add-dashes", 0, NULL, 'D' },
 		{ "pfb", 0, NULL, 'b' },
 		{ "debug", 1, NULL, 'd' },
 		{ "encode", 0, NULL, 'e' },
@@ -1776,7 +1796,7 @@ main(
 			cmdline[i] = ' ';
 
 
-	while(( oc=ttf2pt1_getopt(argc, argv, "FaoebAsthHfwVv:p:l:d:u:L:m:W:O:G:",
+	while(( oc=ttf2pt1_getopt(argc, argv, "FaoebDAsthHfwVv:p:l:d:u:L:m:W:O:G:",
 			longopts, NULL) )!= -1) {
 		switch(oc) {
 		case 'W':
@@ -1812,6 +1832,9 @@ main(
 		case 't':
 			fputs("Warning: option -t is obsolete, use -Ot instead\n", stderr);
 			transform = 0;
+			break;
+		case 'D':
+			adddashes = 1;
 			break;
 		case 'd':
 			for(i=0; optarg[i]!=0; i++)

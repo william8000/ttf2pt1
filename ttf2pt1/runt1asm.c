@@ -10,7 +10,12 @@
 #ifdef EXTERNAL_T1ASM
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <errno.h>
+#ifdef _MSDOS
+#else
+  #include <unistd.h>
+#endif
 
 FILE *ifp;
 FILE *ofp;

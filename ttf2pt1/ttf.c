@@ -462,7 +462,6 @@ draw_simple_glyf(
 {
 	int             i, j, k, k1, len, first, cs, ce;
 	/* We assume that hsbw always sets to(0, 0) */
-	double          xlast = 0, ylast = 0;
 	int             finished, nguide, contour_start, contour_end;
 	short           ncontours, n_inst, last_point;
 	USHORT         *contour_end_pt;
@@ -581,14 +580,10 @@ draw_simple_glyf(
 
 		if (first) {
 			fg_rmoveto(g, xcoord[i], ycoord[i]);
-			xlast = xcoord[i];
-			ylast = ycoord[i];
 			contour_start = i;
 			first = 0;
 		} else if (flags[i] & ONOROFF) {
 			fg_rlineto(g, xcoord[i], ycoord[i]);
-			xlast = xcoord[i];
-			ylast = ycoord[i];
 		} else {
 			cs = i - 1;
 			finished = nguide = 0;
@@ -608,8 +603,6 @@ draw_simple_glyf(
 			switch (nguide) {
 			case 0:
 				fg_rlineto(g, xcoord[ce], ycoord[ce]);
-				xlast = xcoord[ce];
-				ylast = ycoord[ce];
 				break;
 
 			case 1:
@@ -621,8 +614,6 @@ draw_simple_glyf(
 					    xcoord[ce],
 					    ycoord[ce]
 					);
-				xlast = xcoord[ce];
-				ylast = ycoord[ce];
 
 				break;
 
@@ -635,8 +626,6 @@ draw_simple_glyf(
 					    xcoord[ce],
 					    ycoord[ce]
 					);
-				xlast = xcoord[ce];
-				ylast = ycoord[ce];
 				break;
 
 			case 3:
@@ -666,8 +655,6 @@ draw_simple_glyf(
 					    xcoord[ce],
 					    ycoord[ce]
 					);
-				ylast = ycoord[ce];
-				xlast = xcoord[ce];
 
 				break;
 
@@ -702,8 +689,6 @@ draw_simple_glyf(
 					    xcoord[ce],
 					    ycoord[ce]
 					);
-				xlast = xcoord[ce];
-				ylast = ycoord[ce];
 
 				break;
 			}
@@ -1402,6 +1387,35 @@ fnmetrics(
 	fm->name_version = name_fields[5];
 	fm->name_ps = name_fields[6];
 
+	/* add dashes */
+	if (adddashes) {
+		char *name;
+		name = malloc(strlen(fm->name_full) + 1);
+		if (name != NULL) {
+			int i, j;
+			strcpy(name, fm->name_full);
+			i = 0;
+			j = 0;
+			while (name[i] != '\0') {
+				if (fm->name_ps[j] == '\0') {
+					break;
+				}
+				if (fm->name_ps[j] == name[i]) {
+					j++; i++;
+					continue;
+				}
+				if (name[i] == ' ' || name[i] == '_') {
+					name[i++] = '-';
+					continue;
+				}
+				break;
+			}
+			if (name[i] == '\0' && fm->name_ps[j] == '\0') {
+				fm->name_ps = name;
+			}
+		}
+	}
+
 	/* guess the boldness from the font names */
 	fm->force_bold=0;
 
@@ -1410,8 +1424,8 @@ fnmetrics(
 		len = strlen(str);
 		for(j=0; j<len; j++) {
 			if( (str[j]=='B'
-				|| str[j]=='b' 
-					&& ( j==0 || !isalpha(str[j-1]) )
+				|| ( str[j]=='b'
+					&& ( j==0 || !isalpha(str[j-1]) ) )
 				)
 			&& !strncmp("old",&str[j+1],3)
 			&& (j+4 >= len || !islower(str[j+4]))

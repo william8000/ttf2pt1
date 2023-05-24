@@ -79,7 +79,7 @@ openfont(
 		exit(1);
 	}
 
-	if( error = FT_New_Face( library, fname, 0, &face ) ) {
+	if( ( error = FT_New_Face( library, fname, 0, &face ) ) != 0 ) {
 		if ( error == FT_Err_Unknown_File_Format )
 			fprintf(stderr, "**** %s has format unknown to FreeType\n", fname);
 		else
@@ -126,7 +126,7 @@ getnglyphs (
 	void
 )
 {
-	if(ISDBG(FT)) fprintf(stderr, "%d glyphs in font\n", face->num_glyphs);
+	if(ISDBG(FT)) fprintf(stderr, "%ld glyphs in font\n", face->num_glyphs);
 	return (int)face->num_glyphs;
 }
 
@@ -142,7 +142,7 @@ glnames(
 )
 {
 #define MAX_NAMELEN	1024
-	unsigned char bf[1024];
+	char bf[1024];
 	int i;
 
 	if( ! FT_HAS_GLYPH_NAMES(face) ) {
@@ -422,7 +422,7 @@ fnmetrics(
 #endif /* ENABLE_SFNT */
 	for(i=0; fm->name_ps[i]!=0; i++)
 		if(fm->name_ps[i] == ' ')
-			fm->name_ps[i] = '_'; /* no spaces in the Postscript name *m
+			fm->name_ps[i] = '_'; /* no spaces in the Postscript name */
 
 	/* guess the boldness from the font names */
 	fm->force_bold=0;
@@ -436,8 +436,8 @@ fnmetrics(
 		len = strlen(str);
 		for(j=0; j<len; j++) {
 			if( (str[j]=='B'
-				|| str[j]=='b' 
-					&& ( j==0 || !isalpha(str[j-1]) )
+				|| ( str[j]=='b'
+					&& ( j==0 || !isalpha(str[j-1]) ) )
 				)
 			&& !strncmp("old",&str[j+1],3)
 			&& (j+4 >= len || !islower(str[j+4]))
@@ -458,7 +458,7 @@ static double lastx, lasty;
 
 static int
 outl_moveto(
-	FT_Vector *to,
+	const FT_Vector *to,
 	void *unused
 )
 {
@@ -478,7 +478,7 @@ outl_moveto(
 
 static int
 outl_lineto(
-	FT_Vector *to,
+	const FT_Vector *to,
 	void *unused
 )
 {
@@ -494,8 +494,8 @@ outl_lineto(
 
 static int
 outl_conicto(
-	FT_Vector *control1,
-	FT_Vector *to,
+	const FT_Vector *control1,
+	const FT_Vector *to,
 	void *unused
 )
 {
@@ -515,9 +515,9 @@ outl_conicto(
 
 static int
 outl_cubicto(
-	FT_Vector *control1,
-	FT_Vector *control2,
-	FT_Vector *to,
+	const FT_Vector *control1,
+	const FT_Vector *control2,
+	const FT_Vector *to,
 	void *unused
 )
 {
@@ -590,10 +590,9 @@ kerning(
 	GLYPH *glyph_list
 )
 {
-	int	i, j, n;
+	int	i, j;
 	int	nglyphs = face->num_glyphs;
 	FT_Vector k;
-	GLYPH *gl;
 
 	if( nglyphs == 0 || !FT_HAS_KERNING(face) ) {
         WARNING_1 fputs("No Kerning data\n", stderr);

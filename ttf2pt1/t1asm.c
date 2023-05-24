@@ -33,7 +33,11 @@
  */
 
 #ifndef lint
-static char copyright[] =
+static char copyright[]
+#if (defined(__GCC__) || defined(__GNUC__))
+  __attribute__((used))
+#endif
+  =
   "@(#) Copyright (c) 1992 by I. Lee Hetherington, all rights reserved.";
 #ifdef _MSDOS
 static char portnotice[] =
@@ -373,7 +377,7 @@ static void charstring_byte(int v)
   byte b = (byte) (v & 0xff);
 
   if (charstring_bp - charstring_buf > sizeof(charstring_buf)) {
-    fprintf(stderr, "error: charstring_buf full (%d bytes)\n",
+    fprintf(stderr, "error: charstring_buf full (%lu bytes)\n",
             sizeof(charstring_buf));
     exit(1);
   }
@@ -387,7 +391,7 @@ static void charstring_end()
 {
   byte *bp;
 
-  sprintf(line, "%d ", charstring_bp - charstring_buf);
+  sprintf(line, "%ld ", charstring_bp - charstring_buf);
   eexec_string(line);
   sprintf(line, "%s ", cs_start);
   eexec_string(line);
@@ -462,6 +466,7 @@ static void parse_charstring()
   charstring_end();
 }
 
+#ifdef STANDALONE
 static void usage()
 {
   fprintf(stderr,
@@ -485,7 +490,6 @@ static void print_banner()
   fprintf(stderr, "This is t1asm %s.\n", revision);
 }
 
-#ifdef STANDALONE
 int main(int argc, char **argv)
 {
   char *p, *q, *r;

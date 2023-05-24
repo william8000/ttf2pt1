@@ -20,11 +20,11 @@
 #
 # Default
 
-CFLAGS_SYS= -O
+#CFLAGS_SYS= -O
 
 # For GNU C
 #
-#CFLAGS_SYS= -O2
+CFLAGS_SYS= -O2 -Wall
 #
 # For GNU C with long options support library (Linux etc.)
 #
@@ -54,24 +54,25 @@ LIBS_SYS= -lm
 # This WON'T BUILD with FT2-beta8, use the FreeType release 2.0.4
 # http://download.sourceforge.net/freetype/freetype-2.0.4.tar.gz
 
-CFLAGS_FT= 
+#CFLAGS_FT=
 
 # To enable use of the FreeType-2 library
 # (if the include and lib directory do not match your installation,
 # modify them), also uncomment LIBS_FT
 #
 #CFLAGS_FT = -DUSE_FREETYPE -I/usr/local/include/freetype2 -I/usr/local/include
+CFLAGS_FT = -DUSE_FREETYPE -I/usr/include/freetype2
 
 # 
 # The FreeType-2 library flags (disabled by default)
 
-LIBS_FT=
+#LIBS_FT=
 
 # To enable use of the FreeType-2 library
 # (if the include and lib directory do not match your installation,
 # modify them), also uncomment CFLAGS_FT
 #
-#LIBS_FT= -L/usr/local/lib -lfreetype
+LIBS_FT= -L/usr/local/lib -lfreetype
 
 #
 # The flags for C compiler for the Autotrace library (disabled by default). 

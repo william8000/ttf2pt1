@@ -98,7 +98,6 @@ readfile(
 )
 {
 	static char str[MAXLINE]; /* input line, maybe should be dynamic ? */
-	char *s;
 	int len, c, res;
 
 	len=0;

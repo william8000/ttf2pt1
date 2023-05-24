@@ -346,7 +346,7 @@ dosubfrag(
 ) 
 {
 	GENTRY *gel, *gei; /* last gentry of this subfrag */
-	GEX_FRAG *f, *ff, *lf, *pf, *xf;
+	GEX_FRAG *f, *lf, *pf, *xf;
 	/* maximal amount of space that can be used at the beginning and the end */
 	double fixfront[2], fixend[2]; /* fixed points - used to show direction */
 	double mvfront[2], mvend[2]; /* movable points */
@@ -355,11 +355,10 @@ dosubfrag(
 	int outfront, outend; /* the beginning/end is going outwards */
 	int symfront, symend; /* a ready symmetric fragment is present at front/end */
 	int drnd[2 /*X,Y*/]; /* size of the round part */
-	int i, j, a1, a2, ndots;
+	int i, a1, a2, ndots;
 	double avg2, max2; /* squared distances */
 	struct dot_dist *dots, *usedots;
 
-	ff = X_FRAG(firstge);
 	f = X_FRAG(ge);
 	gel = f->nextsub;
 	lf = X_FRAG(gel);
@@ -1463,7 +1462,7 @@ discard_small_curves(
 	int clen = cctr->clen;
 
 	GENTRY *ge, *pge;
-	int d, len;
+	int d;
 	GEX_FRAG *f;
 
 	for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
@@ -1501,7 +1500,7 @@ prefer_serifs(
 	GENTRY **age = cctr->age;
 	int clen = cctr->clen;
 
-	GENTRY *ge, *pge;
+	GENTRY *ge;
 	int d, len;
 	GEX_FRAG *f;
 
@@ -1529,6 +1528,7 @@ prefer_serifs(
 }
 
 
+#if 0
 /* 
  * Find all kinds of stems: horizontal, vertical and diagonal.
  * Basically, as long as two line fragments keep the same distance 
@@ -1552,11 +1552,9 @@ find_stems(
 {
 	struct bmpcontour *cctr = contours;
 	GENTRY *cge = cctr->cge;
-	GENTRY **age = cctr->age;
-	int clen = cctr->clen;
 
-	GENTRY *ge, *pge;
-	int d, len;
+	GENTRY *ge;
+	int d;
 	GEX_FRAG *f;
 
 	ge = cge->next;
@@ -1568,6 +1566,7 @@ find_stems(
 		ge = ge->frwd;
 	} while(ge != cge->next);
 }
+#endif
 
 /*
  * longer exact lines take priority over curves; shorter lines
@@ -1586,7 +1585,7 @@ prefer_long_lines(
 	GENTRY **age = cctr->age;
 	int clen = cctr->clen;
 
-	GENTRY *ge, *pge;
+	GENTRY *ge;
 	int d, len;
 	GEX_FRAG *f;
 
@@ -1820,7 +1819,7 @@ resolve_curves_lines(
 			for(d = GEXFI_CONVEX; d<= GEXFI_CONCAVE; d++) {
 				if(X_FRAG(pge)->len[d]) {
 					fprintf(stderr, "    removed %s frag at %p len=%d covered by line\n", 
-						gxf_name[d], pge, X_FRAG(pge)->len[d], len);
+						gxf_name[d], pge, X_FRAG(pge)->len[d]);
 					good = 0;
 				}
 				X_FRAG(pge)->len[d] = 0;
@@ -2014,7 +2013,7 @@ assert_no_conflicts(
 	int clen = cctr->clen;
 
 	GENTRY *ge, *pge;
-	int d, len, dx, dy;
+	int d, dx, dy;
 	GEX_FRAG *f;
 
 	ge = cge->next;
@@ -2102,7 +2101,7 @@ vectorize_contour(
 	int clen = cctr->clen;
 
 	GENTRY *ge, *pge;
-	int d, len, k1, k2, count, good, i, j;
+	int len, k1, k2, count, good, i, j;
 	GEX_FRAG *f;
 
 	/* vectorize each fragment separately 
@@ -2184,7 +2183,7 @@ vectorize_contour(
 		GENTRY *ordhd; /* head of the order list */
 		GENTRY **ordlast;
 		int nsub; /* number of subfrags */
-		GEX_FRAG *ff, *lf, *xf;
+		GEX_FRAG *ff, *xf;
 
 		f = X_FRAG(ge);
 		switch(f->ixstart) {
@@ -2584,7 +2583,7 @@ bmp_outline(
 			}
 			xor = (outer ^ hor ^ dir);
 
-		try1:
+		/* try1: */
 			/* first we try to change axis, to keep the
 			 * contour as long as possible
 			 */
@@ -2692,11 +2691,9 @@ bmp_outline(
 	/* try to vectorize the curves and sloped lines in the bitmap */
 	if(vectorize && ncontours != 0) { 
 		struct bmpcontour *contours; /* dynamic array of contour data */
-		struct bmpcontour *cctr; /* current contour */
 		int cidx; /* index of cctr in the array */
 		
 		GENTRY *ge, *pge, *cge, *loopge;
-		int i;
 		int skip;
 
 		dumppaths(g, NULL, NULL);
@@ -2729,7 +2726,7 @@ bmp_outline(
 
 		}
 		if(cidx != ncontours) {
-			fprintf(stderr, "Internal error: found %d contours, should be %d\n",
+			fprintf(stderr, "%s:%d:Internal error: found %d contours, should be %d\n",
 				__FILE__, __LINE__, cidx, ncontours);
 			exit(1);
 		}
@@ -2780,7 +2777,7 @@ bmp_outline(
 		skip = 0;
 
 		for(ge = pge; ge != 0; ge = ge->next) {
-			GEX_FRAG *f, *pf;
+			GEX_FRAG *f;
 
 			switch(ge->type) {
 			case GE_LINE:

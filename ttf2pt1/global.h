@@ -13,6 +13,7 @@ extern int      wantuid;	/* user wants UniqueID entry in the font */
 extern int      allglyphs;	/* convert all glyphs, not only 256 of them */
 extern int      warnlevel;	/* the level of permitted warnings */
 extern int      forcemap; /* do mapping even on non-Unicode fonts */
+extern int	adddashes;	/* add dashes in the ps font name */
 /* options - maximal limits */
 extern int      max_stemdepth;	/* maximal depth of stem stack in interpreter */
 /* options - debugging */
@@ -87,7 +88,7 @@ extern int      numglyphs;
 #endif
 
 /* uncomment the next line if debugging data is wanted for one glyph only */
-/* #define DBG_GLYPH	"C118"  /* */
+/* #define DBG_GLYPH	"C118"  */
 
 #if DEBUG==0
 #	define ISDBG(name)	(0)
@@ -105,8 +106,8 @@ extern int      numglyphs;
 #	define DBG_TO_GLYPH(g) DISABLEDBG( strcmp( (g)->name, DBG_GLYPH ) )
 #	define DBG_FROM_GLYPH(g) ENABLEDBG(1)
 #else
-#	define DBG_TO_GLYPH(g) (0)
-#	define DBG_FROM_GLYPH(g) (0)
+#	define DBG_TO_GLYPH(g)
+#	define DBG_FROM_GLYPH(g)
 #endif
 
 /* prototypes */

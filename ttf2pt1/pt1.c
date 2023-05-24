@@ -127,7 +127,7 @@ static void fixcvends( GENTRY * ge);
 static int fgetcvdir( GENTRY * ge);
 static int igetcvdir( GENTRY * ge);
 static int fiszigzag( GENTRY *ge);
-static int iiszigzag( GENTRY *ge);
+/* static int iiszigzag( GENTRY *ge); */
 static GENTRY * freethisge( GENTRY *ge);
 static void addgeafter( GENTRY *oge, GENTRY *nge );
 static GENTRY * newgentry( int flags);
@@ -135,7 +135,7 @@ static void debugstems( char *name, STEM * hstems, int nhs, STEM * vstems, int n
 static int addbluestems( STEM *s, int n);
 static void sortstems( STEM * s, int n);
 static int stemoverlap( STEM * s1, STEM * s2);
-static int steminblue( STEM *s);
+/* static int steminblue( STEM *s); */
 static void markbluestems( STEM *s, int nold);
 static int joinmainstems( STEM * s, int nold, int useblues);
 static void joinsubstems( STEM * s, short *pairs, int nold, int useblues);
@@ -143,7 +143,7 @@ static void fixendpath( GENTRY *ge);
 static void fdelsmall( GLYPH *g, double minlen);
 static void alloc_gex_con( GENTRY *ge);
 static double fjointsin2( GENTRY *ge1, GENTRY *ge2);
-static double fcvarea( GENTRY *ge);
+/* static double fcvarea( GENTRY *ge); */
 static double fcvval( GENTRY *ge, int axis, double t);
 static void fsampledots( GENTRY *ge, double dots[][2], int ndots);
 static void fnormalizege( GENTRY *ge);
@@ -294,6 +294,7 @@ assertpath(
 		return;
 	isfloat = (from->flags & GEF_FLOAT);
 	pe = from->prev;
+	first = NULL;
 	for (ge = from; ge != 0; pe = ge, ge = ge->next) {
 		if( (ge->flags & GEF_FLOAT) ^ isfloat ) {
 			fprintf(stderr, "**! assertpath: called from %s line %d (%s) ****\n", file, line, name);
@@ -303,7 +304,7 @@ assertpath(
 		}
 		if (pe != ge->prev) {
 			fprintf(stderr, "**! assertpath: called from %s line %d (%s) ****\n", file, line, name);
-			fprintf(stderr, "unidirectional chain 0x%x -next-> 0x%x -prev-> 0x%x \n",
+			fprintf(stderr, "unidirectional chain 0x%p -next-> 0x%p -prev-> 0x%p \n",
 				pe, ge, ge->prev);
 			abort();
 		}
@@ -314,7 +315,7 @@ assertpath(
 		case GE_PATH:
 			if (ge->prev == 0) {
 				fprintf(stderr, "**! assertpath: called from %s line %d (%s) ****\n", file, line, name);
-				fprintf(stderr, "empty path at 0x%x \n", ge);
+				fprintf(stderr, "empty path at 0x%p \n", ge);
 				abort();
 			}
 			break;
@@ -322,7 +323,7 @@ assertpath(
 		case GE_CURVE:
 			if(ge->frwd->bkwd != ge) {
 				fprintf(stderr, "**! assertpath: called from %s line %d (%s) ****\n", file, line, name);
-				fprintf(stderr, "unidirectional chain 0x%x -frwd-> 0x%x -bkwd-> 0x%x \n",
+				fprintf(stderr, "unidirectional chain 0x%p -frwd-> 0x%p -bkwd-> 0x%p \n",
 					ge, ge->frwd, ge->frwd->bkwd);
 				abort();
 			}
@@ -330,7 +331,7 @@ assertpath(
 				first = ge;
 				if(ge->bkwd->next->type != GE_PATH) {
 					fprintf(stderr, "**! assertpath: called from %s line %d (%s) ****\n", file, line, name);
-					fprintf(stderr, "broken first backlink 0x%x -bkwd-> 0x%x -next-> 0x%x \n",
+					fprintf(stderr, "broken first backlink 0x%p -bkwd-> 0x%p -next-> 0x%p \n",
 						ge, ge->bkwd, ge->bkwd->next);
 					abort();
 				}
@@ -338,7 +339,7 @@ assertpath(
 			if(ge->next->type == GE_PATH) {
 				if(ge->frwd != first) {
 					fprintf(stderr, "**! assertpath: called from %s line %d (%s) ****\n", file, line, name);
-					fprintf(stderr, "broken loop 0x%x -...-> 0x%x -frwd-> 0x%x \n",
+					fprintf(stderr, "broken loop 0x%p -...-> 0x%p -frwd-> 0x%p \n",
 						first, ge, ge->frwd);
 					abort();
 				}
@@ -760,7 +761,7 @@ fixcvends(
 		return;
 
 	if(ge->flags & GEF_FLOAT) {
-		fprintf(stderr, "**! fixcvends(0x%x) on floating entry, ABORT\n", ge);
+		fprintf(stderr, "**! fixcvends(0x%p) on floating entry, ABORT\n", ge);
 		abort(); /* dump core */
 	}
 
@@ -779,8 +780,8 @@ fixcvends(
 		dx = x2 - x1;
 		dy = y2 - y1;
 
-		if (dx == 0 && dy == 0
-		    || x2 == x3 && y2 == y3) {
+		if ((dx == 0 && dy == 0)
+		    || (x2 == x3 && y2 == y3)) {
 			/* Oops, we actually have a straight line */
 			/*
 			 * if it's small, we hope that it will get optimized
@@ -910,7 +911,7 @@ fixcvdir(
 	int             fdir, rdir;
 
 	if(ge->flags & GEF_FLOAT) {
-		fprintf(stderr, "**! fixcvdir(0x%x) on floating entry, ABORT\n", ge);
+		fprintf(stderr, "**! fixcvdir(0x%p) on floating entry, ABORT\n", ge);
 		abort(); /* dump core */
 	}
 
@@ -1040,7 +1041,7 @@ fgetcvdir(
 	int             dir = 0;
 
 	if( !(ge->flags & GEF_FLOAT) ) {
-		fprintf(stderr, "**! fgetcvdir(0x%x) on int entry, ABORT\n", ge);
+		fprintf(stderr, "**! fgetcvdir(0x%p) on int entry, ABORT\n", ge);
 		abort(); /* dump core */
 	}
 
@@ -1102,7 +1103,7 @@ igetcvdir(
 	int             dir = 0;
 
 	if(ge->flags & GEF_FLOAT) {
-		fprintf(stderr, "**! igetcvdir(0x%x) on floating entry, ABORT\n", ge);
+		fprintf(stderr, "**! igetcvdir(0x%p) on floating entry, ABORT\n", ge);
 		abort(); /* dump core */
 	}
 
@@ -1200,7 +1201,7 @@ dumppaths(
 	for(ge = g->entries; ge != 0; ge = ge->next) {
 		if(ge == start)
 			mark = '*';
-		fprintf(stderr, " %c %8x", mark, ge);
+		fprintf(stderr, " %c %8p", mark, ge);
 		switch(ge->type) {
 		case GE_MOVE:
 		case GE_LINE:
@@ -1333,7 +1334,7 @@ fcheckcv(
 )
 {
 	if( !(ge->flags & GEF_FLOAT) ) {
-		fprintf(stderr, "**! fcheckcv(0x%x) on int entry, ABORT\n", ge);
+		fprintf(stderr, "**! fcheckcv(0x%p) on int entry, ABORT\n", ge);
 		abort(); /* dump core */
 	}
 
@@ -1361,7 +1362,7 @@ icheckcv(
 	int             xdep, ydep;
 
 	if(ge->flags & GEF_FLOAT) {
-		fprintf(stderr, "**! icheckcv(0x%x) on floating entry, ABORT\n", ge);
+		fprintf(stderr, "**! icheckcv(0x%p) on floating entry, ABORT\n", ge);
 		abort(); /* dump core */
 	}
 
@@ -1396,7 +1397,7 @@ fclosepaths(
 			continue;
 
 		ge = xge->prev;
-		if(ge == 0 || ge->type != GE_LINE && ge->type!= GE_CURVE) {
+		if(ge == 0 || (ge->type != GE_LINE && ge->type != GE_CURVE)) {
 			fprintf(stderr, "**! Glyph %s got empty path\n",
 				g->name);
 			exit(1);
@@ -1604,8 +1605,8 @@ smoothjoints(
 			if (abs(dx1) <= 4 && abs(dx2) <= 4
 			    && dy1 != 0 && 5 * abs(dx1) / abs(dy1) == 0
 			    && dy2 != 0 && 5 * abs(dx2) / abs(dy2) == 0
-			    && (ge->iy3 < ge->prev->iy3 && ne->iy3 < ge->iy3
-				|| ge->iy3 > ge->prev->iy3 && ne->iy3 > ge->iy3)
+			    && ((ge->iy3 < ge->prev->iy3 && ne->iy3 < ge->iy3)
+				|| (ge->iy3 > ge->prev->iy3 && ne->iy3 > ge->iy3))
 			  && (ge->ix3 - ge->prev->ix3) * (ne->ix3 - ge->ix3) < 0
 				) {
 				dir = igetcvdir(ge);
@@ -1841,8 +1842,8 @@ stemoverlap(
 {
 	int             result;
 
-	if (s1->from <= s2->from && s1->to >= s2->from
-	    || s2->from <= s1->from && s2->to >= s1->from)
+	if ((s1->from <= s2->from && s1->to >= s2->from)
+	    || (s2->from <= s1->from && s2->to >= s1->from))
 		result = 1;
 	else
 		result = 0;
@@ -1853,6 +1854,7 @@ stemoverlap(
 	return result;
 }
 
+#if 0
 /* 
  * check if the stem [border] is in an appropriate blue zone
  * (currently not used)
@@ -1884,6 +1886,7 @@ steminblue(
 
 	return 0;
 }
+#endif
 
 /* mark the outermost stem [borders] in the blue zones */
 
@@ -2202,7 +2205,7 @@ joinmainstems(
 				else
 					pri = 2;
 
-				if (pri < readystem && s[nnew + 1].value >= stack[j].value
+				if ((pri < readystem && s[nnew + 1].value >= stack[j].value)
 				    || !stemoverlap(&stack[j], &s[i]))
 					continue;
 
@@ -2644,6 +2647,7 @@ subfrombase(
 	return 1;
 }
 
+#if 0
 /* for debugging */
 static void
 printbasestem(void)
@@ -2655,6 +2659,7 @@ printbasestem(void)
 		printf("%d-%d ", xbstem[i], xbstem[i+1]);
 	printf(") %d\n", xblast);
 }
+#endif
 
 /*
  * Join the stem borders to build the sets of substituted stems
@@ -2757,8 +2762,8 @@ joinsubstems(
 					pri=2;
 
 				if(lastpri==0
-				|| pri > lastpri  
-				&& ( lastpri==1 || s[j].value-v<20 || (s[x].value-v)*2 >= s[j].value-v ) ) {
+				|| (pri > lastpri
+				    && ( lastpri==1 || s[j].value-v<20 || (s[x].value-v)*2 >= s[j].value-v ) ) ) {
 					lastpri=pri;
 					x=j;
 				}
@@ -2776,8 +2781,8 @@ joinsubstems(
 					pri=2;
 
 				if(lastpri==0
-				|| pri > lastpri  
-				&& ( lastpri==1 || v-s[j].value<20 || (v-s[x].value)*2 >= v-s[j].value ) ) {
+				|| (pri > lastpri
+				    && ( lastpri==1 || v-s[j].value<20 || (v-s[x].value)*2 >= v-s[j].value ) ) ) {
 					lastpri=pri;
 					x=j;
 				}
@@ -2811,7 +2816,7 @@ uniformstems(
 	  int ns
 )
 {
-	int i, j, from, to, val, dir;
+	int i, from, to, val, dir;
 	int pri, prevpri[2], wd, prevwd[2], prevbest[2];
 
 	for(from=0; from<ns; from=to) {
@@ -2877,6 +2882,8 @@ findstemat(
 	int wd, prevwd; /* stem width */
 
 	si= -1; /* nothing yet */
+	prevpri = 0;
+	prevwd = 0;
 
 	/* stems are ordered by value, binary search */
 	min=0; max=ns; /* min <= i < max */
@@ -2917,7 +2924,7 @@ findstemat(
 		if(sp[si].ge != ge) {
 			if(ISDBG(SUBSTEMS)) {
 				fprintf(stderr, 
-					"dbg: possible self-intersection at v=%d o=%d exp_ge=0x%x ge=0x%x\n",
+					"dbg: possible self-intersection at v=%d o=%d exp_ge=0x%p ge=0x%p\n",
 					value, origin, ge, sp[si].ge);
 			}
 			continue;
@@ -2929,7 +2936,7 @@ findstemat(
 		if( (sp[si].flags | sp[i].flags) & ST_END )
 			pri=0;
 		wd=abs(sp[i].value-value);
-		if( prevbest == -1 || pri >prevpri 
+		if( prevbest == -1 || pri > prevpri
 		|| pri==prevpri && prevwd==0 || wd!=0 && wd<prevwd ) {
 			prevbest=si;
 			prevpri=pri;
@@ -3487,8 +3494,8 @@ buildstems(
 					continue;
 
 				/* check for vertical extremums */
-				if (ge->iy3 > ge->iy2 && ge->iy3 > ny
-				|| ge->iy3 < ge->iy2 && ge->iy3 < ny) {
+				if ((ge->iy3 > ge->iy2 && ge->iy3 > ny)
+				|| (ge->iy3 < ge->iy2 && ge->iy3 < ny)) {
 					hs[g->nhs].value = ge->iy3;
 					hs[g->nhs].from
 						= hs[g->nhs].to
@@ -3509,8 +3516,8 @@ buildstems(
 				 * vertical extremum
 				 */
 				/* check for horizontal extremums */
-				if (ge->ix3 > ge->ix2 && ge->ix3 > nx
-				|| ge->ix3 < ge->ix2 && ge->ix3 < nx) {
+				if ((ge->ix3 > ge->ix2 && ge->ix3 > nx)
+				|| (ge->ix3 < ge->ix2 && ge->ix3 < nx)) {
 					vs[g->nvs].value = ge->ix3;
 					vs[g->nvs].from
 						= vs[g->nvs].to
@@ -3679,8 +3686,8 @@ buildstems(
 				continue;
 
 			/* check for vertical extremums */
-			if (ge->iy3 > ge->prev->iy3 && ge->iy3 > ny
-			|| ge->iy3 < ge->prev->iy3 && ge->iy3 < ny) {
+			if ((ge->iy3 > ge->prev->iy3 && ge->iy3 > ny)
+			|| (ge->iy3 < ge->prev->iy3 && ge->iy3 < ny)) {
 				hs[g->nhs].value = ge->iy3;
 				hs[g->nhs].from
 					= hs[g->nhs].to
@@ -3701,8 +3708,8 @@ buildstems(
 			 * extremum
 			 */
 			/* check for horizontal extremums */
-			if (ge->ix3 > ge->prev->ix3 && ge->ix3 > nx
-			|| ge->ix3 < ge->prev->ix3 && ge->ix3 < nx) {
+			if ((ge->ix3 > ge->prev->ix3 && ge->ix3 > nx)
+			|| (ge->ix3 < ge->prev->ix3 && ge->ix3 < nx)) {
 				vs[g->nvs].value = ge->ix3;
 				vs[g->nvs].from
 					= vs[g->nvs].to
@@ -3838,7 +3845,7 @@ fstraighten(
 	double          df;
 	int             dir;
 	double          iln, oln;
-	int             svdir, i, o;
+	int             i, o;
 
 	for (ige = g->entries; ige != 0; ige = ige->next) {
 		if (ige->type != GE_CURVE)
@@ -3865,7 +3872,7 @@ fstraighten(
 			|| ge->fpoints[o][2] == ge->fpoints[o][1] 
 			|| ge->fpoints[o][0] == pge->fpoints[o][2]
 			|| iln > 2.
-			|| iln > 1.  && iln/oln > 0.1 )
+			|| ( iln > 1. && iln/oln > 0.1 ) )
 				continue;
 
 
@@ -3909,7 +3916,7 @@ fstraighten(
 			if(ge != pge) { 
 				if( pge->type == GE_LINE && pge->fpoints[i][2] == pge->prev->fpoints[i][2]
 				&& fabs(pge->fpoints[o][2] != pge->prev->fpoints[o][2]) ) {
-					if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten join with previous 0x%x 0x%x\n", pge, ge);
+					if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten join with previous 0x%p 0x%p\n", pge, ge);
 					/* join the previous line with current */
 					pge->fx3 = ge->fx3;
 					pge->fy3 = ge->fy3;
@@ -3924,7 +3931,7 @@ fstraighten(
 			if(ge != nge) { 
 				if (nge->type == GE_LINE && nge->fpoints[i][2] == ge->fpoints[i][2]
 				&& fabs(nge->fpoints[o][2] != ge->fpoints[o][2]) ) {
-					if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten join with next 0x%x 0x%x\n", ge, nge);
+					if(ISDBG(STRAIGHTEN)) fprintf(stderr,"** straighten join with next 0x%p 0x%p\n", ge, nge);
 					/* join the next line with current */
 					ge->fx3 = nge->fx3;
 					ge->fy3 = nge->fy3;
@@ -4055,7 +4062,7 @@ ffixquadrants(
 	doagain:
 		np = 0; /* no split points yet */
 		if(ISDBG(QUAD)) {
-			fprintf(stderr, "%s: trying 0x%x (%g %g) (%g %g) (%g %g) (%g %g)\n  ", g->name,
+			fprintf(stderr, "%s: trying 0x%p (%g %g) (%g %g) (%g %g) (%g %g)\n  ", g->name,
 				ge,  ge->prev->fx3, ge->prev->fy3, ge->fx1, ge->fy1, ge->fx2, ge->fy2,
 				ge->fx3, ge->fy3);
 		}
@@ -4076,7 +4083,7 @@ ffixquadrants(
 				continue;
 
 			if(ISDBG(QUAD))
-				fprintf(stderr, "%s: 0x%x: %d pts(%c): ", 
+				fprintf(stderr, "%s: 0x%p: %d pts(%c): ", 
 					g->name, ge, np-oldnp, i? 'y':'x');
 
 			/* remove points that are too close to the ends 
@@ -4127,7 +4134,7 @@ ffixquadrants(
 			continue;
 
 		if(ISDBG(QUAD)) {
-			fprintf(stderr, "%s: splitting 0x%x (%g %g) (%g %g) (%g %g) (%g %g) at %d points\n  ", g->name,
+			fprintf(stderr, "%s: splitting 0x%p (%g %g) (%g %g) (%g %g) (%g %g) at %d points\n  ", g->name,
 				ge,  ge->prev->fx3, ge->prev->fy3, ge->fx1, ge->fy1, ge->fx2, ge->fy2,
 				ge->fx3, ge->fy3, np);
 			for(i=0; i<np; i++)
@@ -4149,7 +4156,7 @@ ffixquadrants(
 			k1 = sp[j];
 			k2 = 1 - k1;
 
-			if(ISDBG(QUAD)) fprintf(stderr, "   0x%x %g/%g\n", ge, k1, k2);
+			if(ISDBG(QUAD)) fprintf(stderr, "   0x%p %g/%g\n", ge, k1, k2);
 
 			nge = newgentry(GEF_FLOAT);
 			(*nge) = (*ge);
@@ -4184,6 +4191,7 @@ ffixquadrants(
 
 }
 
+#if 0
 /* check if a curve is a zigzag */
 
 static int
@@ -4228,11 +4236,12 @@ iiszigzag(
 		k2 = fabs((double) b / (double) a);
 
 	/* if the curve is not a zigzag */
-	if (k1+0.0001 >= k && k2 <= k+0.0001 || k1 <= k+0.0001 && k2+0.0001 >= k)
+	if ((k1+0.0001 >= k && k2 <= k+0.0001) || (k1 <= k+0.0001 && k2+0.0001 >= k))
 		return 0;
 	else
 		return 1;
 }
+#endif
 
 /* check if a curve is a zigzag - floating */
 
@@ -4278,7 +4287,7 @@ fiszigzag(
 		k2 = b / a;
 
 	/* if the curve is not a zigzag */
-	if (k1+0.0001 >= k && k2 <= k+0.0001 || k1 <= k+0.0001 && k2+0.0001 >= k)
+	if ((k1+0.0001 >= k && k2 <= k+0.0001) || (k1 <= k+0.0001 && k2+0.0001 >= k))
 		return 0;
 	else
 		return 1;
@@ -4689,7 +4698,7 @@ fdelsmall(
 		/* now we have a sequence of small fragments in pge...nge (inclusive) */
 
 		if(ISDBG(FCONCISE))  {
-			fprintf(stderr, "glyph %s has very small fragments(%x..%x..%x)\n", 
+			fprintf(stderr, "glyph %s has very small fragments(%p..%p..%p)\n", 
 			g->name, pge, ge, nge);
 			dumppaths(g, pge, nge);
 		}
@@ -5105,7 +5114,7 @@ fdotcurvdist2(
 	double sum[NWSECT];
 	/* counts by sections */
 	double count[NWSECT];
-	int d, i, j;
+	int d, i;
 	int id1, id2;
 	double dist1, dist2, dist3, dx, dy, x, y;
 	double max = 0.;
@@ -5285,11 +5294,13 @@ fapproxcurve(
 	double from[2 /*B,C*/], to[2 /*B,C*/];
 	double middf[2 /*B,C*/][2 /*X,Y*/], df;
 	double coef[2 /*B,C*/][MAXSECT]; 
-	double res[MAXSECT][MAXSECT], thisres, bestres, goodres;
+	double thisres, bestres, goodres;
 	int ncoef[2 /*B,C*/], best[2 /*B,C*/], good[2 /*B,C*/];
 	int i, j, k, keepsym;
-	char bc[]="BC";
-	char xy[]="XY";
+	/* char bc[]="BC"; */
+	/* char xy[]="XY"; */
+
+	goodres = 0;
 
 #ifdef DEBUG_APPROXCV
 	fprintf(stderr, "Curve points:");
@@ -5343,7 +5354,7 @@ fapproxcurve(
 					cv[1][k] = cv[0][k] + middf[B][k]*coef[B][i];
 					cv[2][k] = cv[3][k] + middf[C][k]*coef[C][j];
 				}
-				res[i][j] = thisres = fdotcurvdist2(cv, dots, ndots, NULL);
+				thisres = fdotcurvdist2(cv, dots, ndots, NULL);
 				if(thisres < bestres) {
 					goodres = bestres;
 					good[B] = best[B];
@@ -5541,7 +5552,7 @@ fsampledots(
 )
 {
 	int i, axis;
-	double t, nf, dx, d[2];
+	double t, nf, d[2];
 
 	nf = ndots+1;
 	if(ge->type == GE_CURVE) {
@@ -5718,7 +5729,7 @@ fanalyzejoint(
 	GENTRY *nge = ge->frwd;
 	GENTRY tge;
 	GEX_CON *gex, *ngex;
-	double avsd2, dots[3][2 /*X,Y*/];
+	double dots[3][2 /*X,Y*/];
 	int i;
 
 	gex = X_CON(ge); ngex = X_CON(nge);
@@ -5844,7 +5855,6 @@ fconcisecontour(
 	GEX_CON *gex, *pgex, *ngex, *nngex;
 	GENTRY tpge, tnge;
 	int quad, qq, i, j, ndots, maxdots;
-	int found[2];
 	int joinmask, pflag, nflag;
 	struct dot_dist *dots;
 	double avsd2, maxd2, eps2;
@@ -5940,7 +5950,7 @@ fconcisecontour(
 		nngex = X_CON(nge->frwd); 
 
 		if(ISDBG(FCONCISE))
-			fprintf(stderr, ": 0x%x\nnext -> 0x%p ", pge, nge);
+			fprintf(stderr, ": 0x%p\nnext -> 0x%p ", pge, nge);
 
 		while(ngex->flags & GEXF_JCVMASK) {
 			if( !(ngex->flags & ((GEXF_JCVMASK^GEXF_JID)|GEXF_JID1)) )
@@ -5974,7 +5984,7 @@ fconcisecontour(
 		}
 
 		if(ISDBG(FCONCISE))
-			fprintf(stderr, ": 0x%x\n", nge);
+			fprintf(stderr, ": 0x%p\n", nge);
 
 		/* XXX add splitting of last entries if neccessary */
 
@@ -6137,7 +6147,7 @@ fconcisecontour(
 			 */
 
 			if(nge->bkwd == ge 
-			|| pge != ge && (pgex->flags & GEXF_JCVMASK) <= (ngex->flags & GEXF_JCVMASK) ) {
+			|| ( pge != ge && (pgex->flags & GEXF_JCVMASK) <= (ngex->flags & GEXF_JCVMASK) ) ) {
 				pge = pge->frwd;
 			} else {
 				nge = nge->bkwd;
@@ -6177,7 +6187,7 @@ next:
 			pgex = X_CON(pge);
 			ngex = X_CON(nge); 
 			if(ISDBG(FCONCISE))
-				fprintf(stderr, "(p=%p/%x n=0x%x/%x) ", pge, pgex->flags & GEXF_JLINE, 
+				fprintf(stderr, "(p=%p/%x n=0x%p/%x) ", pge, pgex->flags & GEXF_JLINE, 
 					nge, ngex->flags & GEXF_JLINE);
 			if( !((pgex->flags | ngex->flags) & GEXF_JLINE) ) {
 				if(ISDBG(FCONCISE))
@@ -6295,7 +6305,7 @@ fforceconcise(
 )
 {
 
-	GENTRY         *ge, *nge, *endge, *xge;
+	GENTRY         *ge;
 
 	assertisfloat(g, "enforcing conciseness");
 
@@ -6676,7 +6686,7 @@ bestblue(
 			break;
 
 		if (physt[first] < physt[last]
-		    || physt[first] == physt[last] && j) {
+		    || (physt[first] == physt[last] && j)) {
 			if (physt[first] * 20 > w)	/* if weight is >5%,
 							 * stop */
 				break;
@@ -7063,10 +7073,13 @@ reversepathsfromto(
 	int i, n, ilast[2];
 	double flast[2], f;
 
+	ilast[0] = ilast[1] = 0;
+	flast[0] = flast[1] = 0;
+
 	for (ge = from; ge != 0 && ge != to; ge = ge->next) {
 		if(ge->type == GE_LINE || ge->type == GE_CURVE) {
 			if (ISDBG(REVERSAL))
-				fprintf(stderr, "reverse path 0x%x <- 0x%x, 0x%x\n", ge, ge->prev, ge->bkwd);
+				fprintf(stderr, "reverse path 0x%p <- 0x%p, 0x%p\n", ge, ge->prev, ge->bkwd);
 
 			/* cut out the path itself */
 			pge = ge->prev; /* GE_MOVE */
@@ -7207,7 +7220,7 @@ print_kerning(
 	FILE *afm_file
 )
 {
-	int	i, j, n;
+	int	i, j;
 	GLYPH *g;
 	struct kern *p;
 
