@@ -127,6 +127,7 @@ BINDIR = $(INSTDIR)/bin
 LIBXDIR = $(INSTDIR)/libexec/ttf2pt1
 # for scripts, maps/encodings etc.
 SHAREDIR = $(INSTDIR)/share/ttf2pt1
+DOCDIR=$(INSTDIR)/share/doc/ttf2pt1-$(VERSION)
 MANDIR = $(INSTDIR)/man
 
 # owner and group of installed files
@@ -254,6 +255,7 @@ install: all
 	for i in $(MANS1); do { \
 		sed -e 's|TTF2PT1_BINDIR|$(BINDIR)|' \
 		    -e 's|TTF2PT1_LIBXDIR|$(LIBXDIR)|' \
+		    -e 's|TTF2PT1_DOCDIR|$(DOCDIR)|' \
 		    -e 's|TTF2PT1_SHAREDIR|$(SHAREDIR)|' <$$i >$(DESTDIR)$(MANDIR)/man1/$$i \
 		&& chown $(OWNER) $(DESTDIR)$(MANDIR)/man1/$$i \
 		&& chgrp $(GROUP) $(DESTDIR)$(MANDIR)/man1/$$i \

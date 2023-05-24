@@ -26,7 +26,7 @@ of the window can be obtained by running "<tt>stty -a</tt>". For everything else
 just "Use the source, Luke!"
 <p>
 
-<h4><tt>cmpf</tt></h4>
+<h4><tt>ttf2pt1_cmpf</tt></h4>
 <!
 ----
 >
@@ -40,7 +40,7 @@ another with another set of options, then use this program
 to compare them.
 <p>
 
-<h4><tt>dmpf</tt></h4>
+<h4><tt>ttf2pt1_dmpf</tt></h4>
 <!
 ----
 >
@@ -52,7 +52,7 @@ effect of changes in the T1LIB rasterizer and just for visual
 search for rendering anomalies.
 <p>
 
-<h4><tt>lst.pl</tt></h4>
+<h4><tt>ttf2pt1_lst</tt></h4>
 <!
 ------
 >
@@ -64,7 +64,7 @@ fonts. This file is quite convenient to look
 at the converted fonts in Netscape (or other
 graphical browser).
 
-<h4><tt>cntstems.pl</tt></h4>
+<h4><tt>ttf2pt1_cntstems</tt></h4>
 <!
 ------
 >
@@ -74,7 +74,7 @@ interpreter to rasterize the glyphs of the font. May be quite
 useful in search for missing glyphs which may be aborted due to
 insufficient stack depth.
 
-<h4><tt>showg</tt></h4>
+<h4><tt>ttf2pt1_showg</tt></h4>
 <!
 -----
 >
@@ -85,7 +85,7 @@ in PostScript. It works only with un-encoded font files generated
 by <tt>ttf2pt1</tt>. The intended use is like:
 <p>
 
-&nbsp;&nbsp;<tt>showg [-c <i>&lt;fontfile.t1a&gt;</i>]...  <i>&lt;fontfile.t1a&gt; &lt;glyph-to-draw&gt;</i>... &gt;file.ps</tt><br>
+&nbsp;&nbsp;<tt>ttf2pt1_showg [-c <i>&lt;fontfile.t1a&gt;</i>]...  <i>&lt;fontfile.t1a&gt; &lt;glyph-to-draw&gt;</i>... &gt;file.ps</tt><br>
 &nbsp;&nbsp;<tt>gv file.ps # start the Ghostscript viewer</tt>
 <p>
 
@@ -103,7 +103,7 @@ So for example the following command would draw the same glyph "left
 parenthesis" three times:
 <p>
 
-&nbsp;&nbsp;<tt>showg file.t1a 40 /parenleft .\( >/file.ps</tt>
+&nbsp;&nbsp;<tt>ttf2pt1_showg file.t1a 40 /parenleft .\( >/file.ps</tt>
 <p>
 
 Don't forget that some characters have to be protected from the shell
@@ -126,7 +126,7 @@ So for example the following command would draw the same glyph "left
 parenthesis" from three files on the same page:
 <p>
 
-&nbsp;&nbsp;<tt>showg -c fileA.t1a -c fileB.t1a file.t1a .\( >/file.ps</tt>
+&nbsp;&nbsp;<tt>ttf2pt1_showg -c fileA.t1a -c fileB.t1a file.t1a .\( >/file.ps</tt>
 <p>
 
 This program is quite valuable it you want to take a close-up view at 
@@ -142,7 +142,7 @@ The stems and the values of coordinates are for convenience
 marked twice, on each size of the picture.
 <p>
 
-<h4><tt>showdf</tt></h4>
+<h4><tt>ttf2pt1_showdf</tt></h4>
 <!
 ------
 >
@@ -153,15 +153,14 @@ with different options given to ttf2pt1) and feed this list into the <tt>showg</
 program for display.  The intended use is like:
 <p>
 
-&nbsp;&nbsp;<tt>showdf <i>&lt;showg-location&gt;</i> <i>&lt;fontfile1.t1a&gt;</i> <i>&lt;fontfile2.t1a&gt;</i> &gt;file.ps</tt><br>
+&nbsp;&nbsp;<tt>ttf2pt1_showdf <i>&lt;showg-location&gt;</i> <i>&lt;fontfile1.t1a&gt;</i> <i>&lt;fontfile2.t1a&gt;</i> &gt;file.ps</tt><br>
 &nbsp;&nbsp;<tt>gv file.ps # start the Ghostscript viewer</tt>
 <p>
 
-If both <tt>showdf</tt> and <tt>showg</tt> scripts are located in the
-same directory, the command would look like:
+The command would look like:
 <p>
 
-&nbsp;&nbsp;<tt>./showdf ./showg font1.t1a font2.t1a &gt;file.ps</tt><br>
+&nbsp;&nbsp;<tt>ttf2pt1_showdf ttf2pt1_showg font1.t1a font2.t1a &gt;file.ps</tt><br>
 <p>
 
 For decent results both font files should be converted from the same original
