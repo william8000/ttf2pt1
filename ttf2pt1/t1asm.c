@@ -59,6 +59,8 @@ static char portnotice[] =
 #		define WINDOWS_FUNCTIONS
 #		include "windows.h"
 #	endif
+#else
+#  include <unistd.h>
 #endif
 
 /* int32 must be at least 32-bit and uint16 must be at least 16-bit */

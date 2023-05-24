@@ -2,7 +2,9 @@
  * see COPYRIGHT
  */
 
+#include <stdlib.h>
 
+void
 fchkneg(file, line, rc, cmd)
 	char *file;
 	int line;
@@ -17,6 +19,7 @@ fchkneg(file, line, rc, cmd)
 	}
 }
 
+void
 fchknull(file, line, rc, cmd)
 	char *file;
 	int line;

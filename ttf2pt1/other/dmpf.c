@@ -14,7 +14,7 @@
 
 #include "bmpfont.h"
 
-
+int
 main(ac, av)
 	int ac;
 	char **av;
