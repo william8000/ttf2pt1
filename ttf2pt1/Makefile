@@ -157,7 +157,7 @@ all:	t1asm ttf2pt1 docs mans rpm
 docs: $(DOCS)
 
 ../README.md: README.html
-	pandoc -f html -t gfm -o ../README.md README.html
+	[ ! -x /usr/bin/pandoc ] || pandoc -f html -t gfm -o ../README.md README.html
 
 mans: $(MANS) 
 
