@@ -1488,10 +1488,12 @@ handle_gnames(void)
 		    glyph_list[1].name != NULL &&
 		    glyph_list[2].name != NULL &&
 		    strlen(glyph_list[1].name) == 1 &&
-		    strlen(glyph_list[2].name) == 1 &&
-		    glyph_list[2].name[0] == (char) (glyph_list[1].name[0] + 1)) {
+		    ( ( strlen(glyph_list[2].name) == 1 &&
+		        glyph_list[2].name[0] == (char) (glyph_list[1].name[0] + 1) ) ||
+		      ( strlen(glyph_list[2].name) > 0 &&
+		        glyph_list[2].name[0] == glyph_list[1].name[0] ) ) ) {
 			/* avoid breaking non-ttf fonts */
-			/* otf fonts can have 1 A, 2 B, etc. */
+			/* otf fonts can have 1 A and 2 Aacute or B, etc. */
 		} else {
 			/* fprintf(stderr, "Removing glyph 1 for ttf, num glyphs %d, glyph[1] '%s' [2] '%s'\n", numglyphs, glyph_list[1].name, glyph_list[2].name); */
 			glyph_list[1].name = ".null";
