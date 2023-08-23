@@ -3,6 +3,7 @@
 *.a
 *.o
 *.err
+*.log
 junk*
 ttf2pt1/CHANGES
 ttf2pt1/FONTS
