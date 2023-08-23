@@ -221,7 +221,7 @@ handle_name(void)
 				k = ntohs(name_record->nameID);
 				if (k < 8) {
 					p = string_area + ntohs(name_record->stringOffset);
-					name_fields[k] = dupcnstring(p, len);
+					name_fields[k] = dupcnstring( (unsigned char *) p, len);
 				}
 			}
 		}
@@ -245,7 +245,7 @@ handle_name(void)
 					k = ntohs(name_record->nameID);
 					if (k < 8) {
 						p = string_area + ntohs(name_record->stringOffset);
-						name_fields[k] = dupcnstring(p, len);
+						name_fields[k] = dupcnstring( (unsigned char *) p, len);
 					}
 				}
 			}

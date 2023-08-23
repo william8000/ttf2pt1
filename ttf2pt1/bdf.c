@@ -220,7 +220,7 @@ handle_header(
 			}
 			*s = 0; /* end of line */
 
-			*((char **)(cl->vp[0])) = dupcnstring(bf, s-bf);
+			*((char **)(cl->vp[0])) = dupcnstring( (unsigned char *) bf, s-bf);
 		} else {
 			c = sscanf(str+cl->namelen, cl->fmt, cl->vp[0], cl->vp[1], cl->vp[2], cl->vp[3]);
 			if(c != cl->nvals) {

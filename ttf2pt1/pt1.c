@@ -1622,8 +1622,8 @@ smoothjoints(
 			else if (abs(dy1) <= 4 && abs(dy2) <= 4
 				 && dx1 != 0 && 5 * abs(dy1) / abs(dx1) == 0
 				 && dx2 != 0 && 5 * abs(dy2) / abs(dx2) == 0
-				 && (ge->ix3 < ge->prev->ix3 && ne->ix3 < ge->ix3
-				|| ge->ix3 > ge->prev->ix3 && ne->ix3 > ge->ix3)
+				 && ((ge->ix3 < ge->prev->ix3 && ne->ix3 < ge->ix3)
+				  || (ge->ix3 > ge->prev->ix3 && ne->ix3 > ge->ix3))
 				 && (ge->iy3 - ge->prev->iy3) * (ne->iy3 - ge->iy3) < 0
 				) {
 				dir = igetcvdir(ge);
@@ -1811,16 +1811,16 @@ sortstems(
 				if( (s[i].flags & ST_UP) == (s[j].flags & ST_UP) ) {
 					if( s[i].flags & ST_UP ) {
 						if(
-						(s[i].flags & (ST_ZONE|ST_FLAT|ST_END) ^ ST_FLAT)
+						((s[i].flags & (ST_ZONE|ST_FLAT|ST_END)) ^ ST_FLAT)
 							>
-						(s[j].flags & (ST_ZONE|ST_FLAT|ST_END) ^ ST_FLAT)
+						((s[j].flags & (ST_ZONE|ST_FLAT|ST_END)) ^ ST_FLAT)
 						)
 							continue;
 					} else {
 						if(
-						(s[i].flags & (ST_ZONE|ST_FLAT|ST_END) ^ ST_FLAT)
+						((s[i].flags & (ST_ZONE|ST_FLAT|ST_END)) ^ ST_FLAT)
 							<
-						(s[j].flags & (ST_ZONE|ST_FLAT|ST_END) ^ ST_FLAT)
+						((s[j].flags & (ST_ZONE|ST_FLAT|ST_END)) ^ ST_FLAT)
 						)
 							continue;
 					}
@@ -2937,7 +2937,7 @@ findstemat(
 			pri=0;
 		wd=abs(sp[i].value-value);
 		if( prevbest == -1 || pri > prevpri
-		|| pri==prevpri && prevwd==0 || wd!=0 && wd<prevwd ) {
+		|| (pri==prevpri && prevwd==0) || (wd!=0 && wd<prevwd) ) {
 			prevbest=si;
 			prevpri=pri;
 			prevwd=wd;

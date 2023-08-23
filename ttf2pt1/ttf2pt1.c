@@ -1395,7 +1395,7 @@ handle_gnames(void)
 				unicode_map[n] = -1;
 			uni_lang_selected->init[i](uni_lang_arg);
 			unicode_prepare_buckets();
-			type = cursw->glenc(glyph_list, encoding, unicode_map);
+			type = cursw->glenc(glyph_list, encoding, (int *) unicode_map);
 			if( type == 0 )
 				/* if we have an 8-bit encoding we don't need more tries */
 				break;
@@ -1409,7 +1409,7 @@ handle_gnames(void)
 				unicode_map[n] = -1;
 			uni_lang[i].init[0](uni_lang_arg);
 			unicode_prepare_buckets();
-			type = cursw->glenc(glyph_list, encoding, unicode_map);
+			type = cursw->glenc(glyph_list, encoding, (int *) unicode_map);
 			if( type == 0 )
 				/* if we have an 8-bit encoding we don't need more tries */
 				break;
@@ -1493,6 +1493,7 @@ handle_gnames(void)
 			/* avoid breaking non-ttf fonts */
 			/* otf fonts can have 1 A, 2 B, etc. */
 		} else {
+			/* fprintf(stderr, "Removing glyph 1 for ttf, num glyphs %d, glyph[1] '%s' [2] '%s'\n", numglyphs, glyph_list[1].name, glyph_list[2].name); */
 			glyph_list[1].name = ".null";
 		}
 	}

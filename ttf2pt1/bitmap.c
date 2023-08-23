@@ -450,7 +450,7 @@ dosubfrag(
 
 	/* check symmetry with the fragment before this */
 	symfront = (pf != 0 && (pf->flags & GEXFF_SYMNEXT) && (pf->flags & GEXFF_DONE)
-		&& ( outend && f->sublen <= pf->sublen
+		&& ( ( outend && f->sublen <= pf->sublen )
 			|| ( pf->sublen == f->sublen
 				&& (lf->sublen == 0
 					|| ( abs(limfront[0]-limend[0]) >= abs(pf->vect[0][0]-pf->vect[3][0])
@@ -460,7 +460,7 @@ dosubfrag(
 	);
 	/* check symmetry with the fragment after this */
 	symend = ( (f->flags & GEXFF_SYMNEXT) && (lf->flags & GEXFF_DONE)
-		&& ( outfront && f->sublen <= lf->sublen
+		&& ( ( outfront && f->sublen <= lf->sublen )
 			|| ( lf->sublen == f->sublen
 				&& (pf == 0
 					|| ( abs(limfront[0]-limend[0]) >= abs(lf->vect[0][0]-lf->vect[3][0])
@@ -887,8 +887,8 @@ fprintf(stderr, "fl=%c%c%c%c ", \
 	(k2 & GEXFF_LONG) ? 'L' : '-' \
 ); \
 } \
-if( (k1 & GEXFF_EXTR) && (k2 & GEXFF_LONG) \
-|| (k2 & GEXFF_EXTR) && (k1 & GEXFF_LONG) ) { \
+if( ( (k1 & GEXFF_EXTR) && (k2 & GEXFF_LONG) ) \
+|| ( (k2 & GEXFF_EXTR) && (k1 & GEXFF_LONG) ) ) { \
 smooth = 0; \
 good = reversal = -1; /* for debugging */ \
 } else { \
@@ -1282,7 +1282,7 @@ fprintf(stderr, "k1=%d k2=%d pge=%p count=%d %s good=%d rev=%d\n", \
 			ge = ge->frwd;
 			if(ge == cge->next && !stepmore)
 				delaystop = 1; /* consider the first gentry again */
-		} while(stepmore || ge != cge->next ^ delaystop);
+		} while( stepmore || ( ( ge != cge->next ) ^ delaystop ) );
 		/* see if there is an unfinished line left */
 		if(count != 1) {
 #if 0
