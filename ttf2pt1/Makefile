@@ -26,6 +26,10 @@
 #
 CFLAGS_SYS= -O2 -Wall
 #
+# For GNU C testing for C99
+#
+#CFLAGS_SYS= -O2 -Wall -Werror=implicit-function-declaration -Werror=implicit-int -Werror=int-conversion -std=gnu2x -Werror=old-style-definition
+#
 # For GNU C with long options support library (Linux etc.)
 #
 #CFLAGS_SYS= -O2 -D_GNU_SOURCE
