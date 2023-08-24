@@ -67,6 +67,8 @@ static char portnotice[] =
 #  include <unistd.h>
 #endif
 
+#include "version.h"
+
 /* int32 must be at least 32-bit and uint16 must be at least 16-bit */
 #if INT_MAX >= 0x7FFFFFFFUL
 typedef int int32;
@@ -482,12 +484,15 @@ static void usage()
 
 static void print_banner()
 {
+#if 0
   static char rcs_revision[] = ""; /* removed RCS */
   static char revision[20];
 
   if (sscanf(rcs_revision, "$Revision: %19s", revision) != 1)
     revision[0] = '\0';
   fprintf(stderr, "This is t1asm %s.\n", revision);
+#endif
+  fprintf(stderr, "This is ttf2pt1 t1asm %s.\n", TTF2PT1_VERSION);
 }
 
 int main(int argc, char **argv)
@@ -504,7 +509,7 @@ int main(int argc, char **argv)
   print_banner();
 
   /* interpret command line arguments using getopt */
-  while ((c = getopt(argc, argv, "bl:")) != -1)
+  while ((c = getopt(argc, argv, "bl:hv")) != -1)
     switch (c) {
     case 'b':
       pfb = 1;
@@ -522,6 +527,13 @@ int main(int argc, char **argv)
                 "warning: using maximum block length of %d\n",
                 blocklen);
       }
+      break;
+    case 'h':
+      usage();
+      break;
+    case 'v':
+      /* version already printed in the banner */
+      exit(0);
       break;
     default:
       usage();
