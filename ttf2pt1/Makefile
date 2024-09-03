@@ -156,6 +156,8 @@ TXTFILES = README* FONTS* CHANGES* COPYRIGHT
 MANS1=ttf2pt1.1 ttf2pt1_convert.1 ttf2pt1_x2gs.1
 MANS=$(MANS1) $(MANS5)
 
+.PHONY: all docs mans rpm clean distclean veryclean
+
 all:	t1asm ttf2pt1 docs mans rpm
 
 docs: $(DOCS)
@@ -166,9 +168,11 @@ docs: $(DOCS)
 mans: $(MANS) 
 
 clean:
-	rm -f t1asm ttf2pt1 *.o app/RPM/Makefile app/RPM/*.spec *.core core.* core
+	rm -f t1asm ttf2pt1 *.o app/RPM/Makefile app/RPM/*.spec *.core core.* core *-stamp
 	( cd other && make clean; )
 	( cd app/netscape && make clean; )
+
+distclean: veryclean
 
 veryclean: clean
 	rm -f $(DOCS) $(MANS)
@@ -178,7 +182,13 @@ rpm: app/RPM/Makefile app/RPM/ttf2pt1.spec
 ttf2pt1.1: README.html
 	scripts/html2man . . <README.html
 
-ttf2pt1_convert.1 ttf2pt1_x2gs.1: FONTS.html
+# FONTS.html generates two files
+# html2man deletes the temporary pod files so it can not run in parallel
+# create a stamp file to avoid running twice
+
+ttf2pt1_convert.1 ttf2pt1_x2gs.1: ttf2pt1-fonts-man-stamp
+
+ttf2pt1-fonts-man-stamp: FONTS.html
 	scripts/html2man . . <FONTS.html
 
 app/RPM/Makefile: Makefile

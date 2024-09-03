@@ -4,6 +4,7 @@
 *.o
 *.err
 *.log
+*-stamp
 junk*
 ttf2pt1/CHANGES
 ttf2pt1/FONTS
