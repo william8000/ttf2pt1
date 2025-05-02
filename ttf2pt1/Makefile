@@ -4,7 +4,7 @@
 
 # The preferred C compiler (by default use the OS-specific default value).
 # For BSD/OS, FreeBSD, Linux (all flavors), NetBSD, OpenBSD the default
-# compiler is GNU C. 
+# compiler is GNU C.
 # (Note please the politically correct ordering by alphabet ! :-)
 #
 # Use GNU C even if it's not the default compiler
@@ -54,7 +54,7 @@ LIBS_SYS= -lm
 #LIBS_SYS= -lm -lsocket
 
 #
-# The flags for C compiler for the FreeType-2 library (disabled by default). 
+# The flags for C compiler for the FreeType-2 library (disabled by default).
 # This WON'T BUILD with FT2-beta8, use the FreeType release 2.0.4
 # http://download.sourceforge.net/freetype/freetype-2.0.4.tar.gz
 
@@ -67,7 +67,7 @@ LIBS_SYS= -lm
 #CFLAGS_FT = -DUSE_FREETYPE -I/usr/local/include/freetype2 -I/usr/local/include
 CFLAGS_FT = -DUSE_FREETYPE -I/usr/include/freetype2
 
-# 
+#
 # The FreeType-2 library flags (disabled by default)
 
 #LIBS_FT=
@@ -79,7 +79,7 @@ CFLAGS_FT = -DUSE_FREETYPE -I/usr/include/freetype2
 LIBS_FT= -L/usr/local/lib -lfreetype
 
 #
-# The flags for C compiler for the Autotrace library (disabled by default). 
+# The flags for C compiler for the Autotrace library (disabled by default).
 # USE OF THIS FEATURE IS STRONGLY DISCOURAGED, THE BUILT-IN TRACING
 # (AKA VECTORIZATION) PROVIDES MUCH BETTER RESULTS.
 # The tested version is 0.29a (and the fonts produced with it are
@@ -94,7 +94,7 @@ CFLAGS_AT=
 #
 #CFLAGS_AT = -DUSE_AUTOTRACE -I/usr/local/include
 
-# 
+#
 # The Autotrace library flags (disabled by default)
 
 LIBS_AT=
@@ -123,7 +123,7 @@ CFLAGS= $(CFLAGS_SYS) $(CFLAGS_FT) $(CFLAGS_AT) $(CFLAGS_PREF)
 LIBS= $(LIBS_SYS) $(LIBS_FT) $(LIBS_AT)
 
 # Installation-related stuff
-# 
+#
 # The base dir for installation and subdirs in it
 INSTDIR = /usr/local
 # for binaries
@@ -156,7 +156,7 @@ TXTFILES = README* FONTS* CHANGES* COPYRIGHT
 MANS1=ttf2pt1.1 ttf2pt1_convert.1 ttf2pt1_x2gs.1
 MANS=$(MANS1) $(MANS5)
 
-.PHONY: all docs mans rpm clean distclean veryclean
+.PHONY: all docs mans rpm clean distclean veryclean test check
 
 all:	t1asm ttf2pt1 docs mans rpm
 
@@ -165,12 +165,13 @@ docs: $(DOCS)
 ../README.md: README.html
 	[ ! -x /usr/bin/pandoc ] || pandoc -f html -t gfm -o ../README.md README.html
 
-mans: $(MANS) 
+mans: $(MANS)
 
 clean:
 	rm -f t1asm ttf2pt1 *.o app/RPM/Makefile app/RPM/*.spec *.core core.* core *-stamp
 	( cd other && make clean; )
 	( cd app/netscape && make clean; )
+	( cd test && make clean; )
 
 distclean: veryclean
 
@@ -251,6 +252,9 @@ FONTS: FONTS.html
 FONTS.hpux: FONTS.hpux.html
 	scripts/unhtml <FONTS.hpux.html >FONTS.hpux
 
+installttf2pt1:
+	scripts/inst_file ttf2pt1 $(DESTDIR)$(BINDIR)/ttf2pt1 $(OWNER) $(GROUP) 0755
+
 install: all
 	scripts/inst_dir $(DESTDIR)$(BINDIR) $(OWNER) $(GROUP) 0755
 	scripts/inst_dir $(DESTDIR)$(LIBXDIR) $(OWNER) $(GROUP) 0755
@@ -288,7 +292,13 @@ uninstall:
 	for i in $(MANS1); do { \
 		rm -f $(MANDIR)/man1/$$i $(MANDIR)/man1/$$i.gz; \
 	} done
-	
+
+# targets for testing
+
+check: test
+
+test: ttf2pt1
+	(cd test && make)
 
 # targets for automatic generation of releases and snapshots
 

@@ -3806,6 +3806,7 @@ buildstems(
 		WARNING_2 {
 			fprintf(stderr, "Warning: glyph %s needs hint stack depth %d\n", g->name, totals);
 			fprintf(stderr, "  (limit %d): removed the substituted hints from it\n", max_stemdepth);
+			fprintf(stderr, "  -mh=# increases the limit, but the font might not work with X11.\n");
 		}
 		if(g->nsg > 0) {
 			for (ge = g->entries; ge != 0; ge = ge->next)
@@ -3823,6 +3824,7 @@ buildstems(
 		WARNING_2 {
 			fprintf(stderr, "Warning: glyph %s has %d main hints\n", g->name, totals);
 			fprintf(stderr, "  (limit %d): removed the hints from it\n", max_stemdepth);
+			fprintf(stderr, "  -mh=# increases the limit, but the font might not work with X11.\n");
 		}
 		if(g->vstems) {
 			free(g->vstems); g->vstems = 0; g->nvs = 0;
@@ -6968,21 +6970,21 @@ stemstatistics(void)
 	int             hyst[MAXHYST+MINDIST*2];
 	int             best[12];
 	int             i, j, k, w;
-	int             nchars;
+	/* int          nchars; */
 	int             ns;
 	STEM           *s;
 	GLYPH          *g;
 
 	/* start with typical stem width */
 
-	nchars=0;
+	/* nchars=0; */
 
 	/* build the hystogram of horizontal stem widths */
 	memset(hyst, 0, sizeof hyst);
 
 	for (i = 0, g = glyph_list; i < numglyphs; i++, g++) {
 		if (g->flags & GF_USED) {
-			nchars++;
+			/* nchars++; */
 			s = g->hstems;
 			for (j = 0; j < g->nhs; j += 2) {
 				if ((s[j].flags | s[j + 1].flags) & ST_END)

@@ -1305,8 +1305,8 @@ convert_glyf(
 		}
 		if (ncurves > 200) {
 			WARNING_3 fprintf(stderr,
-			"** Glyph %s is too long, may display incorrectly\n",
-				g->name);
+			"** Glyph %s with %d curves is too long, may display incorrectly\n",
+				g->name, ncurves);
 		}
 	} else {
 		/* for buildstems */
@@ -1964,7 +1964,7 @@ main(
 			break;
 		case 'v':
 			correctvsize = atoi(optarg);
-			if(correctvsize <= 0 && correctvsize > 1000) {
+			if(correctvsize <= 0 || correctvsize > 1000) {
 				fprintf(stderr, "**** wrong vsize '%d', ignored ****\n", correctvsize);
 				correctvsize=0;
 			}
