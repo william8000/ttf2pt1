@@ -958,7 +958,8 @@ fixcvdir(
 				if (c * (ge->ix1 - ge->prev->ix3) > 0) {
 					ge->ix1 -= c;
 					changed = 1;
-				} if (d * (ge->iy2 - ge->iy1) > 0) {
+				}
+				if (d * (ge->iy2 - ge->iy1) > 0) {
 					ge->iy1 += d;
 					changed = 1;
 				}
@@ -975,7 +976,8 @@ fixcvdir(
 				if (c * (ge->ix2 - ge->ix1) > 0) {
 					ge->ix1 += c;
 					changed = 1;
-				} if (d * (ge->iy1 - ge->prev->iy3) > 0) {
+				}
+				if (d * (ge->iy1 - ge->prev->iy3) > 0) {
 					ge->iy1 -= d;
 					changed = 1;
 				}
@@ -993,7 +995,8 @@ fixcvdir(
 				if (c * (ge->ix2 - ge->ix1) > 0) {
 					ge->ix2 -= c;
 					changed = 1;
-				} if (d * (ge->iy3 - ge->iy2) > 0) {
+				}
+				if (d * (ge->iy3 - ge->iy2) > 0) {
 					ge->iy2 += d;
 					changed = 1;
 				}
@@ -1010,7 +1013,8 @@ fixcvdir(
 				if (c * (ge->ix3 - ge->ix2) > 0) {
 					ge->ix2 += c;
 					changed = 1;
-				} if (d * (ge->iy2 - ge->iy1) > 0) {
+				}
+				if (d * (ge->iy2 - ge->iy1) > 0) {
 					ge->iy2 -= d;
 					changed = 1;
 				}
@@ -1452,11 +1456,13 @@ smoothjoints(
 	     GLYPH * g
 )
 {
+#if 1
+	(void) g;
+	return; /* this stuff seems to create problems */
+#else
 	GENTRY         *ge, *ne;
 	int             dx1, dy1, dx2, dy2, k;
 	int             dir;
-
-	return; /* this stuff seems to create problems */
 
 	assertisint(g, "smoothjoints int");
 
@@ -1700,6 +1706,7 @@ smoothjoints(
 			}
 		}
 	}
+#endif
 }
 
 /* debugging: print out stems of a glyph */

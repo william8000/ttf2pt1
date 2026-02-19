@@ -1474,11 +1474,11 @@ kerning(
 	char           *ptr;
 
 	if(kern_table == NULL) {
-        WARNING_1 fputs("No Kerning data\n", stderr);
+		WARNING_1 fputs("No Kerning data\n", stderr);
 		return;
 	}
 	if(badpointer(kern_table)) {
-        fputs("**** Defective Kerning table, ignored\n", stderr);
+		fputs("**** Defective Kerning table, ignored\n", stderr);
 		return;
 	}
 

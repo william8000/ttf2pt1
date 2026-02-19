@@ -71,8 +71,10 @@ main(argc,argv)
 	printscreen(stdout);
 }
 
+#if 0
 sumcurves(dx11, dy11, dx12, dy12, dx13, dy13,
 	dx21, dy21, dx22, dy22, dx23, dy23)
 {
 }
+#endif
 

@@ -252,7 +252,7 @@ limcurve(
 {
 	int other = 3-where; /* the other end */
 	int sgn[2 /*X,Y*/]; /* sign for comparison */
-	double t, from, to, nt, t2, nt2, tt[4];
+	double t = 0, from, to, nt, t2, nt2, tt[4];
 	double val[2 /*X,Y*/];
 	int i;
 
@@ -2611,7 +2611,8 @@ bmp_outline(
 		try2:
 			/* try to change the axis anyway */
 
-			newx = x; newy = y;
+			newx = x;
+			newy = y;
 			if(!hor && (outer ^ dir))
 				newx--;
 			if(hor && (outer ^ dir))

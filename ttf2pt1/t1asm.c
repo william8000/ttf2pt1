@@ -602,9 +602,9 @@ int runt1asm(int pfbflag)
     }
     /* output line data */
     eexec_string(line);
-	if ((p = strstr(line, "currentfile closefile"))) {
-		eexec_end();
-	}
+    if ((p = strstr(line, "currentfile closefile"))) {
+      eexec_end();
+    }
     if (start_charstring) {
       if (!cs_start[0]) {
         fprintf(stderr, "error: couldn't find charstring start command\n");
