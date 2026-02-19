@@ -2408,19 +2408,19 @@ main(
 		}
 	}
 
-    fprintf(afm_file, "StartFontMetrics 4.1\n");
-    fprintf(afm_file, "FontName %s%s\n", fontm.name_ps, uni_font_name_suffix);
-    fprintf(afm_file, "FullName %s\n", fontm.name_full);
-    fprintf(afm_file, "Notice %s\n", fontm.name_copyright);
-    fprintf(afm_file, "EncodingScheme FontSpecific\n");
-    fprintf(afm_file, "FamilyName %s\n", fontm.name_family);
-    fprintf(afm_file, "Weight %s\n", fontm.name_style);
-    fprintf(afm_file, "Version %s\n", fontm.name_version);
-    fprintf(afm_file, "Characters %d\n", nchars);
-    fprintf(afm_file, "ItalicAngle %.1f\n", italic_angle);
+	fprintf(afm_file, "StartFontMetrics 4.1\n");
+	fprintf(afm_file, "FontName %s%s\n", fontm.name_ps, uni_font_name_suffix);
+	fprintf(afm_file, "FullName %s\n", fontm.name_full);
+	fprintf(afm_file, "Notice %s\n", fontm.name_copyright);
+	fprintf(afm_file, "EncodingScheme FontSpecific\n");
+	fprintf(afm_file, "FamilyName %s\n", fontm.name_family);
+	fprintf(afm_file, "Weight %s\n", fontm.name_style);
+	fprintf(afm_file, "Version %s\n", fontm.name_version);
+	fprintf(afm_file, "Characters %d\n", nchars);
+	fprintf(afm_file, "ItalicAngle %.1f\n", italic_angle);
 
-    fprintf(afm_file, "Ascender %d\n", iscale(fontm.ascender));
-    fprintf(afm_file, "Descender %d\n", iscale(fontm.descender));
+	fprintf(afm_file, "Ascender %d\n", iscale(fontm.ascender));
+	fprintf(afm_file, "Descender %d\n", iscale(fontm.descender));
 
 	fprintf(pfa_file, "/UnderlinePosition %d def\n",
 		iscale(fontm.underline_position));
@@ -2434,9 +2434,9 @@ main(
 	fprintf(afm_file, "UnderlinePosition %d\n",
 		iscale(fontm.underline_position));
 
-    fprintf(afm_file, "IsFixedPitch %s\n",
+	fprintf(afm_file, "IsFixedPitch %s\n",
 		fontm.is_fixed_pitch ? "true" : "false");
-    fprintf(afm_file, "FontBBox %d %d %d %d\n",
+	fprintf(afm_file, "FontBBox %d %d %d %d\n",
 		bbox[0], bbox[1], bbox[2], bbox[3]);
 
 	fprintf(pfa_file, "/FontName /%s%s def\n", fontm.name_ps, uni_font_name_suffix);
@@ -2583,7 +2583,7 @@ main(
 	if(pfa_file != null_file)
 		fclose(pfa_file);
 
-    fprintf(afm_file, "EndCharMetrics\n");
+	fprintf(afm_file, "EndCharMetrics\n");
 
 	if(afm_file != null_file) { /* save time if the output would be wasted */
 		/* print the kerning data if present */
@@ -2591,7 +2591,8 @@ main(
 		print_kerning(afm_file);
 	}
 
-    fprintf(afm_file, "EndFontMetrics\n");
+	fprintf(afm_file, "EndFontMetrics\n");
+
 	if(afm_file != null_file)
 		fclose(afm_file);
 

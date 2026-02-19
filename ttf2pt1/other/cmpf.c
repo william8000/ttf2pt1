@@ -15,9 +15,7 @@
 #include "bmpfont.h"
 
 int
-main(ac, av)
-	int ac;
-	char **av;
+main(int ac, char **av)
 {
 	int fontid1, fontid2;
 	GLYPH *g1, *g2;
@@ -64,4 +62,6 @@ main(ac, av)
 	}
 
 	printf("All done!\n");
+
+	return 0;
 }

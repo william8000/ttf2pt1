@@ -11,8 +11,7 @@
  */
 
 double
-fmin(a,b)
-	double a, b;
+fmin(double a, double b)
 {
 	if(a<b)
 		return a;
@@ -21,8 +20,7 @@ fmin(a,b)
 }
 
 int
-abs(x)
-	int x;
+abs(int x)
 {
 	if(x<0)
 		return -x;
@@ -31,8 +29,7 @@ abs(x)
 }
 
 void
-initscreen(physx, physy, cols, rows, xoff, yoff, minx, miny, maxx, maxy)
-	unsigned physx, physy, cols, rows, xoff, yoff, minx, miny, maxx, maxy;
+initscreen(unsigned physx, unsigned physy, unsigned cols, unsigned rows, unsigned xoff, unsigned yoff, unsigned minx, unsigned miny, unsigned maxx, unsigned maxy)
 {
 	int i,j;
 	double yxscale;
@@ -84,8 +81,7 @@ initscreen(physx, physy, cols, rows, xoff, yoff, minx, miny, maxx, maxy)
 }
 
 void
-drawcurve(mark, ax,ay, bx,by, cx,cy, dx,dy)
-	int mark, ax,ay, bx,by, cx,cy, dx,dy;
+drawcurve(int mark, int ax, int ay, int bx, int by, int cx,int cy, int dx, int dy)
 {
 	int i,j,n,c;
 	int maxn=(screen.physx + screen.physy)*2;
@@ -110,8 +106,7 @@ drawcurve(mark, ax,ay, bx,by, cx,cy, dx,dy)
 /* draw curve and mark direction at the ends */
 
 void
-drawcurvedir(mark, ax,ay, bx,by, cx,cy, dx,dy)
-	int mark, ax,ay, bx,by, cx,cy, dx,dy;
+drawcurvedir(int mark, int ax, int ay, int bx, int by, int cx, int cy, int dx, int dy)
 {
 	int i,j,n,c;
 	int maxn=(screen.physx + screen.physy)*2;
@@ -165,9 +160,7 @@ drawcurvedir(mark, ax,ay, bx,by, cx,cy, dx,dy)
 }
 
 void
-drawdot(mark, x, y)
-	int mark;
-	int x, y;
+drawdot(int mark, int x, int y)
 {
 	x=(int)((x-screen.minx)*screen.xscale+0.5);
 	y=(int)((y-screen.miny)*screen.yscale+0.5);
@@ -178,8 +171,7 @@ drawdot(mark, x, y)
 }
 
 void
-setabsdot(mark, x, y)
-	int x, y, mark;
+setabsdot(int mark, int x, int y)
 {
 	if(y<0 || y>=screen.rows || x<0 || x>=screen.cols-2)
 		return;
@@ -187,9 +179,7 @@ setabsdot(mark, x, y)
 }
 
 void
-setfdot(mark, fx, fy)
-	int mark;
-	double fx, fy;
+setfdot(int mark, double fx, double fy)
 {
 	int x, y;
 
@@ -203,8 +193,7 @@ setfdot(mark, fx, fy)
 
 /* destructive */
 void
-printscreen(f)
-	FILE *f;
+printscreen(FILE *f)
 {
 	int r;
 	char *pi, *pc;

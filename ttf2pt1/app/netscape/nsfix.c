@@ -88,9 +88,7 @@ void replacefonts( char *fn);
 
 /************************** main ****************************/
 
-main(ac, av)
-	int ac;
-	char **av;
+int main(int ac, char **av)
 {
 	setlocale(LC_ALL, "");
 
@@ -101,6 +99,7 @@ main(ac, av)
 	readconfig(av[2]);
 	readmetrics();
 	replacefonts( av[1]);
+	return 0;
 }
 
 /************************** usage ***************************/
@@ -116,8 +115,7 @@ usage(void)
 /************************** readconfig **********************/
 
 void
-readconfig(fn)
-	char *fn;
+readconfig(char *fn)
 {
 	char s[MAXLINE];
 	char afmsuffix[MAXLINE], pfasuffix[MAXLINE];
@@ -247,8 +245,7 @@ readmetrics(void)
 /************************** replacefonts ********************/
 
 void
-replacefonts(fn)
-	char *fn;
+replacefonts(char *fn)
 {
 	int f; /* don't use stdio */
 	char bf[FILEBF];

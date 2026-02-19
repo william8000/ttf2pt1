@@ -18,9 +18,7 @@
 #define MAXX 450
 #define MAXY 481
 
-main(argc,argv)
-	int argc;
-	char **argv;
+int main(int argc, char **argv)
 {
 	initscreen(PHYSX, PHYSY, PHYSX, PHYSY, 0, 0, BASEX, BASEY, MAXX, MAXY);
 
@@ -69,6 +67,8 @@ main(argc,argv)
 	*/
 
 	printscreen(stdout);
+
+	return 0;
 }
 
 #if 0

@@ -5,11 +5,7 @@
 #include <stdlib.h>
 
 void
-fchkneg(file, line, rc, cmd)
-	char *file;
-	int line;
-	int rc;
-	char *cmd;
+fchkneg(char *file, int line, int rc, char *cmd)
 {
 	if(rc<0) {
 		fprintf(stderr,"%s: fatal error on line %d of %s: %d\n", 
@@ -20,11 +16,7 @@ fchkneg(file, line, rc, cmd)
 }
 
 void
-fchknull(file, line, rc, cmd)
-	char *file;
-	int line;
-	void *rc;
-	char *cmd;
+fchknull(char *file, int line, void *rc, char *cmd)
 {
 	if(rc==NULL) {
 		fprintf(stderr,"%s: fatal error on line %d of %s: NULL\n", 
@@ -56,8 +48,7 @@ static char mbase, mx, mend;
 /* returns 0 if the same, -1 if different */
 
 int 
-cmpglyphs(g1, g2)
-	GLYPH *g1, *g2;
+cmpglyphs(GLYPH *g1, GLYPH *g2)
 {
 	int wd1, wd2;
 	int ht1, ht2;
@@ -93,7 +84,7 @@ cmpglyphs(g1, g2)
 }
 
 void
-resetmap()
+resetmap(void)
 {
 	int i, j;
 
@@ -104,8 +95,7 @@ resetmap()
 }
 
 void 
-drawdot(row, col, val)
-	unsigned row, col, val;
+drawdot(unsigned row, unsigned col, unsigned val)
 {
 	if(row < MAXLINES && col < LINEWIDTH-1) {
 		map[row][col]=val;
@@ -115,8 +105,7 @@ drawdot(row, col, val)
 }
 
 void 
-drawdotg1(row, col, val)
-	unsigned row, col, val;
+drawdotg1(unsigned row, unsigned col, unsigned val)
 {
 	if(row < MAXLINES && col < LINEWIDTH-1) {
 		if(val)
@@ -129,8 +118,7 @@ drawdotg1(row, col, val)
 }
 
 void 
-drawdotg2(row, col, val)
-	unsigned row, col, val;
+drawdotg2(unsigned row, unsigned col, unsigned val)
 {
 	if(row < MAXLINES && col < LINEWIDTH-1) {
 		if(val) 
@@ -146,9 +134,7 @@ drawdotg2(row, col, val)
 }
 
 void 
-drawglyf(size, g1)
-	int size;
-	GLYPH *g1;
+drawglyf(int size, GLYPH *g1)
 {
 	int wd1, wd2, wdm;
 	int ht1, ht2, ascm, desm;
@@ -190,9 +176,7 @@ drawglyf(size, g1)
 }
 
 void 
-drawdiff(size, g1, g2)
-	int size;
-	GLYPH *g1, *g2;
+drawdiff(int size, GLYPH *g1, GLYPH *g2)
 {
 	int wd1, wd2, wdm;
 	int ht1, ht2, ascm, desm;
@@ -325,8 +309,7 @@ drawdiff(size, g1, g2)
 }
 
 void
-printmap(f)
-	FILE *f;
+printmap(FILE *f)
 {
 	int i, j;
 
