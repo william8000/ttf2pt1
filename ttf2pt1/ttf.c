@@ -466,7 +466,7 @@ draw_simple_glyf(
 	short           ncontours, n_inst, last_point;
 	USHORT         *contour_end_pt;
 	BYTE           *ptr;
-#define GLYFSZ	2000
+#define GLYFSZ	30000
 	short           xabs[GLYFSZ], yabs[GLYFSZ], xrel[GLYFSZ], yrel[GLYFSZ];
 	double          xcoord[GLYFSZ], ycoord[GLYFSZ];
 	BYTE            flags[GLYFSZ];
@@ -497,6 +497,13 @@ draw_simple_glyf(
 	contour_end_pt = (USHORT *) ((char *) glyf_table + sizeof(TTF_GLYF));
 
 	last_point = ntohs(contour_end_pt[ncontours - 1]);
+	if (last_point >= GLYFSZ) {
+		WARNING_1 fprintf(stderr,
+			"**** Glyph %s has %d points and exceeds the current limit of %d, ignored\n",
+			g->name,
+			last_point, GLYFSZ-1);
+		return;
+	}
 	n_inst = ntohs(contour_end_pt[ncontours]);
 
 	ptr = ((BYTE *) contour_end_pt) + (ncontours << 1) + n_inst + 2;
@@ -548,7 +555,7 @@ draw_simple_glyf(
 		} else if (flags[k] & YSAME) {
 			yrel[k] = 0;
 		} else {
-			yrel[k] = ptr[j] * 256 + ptr[j + 1];
+			yrel[k] = (short) ( ptr[j] * 256 + ptr[j + 1] );
 			j += 2;
 		}
 		if (k == 0) {
@@ -925,6 +932,11 @@ glnames(
 	int             n_ps_names;
 	int             ps_fmt_3 = 0;
 
+	if (ps_name_ptr == NULL) {
+		fprintf(stderr, "**** Cannot malloc space for name list with %d glyphs ****\n", ttf_nglyphs);
+		exit(1);
+	}
+
 	format = ntohl(post_table->formatType);
 
 	if (format == 0x00010000) {
@@ -1023,6 +1035,8 @@ glnames(
 			format);
 		exit(1);
 	}
+
+	free(ps_name_ptr);
 
 	return ps_fmt_3;
 }

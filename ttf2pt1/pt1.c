@@ -821,10 +821,10 @@ fixcvends(
 			/* make sure that it's still on the same side */
 			if (abs(x3 - x0) * abs(y3 - y2) < abs(y3 - y0) * abs(x3 - x2)) {
 				if (abs(x3 - x0) * abs(y3 - ge->iy2) > abs(y3 - y0) * abs(x3 - ge->ix2))
-					ge->iy1 -= isign(y3 - y2);
+					ge->iy2 -= isign(y3 - y2);
 			} else {
 				if (abs(x3 - x0) * abs(y3 - ge->iy2) < abs(y3 - y0) * abs(x3 - ge->ix2))
-					ge->ix1 -= isign(x3 - x2);
+					ge->ix2 -= isign(x3 - x2);
 			}
 
 		}
